@@ -308,23 +308,27 @@ export function claramenteIgual(a: string, b: string): boolean {
 }
 
 // -----------------------------------------------------------------------------
-// Emparejar títulos de PlayStation con juegos de IGDB
+// Emparejar títulos de PlayStation con juegos de IGDB (algoritmo 3)
+//   0) lo que no es un juego (apps, demos, betas...) se marca y se oculta solo;
 //   1) con los juegos que ya están en la tabla juegos (sobre todo los que ese
-//      usuario ha valorado), comparando nombres limpios;
-//   2) con la acción "emparejar" de la función igdb (id de la tienda, nombre y
-//      nombres alternativos); en segundo plano y de 4 en 4;
-//   3) si sigue siendo dudoso, queda sin identificar (igdb_id null).
+//      usuario ha valorado), con nombres limpios iguales;
+//   2) con la acción "emparejar" de la función igdb (tienda, nombre, nombres
+//      alternativos y bundles), en segundo plano y de 4 en 4.
+// Cada emparejamiento lleva su confianza (0-100): con 75 o más se acepta; por
+// debajo queda "por revisar" con la mejor propuesta. Lo confirmado o corregido a
+// mano (confirmado = true) no se toca nunca.
 // -----------------------------------------------------------------------------
 const EMPAREJAR_A_LA_VEZ = 4;
 const EMPAREJAR_HASTA_MS = 120_000; // en segundo plano (Supabase corta a los 150 s)
-const ALGORITMO = 2;                // los intentados sin éxito con una versión anterior se reintentan una vez
+const ALGORITMO = 3;                // lo no confirmado con una versión anterior se recalcula
+const UMBRAL_ACEPTAR = 75;
 
-type Emparejamiento = { igdb_id: number | null; confirmado?: boolean; algoritmo?: number };
+type Emparejamiento = { igdb_id: number | null; confirmado?: boolean; algoritmo?: number; tipo?: string };
+type Resultado = { igdb_id: number | null; propuesta_id?: number | null; confianza: number; tipo: string; juegos?: number[] | null };
 type Fila = Record<string, unknown>;
 
-/** ¿Hay que (re)intentar emparejar este título? */
-const hayQueEmparejar = (e?: Emparejamiento) =>
-  !e || (e.igdb_id == null && !e.confirmado && Number(e.algoritmo ?? 1) < ALGORITMO);
+/** ¿Hay que (re)calcular el emparejamiento de este título? */
+const hayQueEmparejar = (e?: Emparejamiento) => !e || (!e.confirmado && Number(e.algoritmo ?? 1) < ALGORITMO);
 
 async function llamarIgdb(cuerpo: Record<string, unknown>) {
   const r = await fetch(`${SUPABASE_URL}/functions/v1/igdb`, {
@@ -336,42 +340,72 @@ async function llamarIgdb(cuerpo: Record<string, unknown>) {
   return await r.json();
 }
 
-/** Guarda un emparejamiento automático (sin pisar uno elegido a mano) y lo aplica a la biblioteca. */
-async function guardarEmparejamiento(titleId: string, igdbId: number | null, nombre: string) {
+/**
+ * Guarda un emparejamiento automático (sin pisar uno confirmado a mano) y lo
+ * aplica a la biblioteca de todos: juego_id, "por revisar" si no llega a la
+ * confianza y oculto si no es un juego (salvo que el usuario haya decidido otra cosa).
+ */
+async function guardarEmparejamiento(titleId: string, r: Resultado, nombre: string) {
   const { data: actual } = await sb.from("psn_igdb").select("confirmado").eq("psn_title_id", titleId).maybeSingle();
   if (actual?.confirmado) return;
-  const fila: Fila = { psn_title_id: titleId, igdb_id: igdbId, confirmado: false, nombre_psn: nombre, algoritmo: ALGORITMO, actualizado_en: new Date().toISOString() };
+  const fila: Fila = {
+    psn_title_id: titleId, igdb_id: r.igdb_id, confirmado: false, nombre_psn: nombre,
+    algoritmo: ALGORITMO, tipo: r.tipo, juegos: r.juegos ?? null, confianza: r.confianza,
+    propuesta_id: r.propuesta_id ?? null, actualizado_en: new Date().toISOString(),
+  };
   let { error } = await sb.from("psn_igdb").upsert(fila, { onConflict: "psn_title_id" });
-  if (error && /algoritmo/.test(error.message)) { // sin la migración 005
-    delete fila.algoritmo;
+  if (error && /tipo|juegos|confianza|propuesta_id/.test(error.message)) { // sin la migración 006
+    for (const k of ["tipo", "juegos", "confianza", "propuesta_id"]) delete fila[k];
+    if (r.tipo !== "juego" && r.tipo !== "coleccion") return;
     ({ error } = await sb.from("psn_igdb").upsert(fila, { onConflict: "psn_title_id" }));
   }
   if (error) { console.warn("psn_igdb:", error.message); return; }
-  if (igdbId) await sb.from("biblioteca").update({ juego_id: igdbId }).eq("psn_title_id", titleId);
+  await sb.from("biblioteca").update({ juego_id: r.tipo === "coleccion" ? null : r.igdb_id }).eq("psn_title_id", titleId);
+  if (r.tipo === "no_juego") {
+    await sb.from("biblioteca").update({ oculto: true, por_revisar: false }).eq("psn_title_id", titleId).is("oculto_usuario", null);
+  } else if (!r.igdb_id) {
+    // Dudoso: a "Revisa tu biblioteca" (salvo para quien ya lo ocultó a mano).
+    await sb.from("biblioteca").update({ por_revisar: true }).eq("psn_title_id", titleId).or("oculto_usuario.is.null,oculto_usuario.eq.false");
+  }
 }
 
 // <local> (sin dependencias: se prueba en local con node)
 const sinArticulo = (x: string) => x.replace(/^(the|el|la|los|las)\s+/, "");
 
 /**
- * Paso 1, puro: título de PSN → igdb_id usando los juegos que ya están en la tabla.
- * Si varios juegos se llaman igual (un remake...), gana el que ha valorado ese
- * usuario; si no, el único que ha valorado alguien del grupo; si no, ninguno.
+ * ¿No es un juego? Apps (Netflix, YouTube, Spotify, Disney+, Twitch, reproductores,
+ * PlayStation Plus...), demos, betas, pruebas y "showcases" de VR. Mira la categoría
+ * de PSN y el nombre.
+ */
+export function esNoJuego(nombre: string, categoria = ""): boolean {
+  if (/video_?service|web_?app|media_?app|web_based|media/i.test(categoria)) return true;
+  const n = String(nombre ?? "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+  if (/\bdisney\s*(\+|plus)/.test(n)) return true;
+  return /\b(netflix|youtube|spotify|twitch|prime video|amazon video|hbo max|crunchyroll|apple tv|plex|dazn|movistar|rakuten tv|pluto tv|media player|reproductor multimedia|reproductor de medios|playstation plus|ps plus|playstation store|playstation vr worlds|ps vr worlds|vr showcase|showcase|demo|demostracion|beta|open beta|closed beta|playtest|trial|version de prueba|prueba gratuita|free trial|benchmark|test server|tech test|prologue demo|teaser)\b/.test(n);
+}
+
+/**
+ * Paso 1, puro: título de PSN → { id, confianza } con los juegos que ya están en la
+ * tabla y nombre limpio igual. Si varios juegos se llaman igual (un remake...),
+ * gana el que ha valorado ese usuario; si no, el único que ha valorado alguien del
+ * grupo; si no, queda como propuesta por revisar.
  */
 export function elegirLocales(
   pendientes: { psn_title_id: unknown; nombre_psn: unknown }[],
-  juegos: { igdb_id: number | string; nombre: string }[],
+  juegos: { igdb_id: number | string; nombre: string; plataformas?: string[] | null }[],
   mios: Set<number>,
   delGrupo: Set<number>,
 ) {
   const porNombre = new Map<string, Set<number>>();
+  const enPs = new Set<number>();
   for (const j of juegos) {
+    if ((j.plataformas ?? []).some((x) => /PS4|PS5/.test(String(x)))) enPs.add(Number(j.igdb_id));
     for (const k of [limpiarNombrePsn(j.nombre), sinArticulo(limpiarNombrePsn(j.nombre))]) {
       if (!porNombre.has(k)) porNombre.set(k, new Set());
       porNombre.get(k)!.add(Number(j.igdb_id));
     }
   }
-  const encontrados = new Map<string, number>();
+  const encontrados = new Map<string, { id: number; confianza: number }>();
   for (const f of pendientes) {
     const nombre = String(f.nombre_psn);
     for (const v of [limpiarNombrePsn(nombre), sinArticulo(limpiarNombrePsn(nombre))]) {
@@ -379,19 +413,26 @@ export function elegirLocales(
       if (!ids.length) continue;
       const deMi = ids.filter((id) => mios.has(id));
       const deGrupo = ids.filter((id) => delGrupo.has(id));
-      const elegido = ids.length === 1 ? ids[0] : deMi.length === 1 ? deMi[0] : deGrupo.length === 1 ? deGrupo[0] : null;
-      if (elegido) { encontrados.set(String(f.psn_title_id), elegido); break; }
+      let r: { id: number; confianza: number };
+      if (ids.length === 1) {
+        const id = ids[0];
+        r = { id, confianza: mios.has(id) ? 95 : delGrupo.has(id) ? 85 : enPs.has(id) ? 75 : 60 };
+      } else if (deMi.length === 1) r = { id: deMi[0], confianza: 90 };
+      else if (deGrupo.length === 1) r = { id: deGrupo[0], confianza: 80 };
+      else r = { id: ids[0], confianza: 55 }; // varios con el mismo nombre: que lo revise
+      encontrados.set(String(f.psn_title_id), r);
+      break;
     }
   }
   return encontrados;
 }
 // </local>
 
-/** Paso 1: juegos que ya están en la tabla juegos. Devuelve título → igdb_id. */
+/** Paso 1: juegos que ya están en la tabla juegos. Devuelve título → { id, confianza }. */
 async function emparejarLocal(usuarioId: string, pendientes: Fila[]) {
-  if (!pendientes.length) return new Map<string, number>();
+  if (!pendientes.length) return new Map<string, { id: number; confianza: number }>();
   const [{ data: juegos }, { data: vals }] = await Promise.all([
-    sb.from("juegos").select("igdb_id, nombre"),
+    sb.from("juegos").select("igdb_id, nombre, plataformas"),
     sb.from("valoraciones").select("juego_id, usuario_id"),
   ]);
   const mios = new Set((vals ?? []).filter((v) => v.usuario_id === usuarioId).map((v) => Number(v.juego_id)));
@@ -400,20 +441,29 @@ async function emparejarLocal(usuarioId: string, pendientes: Fila[]) {
 }
 
 /** Paso 2 (en segundo plano): IGDB para todo lo que falte, de 4 en 4 y con tope de tiempo. */
-async function emparejarConIgdb(pendientes: Fila[]) {
+async function emparejarConIgdb(pendientes: Fila[], valorados: number[]) {
   const inicio = Date.now();
   let hechos = 0;
   for (let i = 0; i < pendientes.length; i += EMPAREJAR_A_LA_VEZ) {
     if (Date.now() - inicio > EMPAREJAR_HASTA_MS) break; // el resto, en la próxima sincronización
     await Promise.all(pendientes.slice(i, i + EMPAREJAR_A_LA_VEZ).map(async (f) => {
-      let r: { igdb_id?: number | null } | null = null;
+      let r: Resultado | null = null;
       try {
-        r = await llamarIgdb({ accion: "emparejar", nombre: f.nombre_psn, title_id: f.psn_title_id, plataforma: f.plataforma });
+        r = await llamarIgdb({
+          accion: "emparejar", nombre: f.nombre_psn, title_id: f.psn_title_id, plataforma: f.plataforma,
+          primera_vez: f.primera_vez ?? null, valorados,
+        });
       } catch (e) {
         console.warn("Emparejar", f.nombre_psn, (e as Error).message);
         return; // se reintentará en la próxima sincronización
       }
-      await guardarEmparejamiento(String(f.psn_title_id), r?.igdb_id ? Number(r.igdb_id) : null, String(f.nombre_psn));
+      await guardarEmparejamiento(String(f.psn_title_id), {
+        igdb_id: r?.igdb_id ? Number(r.igdb_id) : null,
+        propuesta_id: r?.propuesta_id ? Number(r.propuesta_id) : null,
+        confianza: Number(r?.confianza ?? 0),
+        tipo: r?.tipo === "coleccion" ? "coleccion" : "juego",
+        juegos: r?.juegos ?? null,
+      }, String(f.nombre_psn));
       hechos++;
     }));
   }
@@ -426,6 +476,50 @@ function enSegundoPlano(p: Promise<unknown>) {
   const segura = p.catch((e) => console.error("Segundo plano:", e));
   if (rt?.waitUntil) rt.waitUntil(segura);
   return segura;
+}
+
+/** Emparejamientos conocidos de una lista de títulos. */
+async function leerConocidos(ids: string[]) {
+  const conocidos = new Map<string, Emparejamiento>();
+  for (let i = 0; i < ids.length; i += 200) {
+    let r = await sb.from("psn_igdb").select("psn_title_id, igdb_id, confirmado, algoritmo, tipo").in("psn_title_id", ids.slice(i, i + 200));
+    if (r.error) r = await sb.from("psn_igdb").select("psn_title_id, igdb_id, confirmado").in("psn_title_id", ids.slice(i, i + 200));
+    for (const x of r.data ?? []) conocidos.set(x.psn_title_id, x);
+  }
+  return conocidos;
+}
+
+/**
+ * Recalcula los emparejamientos de unas filas de biblioteca (sincronizar y reprocesar):
+ * no-juegos y paso local al momento; IGDB en segundo plano. Devuelve cuántos quedan.
+ */
+async function emparejarFilas(usuarioId: string, filas: Fila[], conocidos: Map<string, Emparejamiento>) {
+  const pendientes = filas
+    .filter((f) => hayQueEmparejar(conocidos.get(String(f.psn_title_id))))
+    .sort((a, b) => Number(b.horas ?? 0) - Number(a.horas ?? 0));
+  // 0) Lo que no es un juego.
+  const noJuegos = pendientes.filter((f) => esNoJuego(String(f.nombre_psn), String(f.categoria ?? "")));
+  for (const f of noJuegos) {
+    await guardarEmparejamiento(String(f.psn_title_id), { igdb_id: null, confianza: 100, tipo: "no_juego" }, String(f.nombre_psn));
+    conocidos.set(String(f.psn_title_id), { igdb_id: null, algoritmo: ALGORITMO, tipo: "no_juego" });
+  }
+  const juegos = pendientes.filter((f) => !noJuegos.includes(f));
+  // 1) Con los juegos ya guardados.
+  const locales = await emparejarLocal(usuarioId, juegos);
+  for (const [titulo, r] of locales) {
+    const ok = r.confianza >= UMBRAL_ACEPTAR;
+    // Los locales dudosos aún pueden mejorar con IGDB: se quedan para el paso 2.
+    if (!ok) { locales.delete(titulo); continue; }
+    await guardarEmparejamiento(titulo, { igdb_id: r.id, confianza: r.confianza, tipo: "juego" }, String(filas.find((f) => f.psn_title_id === titulo)?.nombre_psn ?? titulo));
+    conocidos.set(titulo, { igdb_id: r.id, algoritmo: ALGORITMO, tipo: "juego" });
+  }
+  // 2) IGDB, en segundo plano.
+  const paraIgdb = juegos.filter((f) => !locales.has(String(f.psn_title_id)));
+  if (paraIgdb.length) {
+    const { data: vals } = await sb.from("valoraciones").select("juego_id").eq("usuario_id", usuarioId);
+    enSegundoPlano(emparejarConIgdb(paraIgdb, (vals ?? []).map((v) => Number(v.juego_id))));
+  }
+  return { locales: locales.size, noJuegos: noJuegos.length, pendientes: paraIgdb.length };
 }
 
 // -----------------------------------------------------------------------------
@@ -518,6 +612,21 @@ async function estado(usuarioId: string) {
   };
 }
 
+/**
+ * Recalcula con las reglas nuevas la biblioteca ya sincronizada de un usuario
+ * (sin llamar a Sony). Lo confirmado a mano no se toca. Lo pide la app una vez.
+ */
+async function reprocesar(usuarioId: string) {
+  await usuario(usuarioId);
+  let r = await sb.from("biblioteca").select("psn_title_id, nombre_psn, plataforma, horas, primera_vez").eq("usuario_id", usuarioId);
+  if (r.error) r = await sb.from("biblioteca").select("psn_title_id, nombre_psn, plataforma, horas").eq("usuario_id", usuarioId);
+  const filas = (r.data ?? []) as Fila[];
+  if (!filas.length) return { ok: true, pendientes: 0, locales: 0, noJuegos: 0 };
+  const conocidos = await leerConocidos(filas.map((f) => String(f.psn_title_id)));
+  const emp = await emparejarFilas(usuarioId, filas, conocidos);
+  return { ok: true, ...emp };
+}
+
 async function sincronizar(usuarioId: string) {
   await usuario(usuarioId);
   const c = await leerCuenta(usuarioId);
@@ -552,6 +661,8 @@ async function sincronizar(usuarioId: string) {
       imagen_psn: j.localizedImageUrl || j.imageUrl || null,
       horas: horasISO(j.playDuration),
       ultima_vez: j.lastPlayedDateTime ?? null,
+      primera_vez: j.firstPlayedDateTime ?? null,
+      categoria: String(j.category ?? ""),
       progreso_trofeos: t ? Number(t.progress ?? 0) : null,
       trofeos: t ? t.earnedTrophies ?? null : null,
       actualizado_en: ahora,
@@ -574,48 +685,49 @@ async function sincronizar(usuarioId: string) {
     });
   }
 
-  // Emparejamientos ya conocidos (compartidos entre usuarios).
+  // Emparejamientos ya conocidos (compartidos entre usuarios) y lo que ya tenía este usuario.
   const ids = [...filas.keys()];
-  const conocidos = new Map<string, Emparejamiento>();
-  for (let i = 0; i < ids.length; i += 200) {
-    let r = await sb.from("psn_igdb").select("psn_title_id, igdb_id, confirmado, algoritmo").in("psn_title_id", ids.slice(i, i + 200));
-    if (r.error) r = await sb.from("psn_igdb").select("psn_title_id, igdb_id, confirmado").in("psn_title_id", ids.slice(i, i + 200));
-    for (const x of r.data ?? []) conocidos.set(x.psn_title_id, x);
-  }
+  const conocidos = await leerConocidos(ids);
+  const { data: previas } = await sb.from("biblioteca").select("psn_title_id").eq("usuario_id", usuarioId);
+  const yaTenia = new Set((previas ?? []).map((x) => x.psn_title_id));
 
-  // Lo que falta por emparejar (nuevos y los intentados sin éxito con el algoritmo anterior),
-  // los más jugados primero.
-  const pendientes = [...filas.values()]
-    .filter((f) => hayQueEmparejar(conocidos.get(String(f.psn_title_id))))
-    .sort((a, b) => Number(b.horas ?? 0) - Number(a.horas ?? 0));
-
-  // 1) Con los juegos que ya están en la tabla (al momento).
-  const locales = await emparejarLocal(usuarioId, pendientes);
-  for (const [titulo, igdbId] of locales) {
-    await guardarEmparejamiento(titulo, igdbId, String(filas.get(titulo)?.nombre_psn ?? titulo));
-    conocidos.set(titulo, { igdb_id: igdbId, algoritmo: ALGORITMO });
-  }
-  const paraIgdb = pendientes.filter((f) => !locales.has(String(f.psn_title_id)));
-
-  for (const f of filas.values()) f.juego_id = conocidos.get(String(f.psn_title_id))?.igdb_id ?? null;
+  // Guardar la biblioteca: lo nuevo entra "por revisar" (y oculto si no es un juego);
+  // lo que ya estaba conserva su revisión y su "oculto".
+  const conJuego = (f: Fila) => {
+    const e = conocidos.get(String(f.psn_title_id));
+    return { ...f, juego_id: e?.tipo === "coleccion" ? null : e?.igdb_id ?? null };
+  };
+  const sinCategoria = ({ categoria: _, ...f }: Fila) => f;
   const lista = [...filas.values()];
-  for (let i = 0; i < lista.length; i += 200) {
-    const { error } = await sb.from("biblioteca").upsert(lista.slice(i, i + 200), { onConflict: "usuario_id,psn_title_id" });
-    if (error) throw new ErrorPsn("bd", "No se ha podido guardar la biblioteca: " + error.message, 500);
+  const nuevas = lista.filter((f) => !yaTenia.has(String(f.psn_title_id))).map((f) => {
+    const noJuego = esNoJuego(String(f.nombre_psn), String(f.categoria ?? ""));
+    return { ...sinCategoria(conJuego(f)), por_revisar: !noJuego, oculto: noJuego };
+  });
+  const viejas = lista.filter((f) => yaTenia.has(String(f.psn_title_id))).map((f) => sinCategoria(conJuego(f)));
+  for (const [grupo, extra] of [[nuevas, true], [viejas, false]] as const) {
+    for (let i = 0; i < grupo.length; i += 200) {
+      let { error } = await sb.from("biblioteca").upsert(grupo.slice(i, i + 200), { onConflict: "usuario_id,psn_title_id" });
+      if (error && /por_revisar|primera_vez/.test(error.message)) { // sin la migración 006
+        ({ error } = await sb.from("biblioteca").upsert(grupo.slice(i, i + 200).map(({ por_revisar: _a, primera_vez: _b, ...r }) => r), { onConflict: "usuario_id,psn_title_id" }));
+      }
+      if (error) throw new ErrorPsn("bd", "No se ha podido guardar la biblioteca: " + error.message, 500);
+    }
+    void extra;
   }
   await sb.from("usuarios").update({ psn_sincronizado_en: ahora, psn_reconectar: false }).eq("id", usuarioId);
 
-  // 2) IGDB para el resto, en segundo plano: la app recibe la respuesta ya y refresca después.
-  if (paraIgdb.length) enSegundoPlano(emparejarConIgdb(paraIgdb));
+  // Emparejar lo que falte (no-juegos y locales ahora; IGDB en segundo plano).
+  const emp = await emparejarFilas(usuarioId, lista, conocidos);
 
   const horas = lista.reduce((t, f) => t + Number(f.horas ?? 0), 0);
   return {
     ok: true,
     juegos: lista.length,
     horas: Math.round(horas),
-    emparejados_ahora: locales.size,
-    pendientes: paraIgdb.length, // se están emparejando en segundo plano
-    sin_emparejar: lista.filter((f) => !f.juego_id).length - paraIgdb.length,
+    emparejados_ahora: emp.locales,
+    pendientes: emp.pendientes, // se están emparejando en segundo plano
+    nuevos: nuevas.filter((f) => f.por_revisar).length,
+    sin_emparejar: lista.filter((f) => !conocidos.get(String(f.psn_title_id))?.igdb_id).length - emp.pendientes,
     sincronizado_en: ahora,
   };
 }
@@ -639,6 +751,7 @@ Deno.serve(async (req) => {
       case "sincronizar": return json(await sincronizar(uid));
       case "desconectar": return json(await desconectar(uid));
       case "estado": return json(await estado(uid));
+      case "reprocesar": return json(await reprocesar(uid));
       default: throw new ErrorPsn("parametros", 'Acción desconocida (usa "conectar", "sincronizar", "desconectar" o "estado")', 400);
     }
   } catch (e) {

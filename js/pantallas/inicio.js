@@ -3,6 +3,7 @@ import { icono } from '../icons.js';
 import * as datos from '../datos.js';
 import { tirarParaRefrescar } from '../refrescar.js';
 import * as psn from '../psn.js';
+import * as metricas from '../metricas.js';
 import { usuarioActual } from '../sesion.js';
 import { mediaGrupo, recomendacionGrupo, desviacionTipica } from '../notas.js';
 import {
@@ -65,7 +66,7 @@ export function render(el) {
 
 function html() {
   const yo = usuarioActual();
-  const hayAlgo = datos.estado.valoraciones.length > 0 || jugandoPsn(new Set()).length > 0;
+  const hayAlgo = datos.valoracionesEfectivas().length > 0 || jugandoPsn(new Set()).length > 0;
   if (!hayAlgo) {
     return `
       ${cabecera(yo)}
@@ -82,6 +83,7 @@ function html() {
     ${cabecera(yo)}
     ${elGrupo()}
     ${avisoPsn()}
+    ${avisoRevisar()}
     <div class="inicio">
       ${jugandoAhora()}
       <section class="inicio-seccion">
@@ -100,7 +102,7 @@ function html() {
 // ---------------------------------------------------------------------------
 function jugandoAhora() {
   const porUsuario = new Map();
-  for (const v of datos.estado.valoraciones) {
+  for (const v of datos.valoracionesEfectivas()) {
     // Los juegos online / sin final no salen: se juegan siempre.
     if (v.estado !== 'jugando' || !datos.usuario(v.usuario_id) || datos.esOnline(v.juego_id)) continue;
     const prev = porUsuario.get(v.usuario_id);
@@ -196,6 +198,19 @@ function tarjetaJugando(x, i) {
 }
 
 /** Solo para mí: mi conexión con PlayStation ha caducado. */
+/** "Revisa N juegos nuevos de tu biblioteca" (tras sincronizar con PSN). */
+function avisoRevisar() {
+  const yo = usuarioActual();
+  const n = yo ? metricas.biblioteca(yo.id).porRevisar.length : 0;
+  if (!n) return '';
+  return `
+    <a class="aviso-revisar" href="#revisar">
+      ${icono('jugando', { tam: 20, color: 'var(--acento)', trazo: 'var(--acento-suave)' })}
+      <span>Revisa ${n} ${n === 1 ? 'juego nuevo' : 'juegos nuevos'} de tu biblioteca</span>
+      ${icono('adelante', { tam: 16, color: 'var(--texto-2)' })}
+    </a>`;
+}
+
 function avisoPsn() {
   if (!psn.hayQueReconectar()) return '';
   return `
@@ -210,7 +225,7 @@ function avisoPsn() {
 // ---------------------------------------------------------------------------
 function candidatos() {
   const porJuego = new Map();
-  for (const v of datos.estado.valoraciones) {
+  for (const v of datos.valoracionesEfectivas()) {
     if (!datos.usuario(v.usuario_id)) continue;
     const id = Number(v.juego_id);
     if (!porJuego.has(id)) porJuego.set(id, []);

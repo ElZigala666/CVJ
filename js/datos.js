@@ -8,7 +8,7 @@ const CLAVE = 'cvj.datos.v1';
 const LIMITE_ACTIVIDAD = 60;
 const VENTANA_ACTIVIDAD_MS = 10 * 60 * 1000; // agrupar cambios del mismo juego en 10 min
 
-const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], cargadoEn: null });
+const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sagas: [], cargadoEn: null });
 
 // Versión de los datos: sube cada vez que cambian (refresco, escritura o reversión).
 // metricas.js la usa para memoizar los cálculos.
@@ -40,7 +40,7 @@ function guardarCache() {
   } catch { /* sin espacio o modo privado */ }
 }
 
-const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb]);
+const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sagas]);
 
 /** Pinta desde caché (síncrono) y lanza el refresco en segundo plano. */
 export function iniciar() {
@@ -59,7 +59,9 @@ export function refrescar() {
   if (refrescando) return refrescando;
   refrescando = (async () => {
     const sb = await cliente();
-    const [u, v, j, a, bib, emp] = await Promise.all([
+    // Extras que pueden no existir aún (migraciones): si fallan, se sigue con lo de antes.
+    const extra = (q, previo) => q.then((r) => (r.error ? { data: previo } : r), () => ({ data: previo }));
+    const [u, v, j, a, bib, emp, ali, rech, sag] = await Promise.all([
       leerUsuarios(sb),
       sb.from('valoraciones').select('*'),
       sb.from('juegos').select('*'),
@@ -67,11 +69,17 @@ export function refrescar() {
       // PSN es un extra: si falla (o aún no existe la tabla), se sigue sin ello.
       sb.from('biblioteca').select('*').then((r) => (r.error ? { data: estado.biblioteca } : r), () => ({ data: estado.biblioteca })),
       sb.from('psn_igdb').select('*').then((r) => (r.error ? { data: estado.psnIgdb } : r), () => ({ data: estado.psnIgdb })),
+      extra(sb.from('juegos_alias').select('*'), estado.alias),
+      extra(sb.from('fusiones_rechazadas').select('*'), estado.rechazadas),
+      extra(sb.from('sagas_usuario').select('*'), estado.sagas),
     ]);
     const error = u.error || v.error || j.error || a.error;
     if (error) throw new Error(error.message);
     if (escriturasEnCurso) { refrescoAplazado = true; return; }
-    const nuevo = { usuarios: u.data, valoraciones: v.data, juegos: j.data, actividad: a.data, biblioteca: bib.data ?? [], psnIgdb: emp.data ?? [] };
+    const nuevo = {
+      usuarios: u.data, valoraciones: v.data, juegos: j.data, actividad: a.data, biblioteca: bib.data ?? [], psnIgdb: emp.data ?? [],
+      alias: ali.data ?? [], rechazadas: rech.data ?? [], sagas: sag.data ?? [],
+    };
     const cambia = firma(nuevo) !== firma(estado);
     Object.assign(estado, nuevo, { cargadoEn: new Date().toISOString() });
     guardarCache();
@@ -128,8 +136,26 @@ function construirIndices(s) {
   version++;
   const usuarios = new Map(s.usuarios.map((u) => [u.id, u]));
   const juegos = new Map(s.juegos.map((j) => [Number(j.igdb_id), j]));
-  const porJuego = new Map();
+  // Versiones fusionadas: alias → principal (siguiendo cadenas, sin bucles).
+  const aliasA = new Map((s.alias ?? []).map((x) => [Number(x.alias_id), Number(x.principal_id)]));
+  const canon = (id) => {
+    let x = Number(id);
+    for (let i = 0; i < 6 && aliasA.has(x); i++) x = aliasA.get(x);
+    return x;
+  };
+  // Valoraciones "efectivas": con el juego principal y una sola por usuario y juego
+  // (si alguien tiene las dos versiones sin fusionar, cuenta la más reciente).
+  const efectivas = new Map();
   for (const v of s.valoraciones) {
+    const id = canon(v.juego_id);
+    const e = id === Number(v.juego_id) ? v : { ...v, juego_id: id, juego_origen: Number(v.juego_id) };
+    const k = `${v.usuario_id}:${id}`;
+    const prev = efectivas.get(k);
+    if (!prev || new Date(e.actualizado_en || 0) > new Date(prev.actualizado_en || 0)) efectivas.set(k, e);
+  }
+  const vals = [...efectivas.values()];
+  const porJuego = new Map();
+  for (const v of vals) {
     const id = Number(v.juego_id);
     if (!porJuego.has(id)) porJuego.set(id, []);
     porJuego.get(id).push(v);
@@ -141,13 +167,20 @@ function construirIndices(s) {
   for (const b of s.biblioteca ?? []) {
     if (!bibUsuario.has(b.usuario_id)) bibUsuario.set(b.usuario_id, []);
     bibUsuario.get(b.usuario_id).push(b);
-    const emp = psnIgdb.get(b.psn_title_id);
-    const jid = emp ? emp.igdb_id : b.juego_id; // lo emparejado en psn_igdb manda
+    const jid = idDeFila(b, psnIgdb, canon);
     if (jid == null) continue;
-    if (!bibJuego.has(Number(jid))) bibJuego.set(Number(jid), []);
-    bibJuego.get(Number(jid)).push(b);
+    if (!bibJuego.has(jid)) bibJuego.set(jid, []);
+    bibJuego.get(jid).push(b);
   }
-  return { usuarios, juegos, porJuego, psnIgdb, bibUsuario, bibJuego };
+  return { usuarios, juegos, porJuego, psnIgdb, bibUsuario, bibJuego, canon, vals, aliasA };
+}
+
+/** Juego (principal) de una fila de biblioteca: lo de psn_igdb manda; colecciones y no-juegos, ninguno. */
+function idDeFila(f, psnIgdb, canon) {
+  const emp = psnIgdb.get(f.psn_title_id);
+  if (emp && (emp.tipo === 'coleccion' || emp.tipo === 'no_juego')) return null;
+  const id = emp ? emp.igdb_id : f.juego_id;
+  return id == null ? null : canon(id);
 }
 
 export const usuario = (id) => indices.usuarios.get(id) ?? null;
@@ -155,18 +188,29 @@ export const usuario = (id) => indices.usuarios.get(id) ?? null;
 export const juego = (igdbId) => indices.juegos.get(Number(igdbId)) ?? null;
 /** Juego de la tabla o, si no está, lo que se sepa de él por Buscar. */
 export const juegoConocido = (igdbId) => juego(igdbId) ?? parciales.get(Number(igdbId)) ?? null;
-export const valoracionesDeJuego = (igdbId) => indices.porJuego.get(Number(igdbId)) ?? [];
+/** Juego principal de un juego (el mismo si no está fusionado con otro). */
+export const canonico = (igdbId) => indices.canon(igdbId);
+/** Versiones fusionadas con este principal. */
+export const aliasDe = (principalId) => (estado.alias ?? []).filter((x) => Number(x.principal_id) === Number(principalId)).map((x) => Number(x.alias_id));
+/** Todas las valoraciones contando las versiones fusionadas como un solo juego. */
+export const valoracionesEfectivas = () => indices.vals;
+export const valoracionesDeJuego = (igdbId) => indices.porJuego.get(canonico(igdbId)) ?? [];
 export const miValoracion = (usuarioId, igdbId) =>
   valoracionesDeJuego(igdbId).find((v) => v.usuario_id === usuarioId) ?? null;
+/** ¿Este usuario dijo que A y B no son el mismo juego? */
+export const fusionRechazada = (usuarioId, a, b) => {
+  const [x, y] = [Number(a), Number(b)].sort((m, n) => m - n);
+  return (estado.rechazadas ?? []).some((r) => r.usuario_id === usuarioId && Number(r.juego_a) === x && Number(r.juego_b) === y);
+};
+/** Preferencias de sagas de un usuario: Map(coleccion_id → { agrupada, nombre }). */
+export const sagasDe = (usuarioId) => new Map((estado.sagas ?? []).filter((x) => x.usuario_id === usuarioId).map((x) => [Number(x.coleccion_id), x]));
 
 // ---------------------------------------------------------------------------
 // PlayStation
 // ---------------------------------------------------------------------------
 /** Juego de IGDB de una fila de la biblioteca (o null si está sin emparejar). */
 export function igdbDeBiblioteca(fila) {
-  const emp = indices.psnIgdb.get(fila.psn_title_id);
-  const id = emp ? emp.igdb_id : fila.juego_id;
-  return id == null ? null : Number(id);
+  return idDeFila(fila, indices.psnIgdb, indices.canon);
 }
 export const emparejamiento = (psnTitleId) => indices.psnIgdb.get(psnTitleId) ?? null;
 export const bibliotecaDe = (uid) => indices.bibUsuario.get(uid) ?? [];
@@ -217,7 +261,10 @@ export function recordarJuego(fila) {
  * @param {(msg:string)=>void} [onError]
  */
 async function escribirOptimista(aplicar, guardar, onError, mensajeError = 'No se ha podido guardar. Se ha deshecho el cambio.') {
-  const copia = { valoraciones: estado.valoraciones, actividad: estado.actividad, juegos: estado.juegos, usuarios: estado.usuarios, psnIgdb: estado.psnIgdb, biblioteca: estado.biblioteca };
+  const copia = {
+    valoraciones: estado.valoraciones, actividad: estado.actividad, juegos: estado.juegos, usuarios: estado.usuarios,
+    psnIgdb: estado.psnIgdb, biblioteca: estado.biblioteca, alias: estado.alias, rechazadas: estado.rechazadas, sagas: estado.sagas,
+  };
   escriturasEnCurso++;
   aplicar(estado);
   indices = construirIndices(estado);
@@ -267,12 +314,14 @@ function filaJuego(j) {
  * @param {{usuarioId:string, igdbId:number, estado:string, nota:number|null, recomendado:boolean|null, plataforma:string|null, resena:string|null, horas?:number|null}} v
  */
 export function guardarValoracion(v, onError) {
-  const id = Number(v.igdbId);
+  const id = canonico(v.igdbId);
   const antes = miValoracion(v.usuarioId, id);
+  // Si la que había es de una versión fusionada, se pasa al principal (y se borra aquella).
+  const mover = antes?.juego_origen != null && antes.juego_origen !== id ? antes : null;
   const ahora = new Date().toISOString();
   const pendiente = v.estado === 'pendiente';
   const fila = {
-    id: antes?.id ?? crypto.randomUUID(),
+    id: mover ? crypto.randomUUID() : antes?.id ?? crypto.randomUUID(),
     usuario_id: v.usuarioId,
     juego_id: id,
     estado: v.estado,
@@ -314,7 +363,7 @@ export function guardarValoracion(v, onError) {
   return escribirOptimista(
     (s) => {
       if (faltaJuego) s.juegos = [...s.juegos, filaJuego(conocido)];
-      s.valoraciones = [...s.valoraciones.filter((x) => x.id !== fila.id && !(x.usuario_id === fila.usuario_id && Number(x.juego_id) === id)), fila];
+      s.valoraciones = [...s.valoraciones.filter((x) => x.id !== fila.id && x.id !== mover?.id && !(x.usuario_id === fila.usuario_id && Number(x.juego_id) === id)), fila];
       if (act) s.actividad = [act, ...s.actividad.filter((x) => x.id !== act.id)];
     },
     async (sb) => {
@@ -323,6 +372,7 @@ export function guardarValoracion(v, onError) {
         comprobar(await sb.from('juegos').upsert(filaJuego(conocido), { onConflict: 'igdb_id', ignoreDuplicates: true }));
       }
       comprobar(await sb.from('valoraciones').upsert(fila, { onConflict: 'usuario_id,juego_id' }));
+      if (mover) comprobar(await sb.from('valoraciones').delete().eq('id', mover.id));
       if (act) {
         if (actualizarAct) {
           const { id: idAct, ...cambios } = act;
@@ -384,12 +434,15 @@ export function marcarOnline(igdbId, valor, onError) {
 /** Oculta (o vuelve a mostrar) entradas de mi biblioteca de PSN. */
 export function ocultarBiblioteca(usuarioId, psnTitleIds, oculto, onError) {
   const ids = new Set(psnTitleIds);
+  // Con la migración 006 se guarda que lo decidió el usuario (la sincronización lo respeta).
+  const con006 = (estado.biblioteca ?? []).some((b) => 'oculto_usuario' in b);
+  const cambios = con006 ? { oculto, oculto_usuario: oculto, por_revisar: false } : { oculto };
   return escribirOptimista(
     (s) => {
-      s.biblioteca = (s.biblioteca ?? []).map((b) => (b.usuario_id === usuarioId && ids.has(b.psn_title_id) ? { ...b, oculto } : b));
+      s.biblioteca = (s.biblioteca ?? []).map((b) => (b.usuario_id === usuarioId && ids.has(b.psn_title_id) ? { ...b, ...cambios } : b));
     },
     async (sb) => {
-      comprobar(await sb.from('biblioteca').update({ oculto }).eq('usuario_id', usuarioId).in('psn_title_id', [...ids]));
+      comprobar(await sb.from('biblioteca').update(cambios).eq('usuario_id', usuarioId).in('psn_title_id', [...ids]));
     },
     onError,
     'No se ha podido guardar. Se ha deshecho el cambio.',
@@ -403,40 +456,161 @@ export function ocultarBiblioteca(usuarioId, psnTitleIds, oculto, onError) {
  */
 export function emparejarPsn(psnTitleId, juegoElegido, onError) {
   const id = Number(juegoElegido.igdb_id);
+  const con006 = (estado.psnIgdb ?? []).some((x) => 'tipo' in x);
   const fila = {
     psn_title_id: psnTitleId,
     igdb_id: id,
     confirmado: true,
     nombre_psn: filaBiblioteca(psnTitleId)?.nombre_psn ?? null,
     actualizado_en: new Date().toISOString(),
+    ...(con006 ? { tipo: 'juego', juegos: null, confianza: 100, propuesta_id: null } : {}),
   };
   const faltaJuego = !juego(id);
+  const yo = (estado.biblioteca ?? []).find((b) => b.psn_title_id === psnTitleId && 'por_revisar' in b)?.usuario_id;
   return escribirOptimista(
     (s) => {
       if (faltaJuego) s.juegos = [...s.juegos, filaJuego(juegoElegido)];
       s.psnIgdb = [...(s.psnIgdb ?? []).filter((x) => x.psn_title_id !== psnTitleId), fila];
+      s.biblioteca = (s.biblioteca ?? []).map((b) => (b.psn_title_id === psnTitleId && 'por_revisar' in b ? { ...b, por_revisar: false } : b));
     },
     async (sb) => {
       if (faltaJuego) comprobar(await sb.from('juegos').upsert(filaJuego(juegoElegido), { onConflict: 'igdb_id', ignoreDuplicates: true }));
       comprobar(await sb.from('psn_igdb').upsert(fila, { onConflict: 'psn_title_id' }));
+      if (yo) comprobar(await sb.from('biblioteca').update({ por_revisar: false }).eq('psn_title_id', psnTitleId));
     },
     onError,
     'No se ha podido guardar el emparejamiento. Se ha deshecho.',
   );
 }
 
+/**
+ * "Revisa tu biblioteca" → Confirmar: lo propuesto queda confirmado a mano (para todo
+ * el grupo, y la sincronización ya no lo toca) y deja de estar por revisar.
+ * @param {{ titulo: string, igdbId: number|null, tipo: string, juegos?: number[]|null }[]} items
+ */
+export function confirmarRevision(usuarioId, items, onError) {
+  const ahora = new Date().toISOString();
+  const filas = items.filter((x) => x.tipo === 'coleccion' || x.igdbId != null).map((x) => ({
+    psn_title_id: x.titulo,
+    igdb_id: x.tipo === 'coleccion' ? (x.igdbId ?? null) : x.igdbId,
+    confirmado: true,
+    nombre_psn: filaBiblioteca(x.titulo)?.nombre_psn ?? null,
+    tipo: x.tipo,
+    juegos: x.juegos ?? null,
+    confianza: 100,
+    propuesta_id: null,
+    actualizado_en: ahora,
+  }));
+  const titulos = new Set(items.map((x) => x.titulo));
+  return escribirOptimista(
+    (s) => {
+      const nuevas = new Map(filas.map((f) => [f.psn_title_id, f]));
+      s.psnIgdb = (s.psnIgdb ?? []).filter((x) => !nuevas.has(x.psn_title_id)).concat(filas);
+      s.biblioteca = (s.biblioteca ?? []).map((b) => (b.usuario_id === usuarioId && titulos.has(b.psn_title_id) ? { ...b, por_revisar: false } : b));
+    },
+    async (sb) => {
+      if (filas.length) comprobar(await sb.from('psn_igdb').upsert(filas, { onConflict: 'psn_title_id' }));
+      comprobar(await sb.from('biblioteca').update({ por_revisar: false }).eq('usuario_id', usuarioId).in('psn_title_id', [...titulos]));
+    },
+    onError,
+    'No se ha podido confirmar. Se ha deshecho el cambio.',
+  );
+}
+
+/**
+ * Fusiona dos versiones del mismo juego: para todo el grupo, "alias" cuenta como
+ * "principal" (si alguno ya era parte de una fusión, se respeta la que había). Mi
+ * valoración queda una sola, en el principal, con la nota elegida y las horas sumadas.
+ * @param {{ usuarioId, principal, alias, notaDe: 'principal'|'alias', horas: number|null }} f
+ */
+export function fusionar({ usuarioId, principal, alias, notaDe = 'principal', horas = null }, onError) {
+  let p = canonico(principal);
+  let a = canonico(alias);
+  // Si "alias" ya es el principal de otras versiones y "principal" no, se respeta el que existía.
+  if (aliasDe(a).length && !aliasDe(p).length) [p, a] = [a, p];
+  if (p === a) return Promise.resolve(true);
+  const ahora = new Date().toISOString();
+  const filaAlias = { alias_id: a, principal_id: p, creado_por: usuarioId, creado_en: ahora };
+  const reapuntar = aliasDe(a); // las que apuntaban al que deja de ser principal
+
+  // Valoraciones de este usuario en las dos versiones (sin efectivas: las de verdad).
+  const deVersion = (id) => estado.valoraciones.filter((v) => v.usuario_id === usuarioId && [id, ...aliasDe(id)].includes(Number(v.juego_id)))
+    .sort((x, y) => new Date(y.actualizado_en) - new Date(x.actualizado_en))[0] ?? null;
+  const vp = deVersion(p);
+  const va = deVersion(a);
+  const base = notaDe === 'alias' ? (va ?? vp) : (vp ?? va);
+  const quedan = base ? {
+    ...base,
+    id: vp?.id ?? crypto.randomUUID(),
+    juego_id: p,
+    actualizado_en: ahora,
+    ...(horas != null ? { horas } : {}),
+  } : null;
+  const borrar = [vp, va].filter((x) => x && x.id !== quedan?.id).map((x) => x.id);
+  return escribirOptimista(
+    (s) => {
+      s.alias = [...(s.alias ?? []).filter((x) => Number(x.alias_id) !== a).map((x) => (reapuntar.includes(Number(x.alias_id)) ? { ...x, principal_id: p } : x)), filaAlias];
+      if (quedan) s.valoraciones = [...s.valoraciones.filter((x) => x.id !== quedan.id && !borrar.includes(x.id)), quedan];
+    },
+    async (sb) => {
+      comprobar(await sb.from('juegos_alias').upsert(filaAlias, { onConflict: 'alias_id' }));
+      if (reapuntar.length) comprobar(await sb.from('juegos_alias').update({ principal_id: p }).in('alias_id', reapuntar));
+      if (borrar.length) comprobar(await sb.from('valoraciones').delete().in('id', borrar));
+      if (quedan) {
+        const { juego_origen: _, ...fila } = quedan;
+        comprobar(await sb.from('valoraciones').upsert(fila, { onConflict: 'usuario_id,juego_id' }));
+      }
+    },
+    onError,
+    'No se ha podido fusionar. Se ha deshecho el cambio.',
+  );
+}
+
+/** Deshace una fusión (la versión vuelve a contar por separado; las valoraciones se quedan donde están). */
+export function deshacerFusion(aliasId, onError) {
+  const a = Number(aliasId);
+  return escribirOptimista(
+    (s) => { s.alias = (s.alias ?? []).filter((x) => Number(x.alias_id) !== a); },
+    async (sb) => { comprobar(await sb.from('juegos_alias').delete().eq('alias_id', a)); },
+    onError,
+    'No se ha podido deshacer. Se ha vuelto a como estaba.',
+  );
+}
+
+/** "No, son distintos": no se vuelve a preguntar por esa pareja a este usuario. */
+export function rechazarFusion(usuarioId, a, b, onError) {
+  const [x, y] = [Number(a), Number(b)].sort((m, n) => m - n);
+  const fila = { usuario_id: usuarioId, juego_a: x, juego_b: y, creado_en: new Date().toISOString() };
+  return escribirOptimista(
+    (s) => { s.rechazadas = [...(s.rechazadas ?? []), fila]; },
+    async (sb) => { comprobar(await sb.from('fusiones_rechazadas').upsert(fila, { onConflict: 'usuario_id,juego_a,juego_b', ignoreDuplicates: true })); },
+    onError,
+  );
+}
+
+/** Agrupar (o "no, son distintos") una saga en la biblioteca y el historial de un usuario. */
+export function guardarSaga(usuarioId, coleccionId, nombre, agrupada, onError) {
+  const fila = { usuario_id: usuarioId, coleccion_id: Number(coleccionId), nombre, agrupada, creado_en: new Date().toISOString() };
+  return escribirOptimista(
+    (s) => { s.sagas = [...(s.sagas ?? []).filter((x) => !(x.usuario_id === usuarioId && Number(x.coleccion_id) === fila.coleccion_id)), fila]; },
+    async (sb) => { comprobar(await sb.from('sagas_usuario').upsert(fila, { onConflict: 'usuario_id,coleccion_id' })); },
+    onError,
+  );
+}
+
 /** Quita mi valoración de un juego (y mis entradas de actividad de ese juego). */
 export function quitarValoracion(usuarioId, igdbId, onError) {
-  const id = Number(igdbId);
-  const mia = (x) => x.usuario_id === usuarioId && Number(x.juego_id) === id;
+  const id = canonico(igdbId);
+  const ids = [id, ...aliasDe(id)];
+  const mia = (x) => x.usuario_id === usuarioId && ids.includes(Number(x.juego_id));
   return escribirOptimista(
     (s) => {
       s.valoraciones = s.valoraciones.filter((x) => !mia(x));
       s.actividad = s.actividad.filter((x) => !mia(x));
     },
     async (sb) => {
-      comprobar(await sb.from('valoraciones').delete().eq('usuario_id', usuarioId).eq('juego_id', id));
-      comprobar(await sb.from('actividad').delete().eq('usuario_id', usuarioId).eq('juego_id', id));
+      comprobar(await sb.from('valoraciones').delete().eq('usuario_id', usuarioId).in('juego_id', ids));
+      comprobar(await sb.from('actividad').delete().eq('usuario_id', usuarioId).in('juego_id', ids));
     },
     onError,
     'No se ha podido quitar. Se ha deshecho el cambio.',

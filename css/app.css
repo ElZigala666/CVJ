@@ -1252,3 +1252,104 @@ body.sin-barra #aviso-version { bottom: calc(96px + env(safe-area-inset-bottom))
 
 /* Ficha: juego online / sin final */
 .ficha-online { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 2px; font-size: 14px; color: var(--texto-2); }
+
+/* ---------------------------------------------------------------------------
+   Biblioteca limpia: revisión, colecciones, sagas, fusiones y selección
+   --------------------------------------------------------------------------- */
+.aviso-revisar {
+  margin: 12px 20px 0; padding: 12px 14px; border-radius: 14px;
+  display: flex; align-items: center; gap: 10px; text-decoration: none;
+  background: var(--acento-suave); color: var(--texto); font-size: 14px; font-weight: 600;
+}
+.aviso-revisar span { flex: 1; }
+.aviso-revisar.en-perfil { margin: 0; }
+
+/* Tarjeta "¿Es el mismo juego?" y sugerencia de saga */
+.tarjeta-fusion { display: flex; gap: 12px; padding: 12px; border-radius: 16px; background: var(--superficie); }
+.tarjeta-fusion-portadas { display: flex; flex: 0 0 auto; }
+.tarjeta-fusion-portadas .portada { width: 40px; border-radius: 6px; box-shadow: 0 0 0 2px var(--superficie); }
+.tarjeta-fusion-portadas .portada + .portada { margin-left: -12px; }
+.tarjeta-fusion-texto { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tarjeta-fusion-texto strong { font-size: 14px; line-height: 1.3; }
+.tarjeta-fusion-texto > span { font-size: 12px; color: var(--texto-2); line-height: 1.4; }
+.tarjeta-fusion-botones { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+
+/* Hoja de fusionar */
+.fusion { display: flex; flex-direction: column; gap: 12px; }
+.fusion-opciones { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fusion-opcion {
+  display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 14px; text-align: left;
+  border: 2px solid transparent; background: var(--superficie); color: var(--texto);
+}
+.fusion-opcion.activa { border-color: var(--acento); background: var(--acento-suave); }
+.fusion-opcion .portada { width: 40px; flex: 0 0 auto; border-radius: 6px; }
+.fusion-opcion span { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 13px; }
+.fusion-opcion small { color: var(--texto-2); font-size: 12px; }
+
+/* Pantalla "Revisa tu biblioteca" */
+.revisar { display: flex; flex-direction: column; gap: 12px; padding: 4px 20px 32px; }
+.revisar.con-barra { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
+.revisar-lista { display: flex; flex-direction: column; gap: 10px; }
+.revisar-fila { display: flex; gap: 10px; padding: 12px; border-radius: 16px; background: var(--superficie); border: 2px solid transparent; }
+.revisar-fila.marcada { border-color: var(--acento); }
+.revisar-check { flex: 0 0 auto; padding-top: 6px; }
+.revisar-check input { width: 22px; height: 22px; accent-color: var(--acento); }
+.revisar-cuerpo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.revisar-psn, .revisar-propuesta { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.revisar-img { width: 40px; height: 40px; flex: 0 0 auto; border-radius: 8px; overflow: hidden; background: var(--bloque); }
+.revisar-img img { width: 100%; height: 100%; object-fit: cover; }
+.revisar-propuesta { padding: 8px; border-radius: 12px; background: var(--fondo); }
+.revisar-propuesta .portada { width: 40px; flex: 0 0 auto; border-radius: 6px; }
+.revisar-sin { width: 40px; height: 56px; flex: 0 0 auto; border-radius: 6px; background: var(--superficie-2); }
+.revisar-nombre { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.revisar-nombre strong { font-size: 14px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.revisar-nombre small { font-size: 12px; color: var(--texto-2); line-height: 1.35; }
+.revisar-acciones { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.revisar-acciones .enlace-discreto { margin-left: auto; }
+.etiqueta-confianza { flex: 0 0 auto; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 700; }
+.etiqueta-confianza.seguro { background: var(--acento-suave); color: var(--acento-texto); }
+.etiqueta-confianza.revisar { background: color-mix(in srgb, var(--peligro) 14%, var(--fondo)); color: var(--peligro); }
+
+/* Barra inferior de acciones (Revisar y selección en la biblioteca) */
+.barra-accion {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); z-index: 20;
+  width: 100%; max-width: var(--ancho-max);
+  padding: 12px 20px calc(20px + env(safe-area-inset-bottom));
+  background: var(--fondo); border-top: 1px solid var(--borde);
+  display: flex; gap: 10px;
+}
+.barra-accion > * { flex: 1; height: 50px; }
+.barra-accion .boton-principal { font-size: 15px; }
+.barra-accion.barra-flotante { bottom: calc(var(--alto-barra) + env(safe-area-inset-bottom)); }
+
+/* Colecciones y sagas agrupadas: bloque plegable a lo ancho de la rejilla */
+.rejilla > .bloque-grupo { grid-column: 1 / -1; }
+.bloque-grupo { border-radius: 16px; background: var(--superficie); padding: 10px 12px; }
+.bloque-grupo summary { display: flex; align-items: center; gap: 12px; cursor: pointer; list-style: none; }
+.bloque-grupo summary::-webkit-details-marker { display: none; }
+.bloque-grupo summary > svg { margin-left: auto; transition: transform .15s; }
+.bloque-grupo[open] summary > svg { transform: rotate(180deg); }
+.bloque-grupo-portadas { display: flex; flex: 0 0 auto; }
+.bloque-grupo-portadas .portada { width: 36px; border-radius: 6px; box-shadow: 0 0 0 2px var(--superficie); }
+.bloque-grupo-portadas .portada + .portada { margin-left: -14px; }
+.bloque-grupo-texto { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bloque-grupo-texto strong { font-size: 15px; }
+.bloque-grupo-texto small { font-size: 12px; color: var(--texto-2); }
+.bloque-grupo .rejilla { margin-top: 10px; }
+.bloque-grupo > .enlace-discreto { display: block; margin-top: 8px; }
+
+/* Selección múltiple en la biblioteca */
+.bib-seleccionar { display: flex; justify-content: flex-end; margin-top: 8px; }
+.rejilla.seleccionando .bib-celda .rejilla-item { opacity: .75; transition: opacity .1s; }
+.rejilla.seleccionando .bib-celda.marcada .rejilla-item { opacity: 1; box-shadow: 0 0 0 3px var(--acento); }
+.bib-casilla {
+  position: absolute; top: 6px; right: 6px; z-index: 4; width: 26px; height: 26px; border-radius: 50%;
+  border: 2px solid #FFFFFF; background: rgba(0, 0, 0, 0.45); display: flex; align-items: center; justify-content: center;
+}
+.bib-celda.marcada .bib-casilla { border-color: transparent; background: none; }
+
+/* Ficha: relaciones de IGDB y versiones fusionadas */
+.ficha-versiones { display: flex; flex-direction: column; gap: 10px; padding: 0 20px; }
+.ficha-relaciones { margin: 0; font-size: 13px; color: var(--texto-2); line-height: 1.5; }
+.ficha-fusionadas { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 14px; background: var(--superficie); }
+.ficha-fusionada { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; }

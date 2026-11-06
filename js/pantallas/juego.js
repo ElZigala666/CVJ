@@ -9,10 +9,11 @@ import {
   iconoRecomendacion, avatar, avatarInsignia, avatarPerfil, nombrePerfil, nombreEstado, ESTADOS, aviso,
 } from '../ui.js';
 import { yaCargada, tamPara, ANCHOS } from '../portadas.js';
-import { volver } from '../navegacion.js';
+import { volver, reemplazarRuta } from '../navegacion.js';
 import * as metricas from '../metricas.js';
 import { abrirValorar } from '../hoja-valorar.js';
 import { colorDominante, hexAHsl } from '../color-dominante.js';
+import { tarjetaFusion, clicFusion } from '../fusiones.js';
 
 export function render(el, { params }) {
   const id = Number(params[0]);
@@ -274,7 +275,49 @@ export function render(el, { params }) {
           ${filas.map(filaGrupo).join('')}
           ${soloBiblioteca.map(([uid, b]) => filaBiblioteca(uid, b)).join('')}
           ${corregirEmparejamiento()}
-        </section>` : ''}`;
+        </section>` : ''}
+      ${bloqueVersiones()}`;
+  }
+
+  /**
+   * Lo que IGDB sabe (saga, versión de, incluido en...), "¿Es el mismo juego?" con
+   * mis otras versiones y las versiones ya fusionadas (con "Deshacer").
+   */
+  function bloqueVersiones() {
+    const j = datos.juegoConocido(id);
+    const r = j?.relaciones ?? {};
+    const enlace = (gid) => {
+      const g = datos.juegoConocido(datos.canonico(gid));
+      return g && g.igdb_id !== id ? `<a href="#juego/${g.igdb_id}" class="enlace-discreto">${esc(g.nombre)}</a>` : '';
+    };
+    const lineas = [];
+    const sagas = (r.colecciones ?? []).map((c) => esc(c.nombre)).filter(Boolean);
+    if (sagas.length) lineas.push(`Saga: ${sagas.join(', ')}`);
+    const padre = [r.version_parent, r.parent_game].filter(Boolean).map(enlace).filter(Boolean);
+    if (padre.length) lineas.push(`Versión de ${padre.join(', ')}`);
+    const remasters = (r.remasters ?? []).map(enlace).filter(Boolean);
+    if (remasters.length) lineas.push(`Remaster: ${remasters.join(', ')}`);
+    const remakes = (r.remakes ?? []).map(enlace).filter(Boolean);
+    if (remakes.length) lineas.push(`Remake: ${remakes.join(', ')}`);
+    const bundles = (r.bundles ?? []).map(enlace).filter(Boolean);
+    if (bundles.length) lineas.push(`Incluido en ${bundles.join(', ')}`);
+    const parejas = yo ? metricas.parejasDeJuego(yo.id, id) : [];
+    const alias = datos.aliasDe(id).map((a) => datos.juegoConocido(a)).filter(Boolean);
+    if (!lineas.length && !parejas.length && !alias.length) return '';
+    return `
+      <section class="ficha-versiones">
+        ${lineas.length ? `<p class="ficha-relaciones">${lineas.join(' · ')}</p>` : ''}
+        ${parejas.map(tarjetaFusion).join('')}
+        ${alias.length ? `
+          <div class="ficha-fusionadas">
+            <span class="campo-titulo">Versiones fusionadas</span>
+            ${alias.map((a) => `
+              <div class="ficha-fusionada">
+                <span>«${esc(a.nombre)}»${a.anio ? ` · ${a.anio}` : ''} cuenta como este juego.</span>
+                <button type="button" class="enlace-discreto" data-deshacer-fusion="${a.igdb_id}">Deshacer</button>
+              </div>`).join('')}
+          </div>` : ''}
+      </section>`;
   }
 
   function pintarBarra(j) {
@@ -292,6 +335,9 @@ export function render(el, { params }) {
   }
 
   function pintarTodo() {
+    // Una versión fusionada se ve como su juego principal.
+    const canon = datos.canonico(id);
+    if (canon !== id) { reemplazarRuta(`#juego/${canon}`); return; }
     const j = datos.juegoConocido(id);
     pintarHero(j);
     pintarInfo(j);
@@ -323,6 +369,13 @@ export function render(el, { params }) {
   }
 
   el.addEventListener('click', (e) => {
+    if (yo && clicFusion(e, yo.id)) return;
+    const deshacer = e.target.closest('[data-deshacer-fusion]');
+    if (deshacer) {
+      datos.deshacerFusion(deshacer.dataset.deshacerFusion, aviso);
+      aviso('Fusión deshecha: vuelven a contar por separado');
+      return;
+    }
     const on = e.target.closest('[data-online]');
     if (on) {
       const valor = on.dataset.online === 'si';

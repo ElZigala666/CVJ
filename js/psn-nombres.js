@@ -28,3 +28,18 @@ export function claveNombrePsn(nombre, sinRemaster = false) {
 export function normalizarBusqueda(t) {
   return String(t ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
+
+/**
+ * Núcleo del nombre, sin ediciones ni "remastered": "Mafia II: Definitive Edition" →
+ * "mafia ii". Para ver si dos juegos de la misma saga son casi el mismo.
+ */
+export function nucleoNombre(nombre) {
+  return claveNombrePsn(nombre, true)
+    .replace(/\b(definitive|complete|goty|game of the year|directors cut|director s cut|royal|hd|redux|ultimate|enhanced|deluxe|anniversary|final cut|edition|remake|remastered|reload|reloaded)\b/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+}
+
+/** Nombre sin números ni años: "FIFA 22" → "fifa", "NBA 2K24" → "nba". */
+export function sinNumeros(nombre) {
+  return claveNombrePsn(nombre).replace(/\b(\d+|2k\d\d|[ivx]+)\b/g, ' ').replace(/\s+/g, ' ').trim();
+}

@@ -29,13 +29,16 @@ let onlineRevisado = false;
  */
 export function revisarOnline(juegos, alTerminar) {
   if (onlineRevisado || !juegos.length || !('es_online' in juegos[0])) return;
-  if (!juegos.some((j) => j.es_online === null)) return;
+  // Sin saber si es online o sin las relaciones de IGDB (migración 006).
+  if (!juegos.some((j) => j.es_online === null || ('relaciones' in j && j.relaciones === null))) return;
   onlineRevisado = true;
-  (window.requestIdleCallback ?? ((fn) => setTimeout(fn, 3000)))(() => {
-    llamar({ accion: 'revisar_online' })
-      .then((r) => { if (r?.revisados) alTerminar?.(); })
-      .catch((e) => console.info('[igdb] Revisar online:', e.message));
-  });
+  const pedir = (vueltas) => llamar({ accion: 'revisar_juegos' })
+    .then((r) => {
+      if (r?.quedan && vueltas < 5) return pedir(vueltas + 1); // de 100 en 100
+      if (r?.revisados) alTerminar?.();
+    })
+    .catch((e) => console.info('[igdb] Revisar juegos:', e.message));
+  (window.requestIdleCallback ?? ((fn) => setTimeout(fn, 3000)))(() => pedir(0));
 }
 
 /** Ficha completa (y la guarda en la tabla juegos desde el servidor). */

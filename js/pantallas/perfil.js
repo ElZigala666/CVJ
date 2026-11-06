@@ -11,6 +11,7 @@ import { esc, avatar, portada, chipLetra, cabeceraAtras, estadoVacio, tiempoRela
 import { abrirHoja } from '../hoja.js';
 import { botonFoto } from '../foto-perfil.js';
 import { normalizarBusqueda } from '../psn-nombres.js';
+import { tarjetaSaga } from './revisar.js';
 import { abrirValorar } from '../hoja-valorar.js';
 import { textoHoras } from '../metricas.js';
 import { volver, rutaPerfil } from '../navegacion.js';
@@ -87,7 +88,8 @@ function renderPerfil(el, id, alSalir) {
   const esMio = id === yo?.id;
   const fHist = filtroDe(`${id}:hist`, 'nota');
   const fBib = filtroDe(`${id}:bib`, 'horas');
-  const vista = { sinIdentificar: false, ocultos: false };
+  const vista = { sinIdentificar: false, ocultos: false, seleccionando: false, abiertos: new Set() };
+  const seleccion = new Set(); // claves de la biblioteca elegidas para ocultar
 
   const pintar = () => {
     const u = datos.usuario(id) ?? (esMio ? yo : null);
@@ -165,6 +167,14 @@ function renderPerfil(el, id, alSalir) {
           </a>
         </div>
 
+        ${esMio && bib.porRevisar.length ? `
+          <a class="aviso-revisar en-perfil" href="#revisar">
+            ${icono('jugando', { tam: 20, color: 'var(--acento)', trazo: 'var(--acento-suave)' })}
+            <span>Revisa ${bib.porRevisar.length} ${bib.porRevisar.length === 1 ? 'juego nuevo' : 'juegos nuevos'} de tu biblioteca</span>
+            ${icono('adelante', { tam: 16, color: 'var(--texto-2)' })}
+          </a>` : ''}
+        ${esMio ? metricas.sugerenciasSaga(id).map(tarjetaSaga).join('') : ''}
+
         <section class="perfil-seccion">
           <h2 class="seccion-titulo">Historial</h2>
           <div data-ref="historial"></div>
@@ -216,8 +226,26 @@ function renderPerfil(el, id, alSalir) {
     if (!lista.length) {
       return `<p class="historial-tab-vacia">${fHist.texto ? 'Ningún juego con ese nombre.' : textoVacio(activa, esMio, u.nombre)}</p>`;
     }
-    return `<div class="rejilla">${lista.map((v, i) => itemRejilla(v, i, fHist.orden === 'horas' ? metricas.horasDe(id, v.juego_id) : undefined)).join('')}</div>`;
+    const conHoras = fHist.orden === 'horas';
+    const item = (v, i) => itemRejilla(v, i, conHoras ? metricas.horasDe(id, v.juego_id) : undefined);
+    const lista2 = metricas.agruparSagas(id, lista, (v) => Number(v.juego_id));
+    return `<div class="rejilla">${lista2.map((x, i) => (x.saga
+      ? bloqueGrupo(`saga:${x.saga.id}`, x.hijos.map((v) => datos.juegoConocido(v.juego_id)), `${x.saga.nombre} (saga)`,
+        `${x.hijos.length} juegos`, x.hijos.map(item).join(''), esMio ? x.saga.id : null)
+      : item(x, i))).join('')}</div>`;
   };
+
+  /** Bloque plegable (colección o saga agrupada) que ocupa toda la fila de la rejilla. */
+  const bloqueGrupo = (clave, juegos, titulo, sub, dentro, desagrupar = null) => `
+    <details class="bloque-grupo" data-grupo="${esc(clave)}"${vista.abiertos.has(clave) ? ' open' : ''}>
+      <summary>
+        <span class="bloque-grupo-portadas">${juegos.filter(Boolean).slice(0, 3).map((j) => portada(j, { clase: 'portada-lista' })).join('')}</span>
+        <span class="bloque-grupo-texto"><strong>${esc(titulo)}</strong><small>${esc(sub)}</small></span>
+        ${icono('desplegable', { tam: 12, color: 'var(--texto-2)' })}
+      </summary>
+      <div class="rejilla">${dentro}</div>
+      ${desagrupar != null ? `<button type="button" class="enlace-discreto" data-desagrupar="${desagrupar}">Desagrupar</button>` : ''}
+    </details>`;
 
   const pintarHistorial = (u, p) => {
     const cont = el.querySelector('[data-ref="historial"]');
@@ -256,7 +284,17 @@ function renderPerfil(el, id, alSalir) {
     if (!lista.length) {
       return `<p class="historial-tab-vacia">${fBib.texto ? 'Ningún juego con ese nombre.' : 'Todavía no hay juegos identificados.'}</p>`;
     }
-    return `<div class="rejilla">${lista.map((x, i) => itemBiblioteca(x, i, esMio)).join('')}</div>`;
+    const item = (x, i) => (x.coleccion
+      ? bloqueGrupo(x.clave, x.coleccion.juegos, x.coleccion.juego?.nombre ?? x.nombre,
+        `${x.coleccion.juegos.length} juegos${x.horas ? ` · ${textoHoras(x.horas)}` : ''}`,
+        x.coleccion.juegos.map((j, k) => itemDeColeccion(j, k, esMio, id)).join(''))
+      : itemBiblioteca(x, i, esMio, vista.seleccionando, seleccion.has(x.clave)));
+    const lista2 = metricas.agruparSagas(id, lista, (x) => x.igdbId);
+    return `<div class="rejilla${vista.seleccionando ? ' seleccionando' : ''}">${lista2.map((x, i) => (x.saga
+      ? bloqueGrupo(`saga:${x.saga.id}`, x.hijos.map((h) => h.juego), `${x.saga.nombre} (saga)`,
+        `${x.hijos.length} juegos · ${textoHoras(x.hijos.reduce((t, h) => t + h.horas, 0)) || 'sin horas'}`,
+        x.hijos.map(item).join(''), esMio ? x.saga.id : null)
+      : item(x, i))).join('')}</div>`;
   };
 
   const pintarBiblioteca = (bib) => {
@@ -265,7 +303,16 @@ function renderPerfil(el, id, alSalir) {
     const sinId = filtrar(bib.sinIdentificar, fBib, datosBiblioteca);
     cont.innerHTML = `
       ${barraFiltro('bib', fBib)}
+      ${esMio && bib.identificados.length ? `
+        <div class="bib-seleccionar">
+          <button type="button" class="enlace-discreto" data-accion="seleccionar">${vista.seleccionando ? 'Cancelar selección' : 'Seleccionar'}</button>
+        </div>` : ''}
       <div data-ref="rejilla-bib">${rejillaBiblioteca(bib)}</div>
+      ${vista.seleccionando ? `
+        <div class="barra-accion barra-flotante">
+          <button type="button" class="boton-secundario neutro" data-accion="seleccionar">Cancelar</button>
+          <button type="button" class="boton-principal" data-accion="ocultar-seleccion"${seleccion.size ? '' : ' disabled'}>Ocultar (${seleccion.size})</button>
+        </div>` : ''}
       ${bib.sinIdentificar.length ? `
         <details class="bib-plegable"${vista.sinIdentificar ? ' open' : ''} data-plegable="sinIdentificar">
           <summary>Sin identificar (${bib.sinIdentificar.length})</summary>
@@ -289,6 +336,9 @@ function renderPerfil(el, id, alSalir) {
   const abrirMenuBib = (clave) => {
     const x = grupoBib(clave);
     if (!x || !esMio) return;
+    // Su saga de IGDB (si tiene y aún no está agrupada).
+    const agrupadas = metricas.sagasAgrupadas(id);
+    const saga = (x.juego?.relaciones?.colecciones ?? []).find((c) => !agrupadas.has(Number(c.id))) ?? null;
     abrirHoja({
       titulo: x.nombre,
       antetitulo: 'Tu biblioteca',
@@ -296,8 +346,15 @@ function renderPerfil(el, id, alSalir) {
         <div class="menu-bib">
           <button type="button" class="boton-secundario neutro" data-ocultar>Ocultar de mi biblioteca</button>
           <p class="ajustes-nota">No se borra: deja de salir en tu biblioteca, en tus horas y en «Jugando ahora», también tras sincronizar. Lo recuperas abajo del todo, en «Ver ocultos».</p>
+          ${saga ? `<button type="button" class="boton-secundario neutro" data-agrupar-saga>Agrupar saga «${esc(saga.nombre)}»</button>
+          <p class="ajustes-nota">Junta en una sola entrada tus juegos de esta saga. Solo cambia cómo se ve tu perfil.</p>` : ''}
         </div>`,
       alMontar(cuerpo, cerrar) {
+        cuerpo.querySelector('[data-agrupar-saga]')?.addEventListener('click', () => {
+          datos.guardarSaga(yo.id, saga.id, saga.nombre, true, aviso);
+          aviso(`Agrupados: ${saga.nombre}`);
+          cerrar();
+        });
         cuerpo.querySelector('[data-ocultar]').addEventListener('click', () => {
           datos.ocultarBiblioteca(yo.id, x.titulos, true, aviso);
           aviso('Oculto de tu biblioteca');
@@ -310,7 +367,7 @@ function renderPerfil(el, id, alSalir) {
   let largaHecha = false;
   el.addEventListener('pointerdown', (e) => {
     const c = e.target.closest('[data-bib-celda]');
-    if (!c || !esMio) return;
+    if (!c || !esMio || vista.seleccionando) return;
     largaHecha = false;
     const x0 = e.clientX, y0 = e.clientY;
     largo = { x0, y0, t: setTimeout(() => { largaHecha = true; abrirMenuBib(c.dataset.bibCelda); }, 550) };
@@ -349,6 +406,8 @@ function renderPerfil(el, id, alSalir) {
   el.addEventListener('toggle', (e) => {
     const d = e.target.closest?.('[data-plegable]');
     if (d) vista[d.dataset.plegable] = d.open;
+    const g = e.target.closest?.('[data-grupo]');
+    if (g && g === e.target) { if (g.open) vista.abiertos.add(g.dataset.grupo); else vista.abiertos.delete(g.dataset.grupo); }
   }, true);
   const repintarRejilla = (cual) => {
     const u = datos.usuario(id) ?? yo;
@@ -366,6 +425,29 @@ function renderPerfil(el, id, alSalir) {
   };
 
   el.addEventListener('click', (e) => {
+    // Modo selección: tocar una portada la marca o desmarca.
+    const celdaSel = vista.seleccionando && e.target.closest('[data-bib-celda]');
+    if (celdaSel) {
+      e.preventDefault();
+      const k = celdaSel.dataset.bibCelda;
+      if (seleccion.has(k)) seleccion.delete(k); else seleccion.add(k);
+      pintarBiblioteca(metricas.biblioteca(id));
+      return;
+    }
+    const sagaBtn = e.target.closest('[data-saga-si], [data-saga-no]');
+    if (sagaBtn) {
+      const si = !!sagaBtn.dataset.sagaSi;
+      datos.guardarSaga(yo.id, Number(sagaBtn.dataset.sagaSi ?? sagaBtn.dataset.sagaNo), sagaBtn.dataset.nombre, si, aviso);
+      aviso(si ? `Agrupados: ${sagaBtn.dataset.nombre}` : 'No volveremos a sugerirlo');
+      return;
+    }
+    const desag = e.target.closest('[data-desagrupar]');
+    if (desag) {
+      const sid = Number(desag.dataset.desagrupar);
+      datos.guardarSaga(yo.id, sid, metricas.sagasAgrupadas(id).get(sid) ?? '', false, aviso);
+      aviso('Desagrupados');
+      return;
+    }
     if (largaHecha && e.target.closest('[data-bib-celda]')) {
       // El clic que llega al soltar una pulsación larga no abre nada.
       e.preventDefault();
@@ -389,6 +471,21 @@ function renderPerfil(el, id, alSalir) {
     }
     if (b.dataset.accion === 'vincular-psn') { abrirAjustes(alSalir, { psn: true }); return; }
     if (b.dataset.accion === 'ver-ocultos') { vista.ocultos = !vista.ocultos; pintarBiblioteca(metricas.biblioteca(id)); return; }
+    if (b.dataset.accion === 'seleccionar') {
+      vista.seleccionando = !vista.seleccionando;
+      seleccion.clear();
+      pintarBiblioteca(metricas.biblioteca(id));
+      return;
+    }
+    if (b.dataset.accion === 'ocultar-seleccion' && seleccion.size) {
+      const bib = metricas.biblioteca(id);
+      const elegidos = bib.juegos.filter((x) => seleccion.has(x.clave));
+      datos.ocultarBiblioteca(yo.id, elegidos.flatMap((x) => x.titulos), true, aviso);
+      aviso(elegidos.length === 1 ? 'Oculto de tu biblioteca' : `${elegidos.length} ocultos de tu biblioteca`);
+      vista.seleccionando = false;
+      seleccion.clear();
+      return;
+    }
     if (b.dataset.pestana) {
       pestanaRecordada.set(id, b.dataset.pestana);
       const u = datos.usuario(id) ?? yo;
@@ -449,7 +546,22 @@ function bloqueBibliotecas(u, esMio, vinculado, bib) {
 }
 
 /** Juego identificado de la biblioteca: portada, horas y su nota si lo ha valorado. */
-function itemBiblioteca(x, i, esMio) {
+/** Juego dentro de una colección: su portada; si es mío y no lo he valorado, abre Valorar. */
+function itemDeColeccion(j, i, esMio, uid) {
+  const v = datos.miValoracion(uid, j.igdb_id);
+  const n = v?.nota != null ? formatearNota(v.nota) : null;
+  const attrs = esMio && !v
+    ? `href="#juego/${j.igdb_id}" data-valorar-psn="${j.igdb_id}"`
+    : `href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}"`;
+  return `
+    <a class="rejilla-item" ${attrs} aria-label="${esc(j.nombre)}">
+      ${portada(j, { clase: 'portada-rejilla', titulo: 'arriba', prioridad: i < 3 })}
+      ${n ? `<span class="rejilla-nota">${n}${chipLetra(notaLetra(v.nota), 'mini')}</span>` : ''}
+      ${esMio && !v ? '<span class="rejilla-sin-valorar">Sin valorar</span>' : ''}
+    </a>`;
+}
+
+function itemBiblioteca(x, i, esMio, seleccionando = false, marcada = false) {
   const horas = textoHoras(x.horas);
   const v = x.valoracion;
   const n = v?.nota != null ? formatearNota(v.nota) : null;
@@ -464,12 +576,14 @@ function itemBiblioteca(x, i, esMio) {
     ? `href="#juego/${x.igdbId}" data-valorar-psn="${x.igdbId}" data-plataforma="${esc(x.plataformaPrincipal ?? '')}"`
     : `href="#juego/${x.igdbId}" data-precarga="${esc(x.juego.cover_id ?? '')}"`;
   return `
-    <div class="bib-celda" data-bib-celda="${esc(x.clave)}">
+    <div class="bib-celda${marcada ? ' marcada' : ''}" data-bib-celda="${esc(x.clave)}">
       <a class="rejilla-item" ${attrs} aria-label="${esc(x.juego.nombre)}${horas ? `, ${horas}` : ''}">
         ${portada(x.juego, { clase: 'portada-rejilla', titulo: 'arriba', prioridad: i < 6 })}
         ${pie}
       </a>
-      ${esMio ? `<button type="button" class="bib-menu" data-bib-menu="${esc(x.clave)}" aria-label="Opciones de ${esc(x.nombre)}">${icono('opciones', { tam: 18, color: '#FFFFFF' })}</button>` : ''}
+      ${seleccionando
+        ? `<span class="bib-casilla" aria-hidden="true">${marcada ? icono('completado', { tam: 26, color: 'var(--acento)', trazo: '#FFFFFF' }) : ''}</span>`
+        : esMio ? `<button type="button" class="bib-menu" data-bib-menu="${esc(x.clave)}" aria-label="Opciones de ${esc(x.nombre)}">${icono('opciones', { tam: 18, color: '#FFFFFF' })}</button>` : ''}
     </div>`;
 }
 

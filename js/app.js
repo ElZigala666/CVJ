@@ -16,6 +16,7 @@ import * as juego from './pantallas/juego.js';
 import * as perfil from './pantallas/perfil.js';
 import * as estadisticas from './pantallas/estadisticas.js';
 import * as rankings from './pantallas/rankings.js';
+import * as revisar from './pantallas/revisar.js';
 import { anotarNavegacion, corregirRuta } from './navegacion.js';
 
 const vista = document.getElementById('vista');
@@ -30,6 +31,7 @@ const RUTAS = {
   perfil,            // #perfil, #perfil/{id} y #perfil/{id}/tiers
   estadisticas,      // #estadisticas/{id}
   juego,
+  revisar,           // #revisar: "Revisa tu biblioteca" (PSN)
 };
 const PESTANAS = [
   ['inicio', 'Inicio'],
@@ -39,7 +41,7 @@ const PESTANAS = [
   ['perfil', 'Perfil'],
 ];
 // Rutas que se ven a pantalla completa, sin la barra inferior (la ficha tiene la suya).
-const SIN_BARRA = new Set(['juego']);
+const SIN_BARRA = new Set(['juego', 'revisar']);
 const REFRESCO_MS = 60_000;
 
 let limpiar = null;
@@ -140,6 +142,8 @@ function iniciarDatos() {
   if (!suscrito) suscrito = !!datos.suscribir(() => {
     // PlayStation: sincronización automática, en segundo plano.
     psn.revisarAutomatico();
+    // Biblioteca sincronizada con reglas antiguas: recalcularla una vez con las nuevas.
+    psn.revisarReproceso();
     // Juegos guardados antes de la migración 005: marcar cuáles son online (una vez).
     revisarOnline(datos.estado.juegos, () => datos.refrescar());
     // Si cambian mis datos (nombre, color, acento) en el servidor, actualizarlos aquí.

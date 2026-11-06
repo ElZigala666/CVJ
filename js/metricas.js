@@ -3,7 +3,7 @@
 // pestaña o de usuario no recalcula nada si los datos no han cambiado.
 import * as datos from './datos.js';
 import { mediaGrupo, recomendacionGrupo, repartoLetras, desviacionTipica, notaALetra, redondear, LETRAS } from './notas.js';
-import { claveNombrePsn } from './psn-nombres.js';
+import { claveNombrePsn, nucleoNombre, sinNumeros } from './psn-nombres.js';
 
 // ---------------------------------------------------------------------------
 // Memo por versión de datos
@@ -32,7 +32,7 @@ const online = (v) => datos.esOnline(v.juego_id);
 function porUsuario() {
   return memoizar('porUsuario', () => {
     const m = new Map();
-    for (const v of datos.estado.valoraciones) {
+    for (const v of datos.valoracionesEfectivas()) {
       if (!usuarioValido(v) || !datos.juegoConocido(v.juego_id)) continue;
       if (!m.has(v.usuario_id)) m.set(v.usuario_id, []);
       m.get(v.usuario_id).push(v);
@@ -152,7 +152,7 @@ export const ORDENES = [
 function juegosDelGrupo() {
   return memoizar('juegosDelGrupo', () => {
     const m = new Map();
-    for (const v of datos.estado.valoraciones) {
+    for (const v of datos.valoracionesEfectivas()) {
       if (!usuarioValido(v)) continue;
       const id = Number(v.juego_id);
       if (!m.has(id)) m.set(id, []);
@@ -274,11 +274,22 @@ export function biblioteca(uid) {
     }
     const grupos = new Map();
     for (const f of filas) {
+      const emp = datos.emparejamiento(f.psn_title_id);
+      const coleccion = emp?.tipo === 'coleccion' && emp.juegos?.length ? emp : null;
       const cn = claveNombrePsn(f.nombre_psn);
-      const igdbId = datos.igdbDeBiblioteca(f) ?? nombreAJuego.get(cn) ?? null;
-      const clave = igdbId != null ? `igdb:${igdbId}` : `nombre:${cn || f.psn_title_id}`;
+      const igdbId = coleccion ? null : datos.igdbDeBiblioteca(f) ?? nombreAJuego.get(cn) ?? null;
+      const clave = coleccion ? `col:${coleccion.igdb_id ?? f.psn_title_id}` : igdbId != null ? `igdb:${igdbId}` : `nombre:${cn || f.psn_title_id}`;
       if (!grupos.has(clave)) {
-        grupos.set(clave, { clave, igdbId, juego: igdbId != null ? datos.juegoConocido(igdbId) : null, filas: [], horasPsn: 0, ultimaVez: null, progreso: null });
+        grupos.set(clave, {
+          clave, igdbId, juego: igdbId != null ? datos.juegoConocido(igdbId) : null, filas: [], horasPsn: 0, ultimaVez: null, progreso: null,
+          // Colección (bundle): sus juegos; las horas de PSN son de la colección entera.
+          coleccion: coleccion ? {
+            id: coleccion.igdb_id ?? null,
+            juego: coleccion.igdb_id ? datos.juegoConocido(coleccion.igdb_id) : null,
+            juegos: [...new Set(coleccion.juegos.map((id) => datos.canonico(id)))].map((id) => datos.juegoConocido(id)).filter(Boolean),
+          } : null,
+          emp,
+        });
       }
       const g = grupos.get(clave);
       g.filas.push(f);
@@ -305,12 +316,15 @@ export function biblioteca(uid) {
         plataformaPrincipal: principal.plataforma,
         valoracion,
         online: g.igdbId != null && datos.esOnline(g.igdbId),
-        oculto: g.filas.every((f) => f.oculto),
+        // Oculto si lo ocultó el usuario o si no es un juego (y él no dijo lo contrario).
+        oculto: g.filas.every((f) => f.oculto || (g.emp?.tipo === 'no_juego' && f.oculto_usuario == null)),
+        porRevisar: g.filas.some((f) => f.por_revisar),
+        revision: revisionDe(g),
       };
     }).sort((a, b) => b.horas - a.horas || (b.ultimaVez ?? '').localeCompare(a.ultimaVez ?? ''));
 
     const juegos = todos.filter((x) => !x.oculto);
-    const identificados = juegos.filter((x) => x.igdbId != null && x.juego);
+    const identificados = juegos.filter((x) => x.coleccion || (x.igdbId != null && x.juego));
     const porPlataforma = { PS4: 0, PS5: 0 };
     for (const x of juegos) for (const f of x.filas) {
       if (f.plataforma && porPlataforma[f.plataforma] !== undefined) porPlataforma[f.plataforma] += Number(f.horas ?? 0);
@@ -319,7 +333,9 @@ export function biblioteca(uid) {
     return {
       juegos,
       identificados,
-      sinIdentificar: juegos.filter((x) => !(x.igdbId != null && x.juego)),
+      sinIdentificar: juegos.filter((x) => !x.coleccion && !(x.igdbId != null && x.juego)),
+      // "Revisa tu biblioteca": lo dudoso primero.
+      porRevisar: juegos.filter((x) => x.porRevisar).sort((a, b) => Number(a.revision.seguro) - Number(b.revision.seguro) || b.horas - a.horas),
       ocultos: todos.filter((x) => x.oculto),
       total: juegos.length,
       horas: Math.round(horas),
@@ -384,4 +400,134 @@ export function textoHoras(h) {
   if (n < 1) return `${Math.max(1, Math.round(n * 60))} min`;
   if (n < 10) return `${(Math.round(n * 10) / 10).toString().replace('.', ',')} h`;
   return `${Math.round(n)} h`;
+}
+
+// ---------------------------------------------------------------------------
+// Revisión, fusiones y sagas
+// ---------------------------------------------------------------------------
+/**
+ * Estado del emparejamiento de una entrada de la biblioteca:
+ * { seguro, confirmado, confianza, propuesta (juego propuesto si es dudoso) }
+ */
+function revisionDe(g) {
+  const e = g.emp;
+  if (g.coleccion) return { seguro: true, confirmado: !!e?.confirmado, confianza: e?.confianza ?? 100, propuesta: null };
+  if (g.igdbId != null) return { seguro: true, confirmado: !!e?.confirmado, confianza: e?.confianza ?? 100, propuesta: null };
+  const prop = e?.propuesta_id ? datos.juegoConocido(datos.canonico(e.propuesta_id)) : null;
+  return { seguro: false, confirmado: false, confianza: e?.confianza ?? 0, propuesta: prop };
+}
+
+/** Juegos (principales) que tiene un usuario: valorados y de su biblioteca. */
+function idsDe(uid) {
+  const ids = new Set(valoracionesDe(uid).map((v) => Number(v.juego_id)));
+  for (const x of biblioteca(uid).identificados) {
+    if (x.igdbId != null) ids.add(x.igdbId);
+    for (const j of x.coleccion?.juegos ?? []) ids.add(Number(j.igdb_id));
+  }
+  return ids;
+}
+
+/**
+ * "¿Es el mismo juego?": parejas de juegos de un usuario que IGDB relaciona
+ * (edición o versión, remaster, port, versión ampliada, o misma saga con el nombre
+ * casi igual). Los remakes no: son juegos distintos salvo que él los fusione.
+ * [{ a, b, motivo }] sin las que ya rechazó.
+ */
+export function parejasFusion(uid) {
+  return memoizar(`parejas:${uid}`, () => {
+    const ids = idsDe(uid);
+    const lista = [...ids];
+    const parejas = new Map();
+    const anadir = (a, b, motivo) => {
+      if (a === b || !ids.has(b)) return;
+      const [x, y] = [a, b].sort((m, n) => m - n);
+      if (datos.fusionRechazada(uid, x, y) || parejas.has(`${x}:${y}`)) return;
+      const ra = datos.juegoConocido(x)?.relaciones ?? {};
+      const rb = datos.juegoConocido(y)?.relaciones ?? {};
+      if ((ra.remakes ?? []).includes(y) || (rb.remakes ?? []).includes(x)) return;
+      parejas.set(`${x}:${y}`, { a: x, b: y, motivo });
+    };
+    for (const a of lista) {
+      const j = datos.juegoConocido(a);
+      const r = j?.relaciones;
+      if (!r) continue;
+      for (const b of [r.version_parent, r.parent_game].filter(Boolean)) anadir(a, datos.canonico(b), 'version');
+      for (const b of r.remasters ?? []) anadir(a, datos.canonico(b), 'remaster');
+      for (const b of r.ports ?? []) anadir(a, datos.canonico(b), 'port');
+      for (const b of r.expanded_games ?? []) anadir(a, datos.canonico(b), 'ampliado');
+      // Misma saga y nombre casi igual ("Mafia II" / "Mafia II: Definitive Edition").
+      const sagas = new Set((r.colecciones ?? []).map((c) => c.id));
+      if (!sagas.size) continue;
+      for (const b of lista) {
+        if (b <= a) continue;
+        const jb = datos.juegoConocido(b);
+        if (!(jb?.relaciones?.colecciones ?? []).some((c) => sagas.has(c.id))) continue;
+        if (nucleoNombre(j.nombre) && nucleoNombre(j.nombre) === nucleoNombre(jb.nombre)) anadir(a, b, 'saga');
+      }
+    }
+    return [...parejas.values()];
+  });
+}
+
+/** Parejas para "¿Es el mismo juego?" en la ficha de un juego. */
+export const parejasDeJuego = (uid, igdbId) => parejasFusion(uid).filter((x) => x.a === Number(igdbId) || x.b === Number(igdbId));
+
+/**
+ * Sagas que se podrían agrupar: 3 o más juegos de una misma colección de IGDB
+ * cuyos nombres solo cambian en un número o un año (FIFA, NBA 2K...). Nunca las
+ * que ya agrupó o rechazó. [{ id, nombre, juegos: [igdbId] }]
+ */
+export function sugerenciasSaga(uid) {
+  return memoizar(`sugSaga:${uid}`, () => {
+    const prefs = datos.sagasDe(uid);
+    const porSaga = new Map();
+    for (const id of idsDe(uid)) {
+      const j = datos.juegoConocido(id);
+      for (const c of j?.relaciones?.colecciones ?? []) {
+        if (prefs.has(Number(c.id))) continue;
+        if (!porSaga.has(c.id)) porSaga.set(c.id, { id: c.id, nombre: c.nombre, porBase: new Map() });
+        const base = sinNumeros(j.nombre);
+        const m = porSaga.get(c.id).porBase;
+        if (!m.has(base)) m.set(base, []);
+        m.get(base).push(id);
+      }
+    }
+    const res = [];
+    for (const x of porSaga.values()) {
+      const [base, juegos] = [...x.porBase.entries()].sort((a, b) => b[1].length - a[1].length)[0] ?? [];
+      if (base && juegos.length >= 3) res.push({ id: x.id, nombre: x.nombre || base, juegos });
+    }
+    return res;
+  });
+}
+
+/** Sagas que tiene agrupadas un usuario: Map(coleccion_id → nombre). */
+export function sagasAgrupadas(uid) {
+  return new Map([...datos.sagasDe(uid)].filter(([, x]) => x.agrupada).map(([id, x]) => [id, x.nombre]));
+}
+
+/**
+ * Junta en una sola entrada los juegos de las sagas que el usuario tiene agrupadas.
+ * @param {any[]} items  lo que se va a pintar (valoraciones o entradas de la biblioteca)
+ * @param {(x) => number|null} idDe  juego de cada item
+ * @returns lista con { saga: { id, nombre }, hijos: [...] } en el sitio del primero
+ */
+export function agruparSagas(uid, items, idDe) {
+  const agrupadas = sagasAgrupadas(uid);
+  if (!agrupadas.size) return items;
+  const salida = [];
+  const bloques = new Map();
+  for (const x of items) {
+    const id = idDe(x);
+    const saga = id != null ? (datos.juegoConocido(id)?.relaciones?.colecciones ?? []).find((c) => agrupadas.has(Number(c.id))) : null;
+    if (!saga) { salida.push(x); continue; }
+    if (!bloques.has(saga.id)) {
+      const b = { saga: { id: Number(saga.id), nombre: agrupadas.get(Number(saga.id)) || saga.nombre }, hijos: [] };
+      bloques.set(saga.id, b);
+      salida.push(b);
+    }
+    bloques.get(saga.id).hijos.push(x);
+  }
+  // Una "saga" con un solo juego se ve como el juego.
+  return salida.map((x) => (x.saga && x.hijos.length === 1 ? x.hijos[0] : x));
 }

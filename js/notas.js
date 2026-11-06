@@ -84,6 +84,25 @@ export function recomendacionGrupo(valoraciones) {
   return { si, no, total, porcentaje: total ? Math.round((si / total) * 100) : null };
 }
 
+/** Cuántas notas caen en cada letra: { S: 2, A: 1, B: 0, ... }. */
+export function repartoLetras(valoraciones) {
+  const r = Object.fromEntries(LETRAS.map((l) => [l, 0]));
+  for (const v of valoraciones || []) {
+    const l = notaALetra(v?.nota);
+    if (l) r[l]++;
+  }
+  return r;
+}
+
+/** Desviación típica (poblacional) de las notas; null si hay menos de 2. */
+export function desviacionTipica(valoraciones) {
+  const notas = (valoraciones || []).map((v) => redondear(v?.nota)).filter((n) => n !== null);
+  if (notas.length < 2) return null;
+  const media = notas.reduce((a, b) => a + b, 0) / notas.length;
+  const varianza = notas.reduce((a, n) => a + (n - media) ** 2, 0) / notas.length;
+  return Math.sqrt(varianza);
+}
+
 /** Texto corto "N del grupo" del diseño. */
 export function textoDelGrupo(votos) {
   return `${votos} del grupo`;

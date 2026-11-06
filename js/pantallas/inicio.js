@@ -4,7 +4,7 @@ import * as datos from '../datos.js';
 import { usuarioActual } from '../sesion.js';
 import { mediaGrupo, recomendacionGrupo, desviacionTipica } from '../notas.js';
 import {
-  esc, cabecera, portada, notaConLetra, iconoRecomendacion, avatar, avatarInsignia,
+  esc, cabecera, portada, notaConLetra, iconoRecomendacion, avatarPerfil, nombrePerfil, avatarInsignia,
   tiempoRelativo, conservarScroll,
 } from '../ui.js';
 
@@ -103,9 +103,9 @@ function jugandoAhora() {
           <a class="tarjeta-jugando" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}">
             <div class="tarjeta-jugando-portada">
               ${portada(j, { clase: 'portada-jugando', titulo: 'arriba', deco: true, prioridad: i < 4 })}
-              <span class="tarjeta-avatar">${avatar(u, 30)}</span>
+              <span class="tarjeta-avatar">${avatarPerfil(u, 30)}</span>
             </div>
-            <span class="tarjeta-nombre">${esc(u.nombre)}</span>
+            ${nombrePerfil(u, 'span', 'tarjeta-nombre')}
           </a>`).join('')}
       </div>`
     : `<p class="seccion-vacia">${icono('jugando', { tam: 20, color: 'var(--texto-2)', trazo: 'var(--fondo)' })}<span>Nadie está jugando nada ahora mismo.</span></p>`;
@@ -204,9 +204,9 @@ function actividad() {
   const contenido = filas.length
     ? filas.map(({ a, u, j }) => `
         <a class="actividad-fila" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}">
-          ${avatar(u, 36)}
+          ${avatarPerfil(u, 36)}
           <div class="actividad-texto">
-            <span class="actividad-frase"><strong>${esc(u.nombre)}</strong> ${VERBOS[a.tipo] ?? 'actualizó'} <strong>${esc(j.nombre)}</strong></span>
+            <span class="actividad-frase">${nombrePerfil(u, 'strong')} ${VERBOS[a.tipo] ?? 'actualizó'} <strong>${esc(j.nombre)}</strong></span>
             ${a.nota != null || a.recomendado != null ? `
               <div class="actividad-nota">
                 ${a.nota != null ? notaConLetra(a.nota, 'act') : ''}

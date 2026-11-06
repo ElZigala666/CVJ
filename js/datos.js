@@ -10,6 +10,11 @@ const VENTANA_ACTIVIDAD_MS = 10 * 60 * 1000; // agrupar cambios del mismo juego 
 
 const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], cargadoEn: null });
 
+// Versión de los datos: sube cada vez que cambian (refresco, escritura o reversión).
+// metricas.js la usa para memoizar los cálculos.
+let version = 0;
+export const versionDatos = () => version;
+
 export const estado = vacio();
 let indices = construirIndices(estado);
 const oyentes = new Set();
@@ -106,6 +111,7 @@ function avisar() {
 // Índices y consultas
 // ---------------------------------------------------------------------------
 function construirIndices(s) {
+  version++;
   const usuarios = new Map(s.usuarios.map((u) => [u.id, u]));
   const juegos = new Map(s.juegos.map((j) => [Number(j.igdb_id), j]));
   const porJuego = new Map();

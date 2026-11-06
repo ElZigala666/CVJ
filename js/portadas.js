@@ -29,6 +29,11 @@ export const ANCHOS = {
   'portada-jugando': 104,
   'portada-destacado': 132,
   'portada-ficha': 198,
+  'portada-rejilla': 140,   // historial del perfil: 3 columnas (hasta ~140 px en pantallas anchas)
+  'portada-tier': 51,
+  'portada-ranking': 50,
+  'portada-discrepan': 46,
+  'portada-coinciden': 40,
 };
 
 export function urlPortada(coverId, tam = 'cover_small') {

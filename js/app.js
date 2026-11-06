@@ -8,7 +8,10 @@ import * as entrada from './pantallas/entrada.js';
 import * as inicio from './pantallas/inicio.js';
 import * as buscar from './pantallas/buscar.js';
 import * as juego from './pantallas/juego.js';
-import * as provisional from './pantallas/provisional.js';
+import * as perfil from './pantallas/perfil.js';
+import * as estadisticas from './pantallas/estadisticas.js';
+import * as rankings from './pantallas/rankings.js';
+import { anotarNavegacion, corregirRuta } from './navegacion.js';
 
 const vista = document.getElementById('vista');
 const barra = document.getElementById('barra');
@@ -17,8 +20,9 @@ const RUTAS = {
   inicio,
   buscar,
   valorar: buscar, // el botón central abre Buscar en modo valorar
-  rankings: provisional,
-  perfil: provisional,
+  rankings,          // #rankings y #rankings/comparar/{a}/{b}
+  perfil,            // #perfil, #perfil/{id} y #perfil/{id}/tiers
+  estadisticas,      // #estadisticas/{id}
   juego,
 };
 const PESTANAS = [
@@ -47,8 +51,11 @@ function pintarBarra() {
   }).join('');
 }
 
-function marcarBarra(ruta) {
-  const activa = ruta;
+function marcarBarra(ruta, params) {
+  // Perfil propio, sus tiers y estadísticas marcan "Perfil"; los de otros, nada.
+  const yo = usuarioActual()?.id;
+  let activa = ruta;
+  if (ruta === 'perfil' || ruta === 'estadisticas') activa = !params[0] || params[0] === yo ? 'perfil' : '';
   for (const a of barra.querySelectorAll('[data-ruta]')) {
     const on = a.dataset.ruta === activa;
     a.classList.toggle('activa', on);
@@ -84,19 +91,21 @@ function navegar() {
   const usuario = usuarioActual();
 
   if (!usuario) {
-    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+    if (location.hash) corregirRuta(location.pathname + location.search);
     montar(entrada, { alEntrar }, false);
     document.title = 'CVJ · Entrar';
     return;
   }
 
   iniciarDatos();
+  anotarNavegacion();
   const { ruta, params } = leerRuta();
   const pedida = location.hash.replace(/^#\/?/, '').split('/')[0];
-  if (pedida !== ruta) history.replaceState(null, '', `#${ruta}`);
+  if (pedida !== ruta) corregirRuta(`#${ruta}`);
+  // Título por defecto; las pantallas con nombre propio lo cambian al pintarse.
+  document.title = `CVJ · ${ruta[0].toUpperCase() + ruta.slice(1)}`;
   montar(RUTAS[ruta], { ruta, params, alSalir }, !SIN_BARRA.has(ruta));
-  marcarBarra(ruta);
-  if (ruta !== 'juego') document.title = `CVJ · ${ruta[0].toUpperCase() + ruta.slice(1)}`;
+  marcarBarra(ruta, params);
 }
 
 // ---------------------------------------------------------------------------
@@ -104,7 +113,7 @@ function navegar() {
 // ---------------------------------------------------------------------------
 function alEntrar(usuario) {
   aplicarAcento(usuario.acento);
-  history.replaceState(null, '', '#inicio');
+  corregirRuta('#inicio');
   navegar();
 }
 
@@ -113,7 +122,7 @@ function alSalir() {
   datos.borrarCache();
   datosIniciados = false;
   aplicarAcento(null);
-  history.replaceState(null, '', location.pathname + location.search);
+  corregirRuta(location.pathname + location.search);
   navegar();
 }
 

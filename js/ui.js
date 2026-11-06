@@ -57,15 +57,52 @@ export function avatar(usuario, tam = 40, enlace = null) {
 }
 
 /**
+ * Atributos para que un elemento abra el perfil de un usuario al tocarlo
+ * (lo gestiona navegacion.js; funciona aunque esté dentro de otro enlace).
+ */
+export function attrsPerfil(usuario) {
+  if (!usuario?.id) return '';
+  return `data-perfil="${esc(usuario.id)}" role="link" tabindex="0" aria-label="Perfil de ${esc(usuario.nombre)}"`;
+}
+
+/** Avatar que abre el perfil de su usuario. */
+export function avatarPerfil(usuario, tam = 40) {
+  const estilo = `--av:${esc(usuario?.color || 'var(--acento)')};--tam:${tam}px`;
+  const ini = esc(usuario?.inicial || usuario?.nombre?.[0] || '?');
+  return `<span class="avatar enlace-perfil" style="${estilo}" ${attrsPerfil(usuario)}>${ini}</span>`;
+}
+
+/** Nombre que abre el perfil de su usuario. */
+export function nombrePerfil(usuario, etiqueta = 'span', clase = '') {
+  return `<${etiqueta} class="enlace-perfil ${clase}" ${attrsPerfil(usuario)}>${esc(usuario?.nombre ?? '')}</${etiqueta}>`;
+}
+
+/**
  * Avatar con insignia de recomendado (acento) o no recomendado (atenuado).
  * @param {string} fondo color de lo que hay detrás (para el contorno de la insignia)
+ * @param {boolean} enlace si al tocarlo se abre el perfil
  */
-export function avatarInsignia(usuario, recomienda, tam = 32, fondo = 'var(--fondo)') {
+export function avatarInsignia(usuario, recomienda, tam = 32, fondo = 'var(--fondo)', enlace = true) {
   const tamIns = Math.round(tam * 0.47);
   const ins = recomienda
     ? icono('recomendado', { tam: tamIns, color: 'var(--acento)', trazo: fondo, contorno: fondo, grosor: 3.4 })
     : icono('no-recomendado', { tam: tamIns, color: 'var(--texto-2)', trazo: fondo, contorno: fondo, grosor: 3.4 });
-  return `<span class="avatar-ins${recomienda ? '' : ' atenuado'}" style="--tam:${tam}px">${avatar(usuario, tam)}${ins}</span>`;
+  const attrs = enlace ? attrsPerfil(usuario) : '';
+  return `<span class="avatar-ins${recomienda ? '' : ' atenuado'}${enlace ? ' enlace-perfil' : ''}" style="--tam:${tam}px" ${attrs}>${avatar(usuario, tam)}${ins}</span>`;
+}
+
+/** Cabecera de pantalla secundaria: botón atrás + título (+ subtítulo). */
+export function cabeceraAtras(titulo, subtitulo = '') {
+  return `
+    <header class="cabecera-atras">
+      <button type="button" class="boton-cuadrado" data-accion="atras" aria-label="Volver">
+        ${icono('atras', { tam: 20, color: 'var(--texto)' })}
+      </button>
+      <div class="cabecera-atras-texto">
+        <h1 class="cabecera-atras-titulo">${esc(titulo)}</h1>
+        ${subtitulo ? `<span class="cabecera-atras-sub">${esc(subtitulo)}</span>` : ''}
+      </div>
+    </header>`;
 }
 
 // ---------------------------------------------------------------------------

@@ -6,9 +6,10 @@ import { usuarioActual } from '../sesion.js';
 import { LETRAS } from '../notas.js';
 import {
   esc, urlPortada, colorBloque, colorFondo, mejorCargada, notaConLetra,
-  iconoRecomendacion, avatar, avatarInsignia, nombreEstado, ESTADOS, aviso,
+  iconoRecomendacion, avatar, avatarInsignia, avatarPerfil, nombrePerfil, nombreEstado, ESTADOS, aviso,
 } from '../ui.js';
 import { yaCargada, tamPara, ANCHOS } from '../portadas.js';
+import { volver } from '../navegacion.js';
 import { abrirValorar } from '../hoja-valorar.js';
 
 export function render(el, { params }) {
@@ -160,9 +161,9 @@ export function render(el, { params }) {
     return `
       <div class="grupo-fila">
         <div class="grupo-cab">
-          ${avatar(u, 40)}
+          ${avatarPerfil(u, 40)}
           <div class="grupo-quien">
-            <span class="grupo-nombre">${esc(u.nombre)}${u.id === yo?.id ? ' <span class="grupo-tu">(tú)</span>' : ''}</span>
+            <span class="grupo-nombre">${nombrePerfil(u)}${u.id === yo?.id ? ' <span class="grupo-tu">(tú)</span>' : ''}</span>
             <span class="grupo-estado">${icono(est?.icono ?? 'pendiente', { tam: 14, color: 'var(--acento)', grosor: 2.6 })}${esc(sub)}</span>
           </div>
           ${derecha}
@@ -240,8 +241,7 @@ export function render(el, { params }) {
     const b = e.target.closest('[data-accion]');
     if (!b) return;
     if (b.dataset.accion === 'atras') {
-      if (history.length > 1) history.back();
-      else location.hash = '#inicio';
+      volver('#inicio');
     } else if (b.dataset.accion === 'valorar') {
       abrirValorar(id);
     } else if (b.dataset.accion === 'pendiente') {

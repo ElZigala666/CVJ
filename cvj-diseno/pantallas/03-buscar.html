@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="es"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style><script>window.__resources = {"https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js":"blob:null/39131dba-4ad8-4797-b70a-1489777bab87","https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js":"blob:null/165348a4-1c6f-45dc-a18a-63d7bb3dc5ba"};</script>
+<meta charset="utf-8">
+<title>CVJ · Buscar</title>
+<script src="blob:null/ef01e079-36f1-4ae1-adf2-e8f9b74aa26e"></script>
+<style>x-dc{display:none!important}</style><script src="blob:null/39131dba-4ad8-4797-b70a-1489777bab87"></script><script src="blob:null/165348a4-1c6f-45dc-a18a-63d7bb3dc5ba"></script><style data-dc-tpl="1">/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+</style><style data-dc-tpl="2">body{margin:0} input::placeholder{color:#8E8A97}</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="07e1303f-ea61-4371-bb2c-88ec1d74fa4f"><div data-dc-tpl="3" style="width: 390px; height: 844px; position: relative; box-sizing: border-box; padding: 20px 0px 100px; background: rgb(255, 255, 255); color: rgb(21, 19, 26); font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; gap: 16px; overflow: hidden;">
+  <div data-dc-tpl="4" style="padding: 0px 20px; display: flex; flex-direction: column; gap: 14px;">
+    <h1 data-dc-tpl="5" style="margin: 0px; font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 28px; letter-spacing: -0.01em;">Buscar</h1>
+    <div data-dc-tpl="6" style="height: 50px; border-radius: 14px; background: rgb(246, 245, 249); display: flex; align-items: center; gap: 10px; padding: 0px 14px;">
+      <svg data-dc-tpl="7" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="8" d="M10.5 2a8.5 8.5 0 0 1 6.72 13.7l4.54 4.54-2.12 2.12-4.54-4.54A8.5 8.5 0 1 1 10.5 2zm0 3.2a5.3 5.3 0 1 0 0 10.6 5.3 5.3 0 0 0 0-10.6z" fill="#68656F" fill-rule="evenodd"></path></svg>
+      <label data-dc-tpl="9" for="q" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0px, 0px, 0px, 0px);">Buscar juego</label>
+      <input data-dc-tpl="10" id="q" type="search" placeholder="Busca cualquier juego" value="ghost" style="flex: 1 1 0%; min-width: 0px; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; background: transparent; color: rgb(21, 19, 26); font-family: inherit; font-size: 16px; outline: none;">
+    </div>
+    <div data-dc-tpl="11" style="display: flex; gap: 8px; overflow-x: auto;">
+      
+        <button data-dc-tpl="13" type="button" style="height: 34px; flex: 0 0 auto; padding: 0px 14px; border-radius: 17px; border: 1px solid rgb(109, 40, 217); background: rgb(109, 40, 217); color: rgb(255, 255, 255); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Todas</span></button>
+      
+        <button data-dc-tpl="13" type="button" style="height: 34px; flex: 0 0 auto; padding: 0px 14px; border-radius: 17px; border: 1px solid rgb(232, 230, 238); background: rgb(255, 255, 255); color: rgb(21, 19, 26); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;"><span class="sc-interp">PS5</span></button>
+      
+        <button data-dc-tpl="13" type="button" style="height: 34px; flex: 0 0 auto; padding: 0px 14px; border-radius: 17px; border: 1px solid rgb(232, 230, 238); background: rgb(255, 255, 255); color: rgb(21, 19, 26); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;"><span class="sc-interp">PS4</span></button>
+      
+        <button data-dc-tpl="13" type="button" style="height: 34px; flex: 0 0 auto; padding: 0px 14px; border-radius: 17px; border: 1px solid rgb(232, 230, 238); background: rgb(255, 255, 255); color: rgb(21, 19, 26); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;"><span class="sc-interp">PC</span></button>
+      
+        <button data-dc-tpl="13" type="button" style="height: 34px; flex: 0 0 auto; padding: 0px 14px; border-radius: 17px; border: 1px solid rgb(232, 230, 238); background: rgb(255, 255, 255); color: rgb(21, 19, 26); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Xbox</span></button>
+      
+        <button data-dc-tpl="13" type="button" style="height: 34px; flex: 0 0 auto; padding: 0px 14px; border-radius: 17px; border: 1px solid rgb(232, 230, 238); background: rgb(255, 255, 255); color: rgb(21, 19, 26); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Switch</span></button>
+      
+    </div>
+  </div>
+
+  <div data-dc-tpl="14" style="display: flex; flex-direction: column; padding: 0px 20px;">
+    <span data-dc-tpl="15" style="font-size: 12px; font-weight: 600; color: rgb(104, 101, 111); text-transform: uppercase; letter-spacing: 0.06em; padding-bottom: 4px;"><span class="sc-interp">4 resultados</span></span>
+    
+      <div data-dc-tpl="17" style="display: flex; align-items: center; gap: 12px; padding: 10px 0px; border-bottom: 1px solid rgb(232, 230, 238);">
+        <a data-dc-tpl="18" href="Ficha.dc.html" style="flex: 1 1 0%; min-width: 0px; display: flex; align-items: center; gap: 12px; text-decoration: none; color: rgb(21, 19, 26);">
+          <div data-dc-tpl="19" style="width: 54px; height: 72px; flex: 0 0 auto; border-radius: 8px; background: rgb(122, 34, 34);"></div>
+          <div data-dc-tpl="20" style="flex: 1 1 0%; min-width: 0px; display: flex; flex-direction: column; gap: 4px;">
+            <span data-dc-tpl="21" style="font-size: 15px; font-weight: 600; line-height: 1.25;"><span class="sc-interp">Ghost of Yōtei</span></span>
+            <span data-dc-tpl="22" style="font-size: 13px; color: rgb(104, 101, 111);"><span class="sc-interp">2025 · PS5</span></span>
+            
+              <div data-dc-tpl="24" style="display: flex; align-items: center; gap: 6px;">
+                <span data-dc-tpl="25" style="font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 14px;"><span class="sc-interp">7.6</span></span>
+                <span data-dc-tpl="26" style="padding: 1px 6px; border-radius: 6px; background: rgb(175, 137, 234); color: rgb(21, 19, 26); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 11px;"><span class="sc-interp">B</span></span>
+                <span data-dc-tpl="27" style="font-size: 12px; color: rgb(104, 101, 111);"><span class="sc-interp">5 del grupo</span></span>
+              </div>
+            
+            
+          </div>
+        </a>
+        <a data-dc-tpl="30" href="Valorar.dc.html" aria-label="Valorar Ghost of Yōtei" style="width: 44px; height: 44px; flex: 0 0 auto; border-radius: 12px; background: rgb(237, 229, 250); display: flex; align-items: center; justify-content: center; text-decoration: none;">
+          <svg data-dc-tpl="31" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="32" d="M12 5v14M5 12h14" stroke="#6D28D9" stroke-width="2.6" stroke-linecap="round" fill="none"></path></svg>
+        </a>
+      </div>
+    
+      <div data-dc-tpl="17" style="display: flex; align-items: center; gap: 12px; padding: 10px 0px; border-bottom: 1px solid rgb(232, 230, 238);">
+        <a data-dc-tpl="18" href="Ficha.dc.html" style="flex: 1 1 0%; min-width: 0px; display: flex; align-items: center; gap: 12px; text-decoration: none; color: rgb(21, 19, 26);">
+          <div data-dc-tpl="19" style="width: 54px; height: 72px; flex: 0 0 auto; border-radius: 8px; background: rgb(92, 31, 31);"></div>
+          <div data-dc-tpl="20" style="flex: 1 1 0%; min-width: 0px; display: flex; flex-direction: column; gap: 4px;">
+            <span data-dc-tpl="21" style="font-size: 15px; font-weight: 600; line-height: 1.25;"><span class="sc-interp">Ghost of Tsushima</span></span>
+            <span data-dc-tpl="22" style="font-size: 13px; color: rgb(104, 101, 111);"><span class="sc-interp">2020 · PS5, PS4, PC</span></span>
+            
+              <div data-dc-tpl="24" style="display: flex; align-items: center; gap: 6px;">
+                <span data-dc-tpl="25" style="font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 14px;"><span class="sc-interp">8.7</span></span>
+                <span data-dc-tpl="26" style="padding: 1px 6px; border-radius: 6px; background: rgb(146, 94, 227); color: rgb(255, 255, 255); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 11px;"><span class="sc-interp">A</span></span>
+                <span data-dc-tpl="27" style="font-size: 12px; color: rgb(104, 101, 111);"><span class="sc-interp">4 del grupo</span></span>
+              </div>
+            
+            
+          </div>
+        </a>
+        <a data-dc-tpl="30" href="Valorar.dc.html" aria-label="Valorar Ghost of Tsushima" style="width: 44px; height: 44px; flex: 0 0 auto; border-radius: 12px; background: rgb(237, 229, 250); display: flex; align-items: center; justify-content: center; text-decoration: none;">
+          <svg data-dc-tpl="31" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="32" d="M12 5v14M5 12h14" stroke="#6D28D9" stroke-width="2.6" stroke-linecap="round" fill="none"></path></svg>
+        </a>
+      </div>
+    
+      <div data-dc-tpl="17" style="display: flex; align-items: center; gap: 12px; padding: 10px 0px; border-bottom: 1px solid rgb(232, 230, 238);">
+        <a data-dc-tpl="18" href="Ficha.dc.html" style="flex: 1 1 0%; min-width: 0px; display: flex; align-items: center; gap: 12px; text-decoration: none; color: rgb(21, 19, 26);">
+          <div data-dc-tpl="19" style="width: 54px; height: 72px; flex: 0 0 auto; border-radius: 8px; background: rgb(31, 42, 68);"></div>
+          <div data-dc-tpl="20" style="flex: 1 1 0%; min-width: 0px; display: flex; flex-direction: column; gap: 4px;">
+            <span data-dc-tpl="21" style="font-size: 15px; font-weight: 600; line-height: 1.25;"><span class="sc-interp">Ghostrunner</span></span>
+            <span data-dc-tpl="22" style="font-size: 13px; color: rgb(104, 101, 111);"><span class="sc-interp">2020 · PS5, PS4, PC, Xbox, Switch</span></span>
+            
+            
+              <span data-dc-tpl="29" style="font-size: 12px; color: rgb(104, 101, 111);">Nadie del grupo lo ha jugado</span>
+            
+          </div>
+        </a>
+        <a data-dc-tpl="30" href="Valorar.dc.html" aria-label="Valorar Ghostrunner" style="width: 44px; height: 44px; flex: 0 0 auto; border-radius: 12px; background: rgb(237, 229, 250); display: flex; align-items: center; justify-content: center; text-decoration: none;">
+          <svg data-dc-tpl="31" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="32" d="M12 5v14M5 12h14" stroke="#6D28D9" stroke-width="2.6" stroke-linecap="round" fill="none"></path></svg>
+        </a>
+      </div>
+    
+      <div data-dc-tpl="17" style="display: flex; align-items: center; gap: 12px; padding: 10px 0px; border-bottom: 1px solid rgb(232, 230, 238);">
+        <a data-dc-tpl="18" href="Ficha.dc.html" style="flex: 1 1 0%; min-width: 0px; display: flex; align-items: center; gap: 12px; text-decoration: none; color: rgb(21, 19, 26);">
+          <div data-dc-tpl="19" style="width: 54px; height: 72px; flex: 0 0 auto; border-radius: 8px; background: rgb(43, 31, 68);"></div>
+          <div data-dc-tpl="20" style="flex: 1 1 0%; min-width: 0px; display: flex; flex-direction: column; gap: 4px;">
+            <span data-dc-tpl="21" style="font-size: 15px; font-weight: 600; line-height: 1.25;"><span class="sc-interp">Ghostwire: Tokyo</span></span>
+            <span data-dc-tpl="22" style="font-size: 13px; color: rgb(104, 101, 111);"><span class="sc-interp">2022 · PS5, PC, Xbox</span></span>
+            
+              <div data-dc-tpl="24" style="display: flex; align-items: center; gap: 6px;">
+                <span data-dc-tpl="25" style="font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 14px;"><span class="sc-interp">6.4</span></span>
+                <span data-dc-tpl="26" style="padding: 1px 6px; border-radius: 6px; background: rgb(197, 169, 240); color: rgb(21, 19, 26); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 11px;"><span class="sc-interp">C</span></span>
+                <span data-dc-tpl="27" style="font-size: 12px; color: rgb(104, 101, 111);"><span class="sc-interp">1 del grupo</span></span>
+              </div>
+            
+            
+          </div>
+        </a>
+        <a data-dc-tpl="30" href="Valorar.dc.html" aria-label="Valorar Ghostwire: Tokyo" style="width: 44px; height: 44px; flex: 0 0 auto; border-radius: 12px; background: rgb(237, 229, 250); display: flex; align-items: center; justify-content: center; text-decoration: none;">
+          <svg data-dc-tpl="31" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="32" d="M12 5v14M5 12h14" stroke="#6D28D9" stroke-width="2.6" stroke-linecap="round" fill="none"></path></svg>
+        </a>
+      </div>
+    
+    <div data-dc-tpl="33" style="display: flex; align-items: center; gap: 12px; padding: 10px 0px;">
+      <div data-dc-tpl="34" style="width: 54px; height: 72px; border-radius: 8px; background: rgb(237, 235, 242);"></div>
+      <div data-dc-tpl="35" style="flex: 1 1 0%; display: flex; flex-direction: column; gap: 8px;">
+        <div data-dc-tpl="36" style="height: 13px; width: 65%; border-radius: 6px; background: rgb(237, 235, 242);"></div>
+        <div data-dc-tpl="37" style="height: 11px; width: 40%; border-radius: 5px; background: rgb(237, 235, 242);"></div>
+      </div>
+    </div>
+    <div data-dc-tpl="38" style="display: flex; align-items: center; gap: 12px; padding: 10px 0px;">
+      <div data-dc-tpl="39" style="width: 54px; height: 72px; border-radius: 8px; background: rgb(237, 235, 242);"></div>
+      <div data-dc-tpl="40" style="flex: 1 1 0%; display: flex; flex-direction: column; gap: 8px;">
+        <div data-dc-tpl="41" style="height: 13px; width: 52%; border-radius: 6px; background: rgb(237, 235, 242);"></div>
+        <div data-dc-tpl="42" style="height: 11px; width: 34%; border-radius: 5px; background: rgb(237, 235, 242);"></div>
+      </div>
+    </div>
+  </div>
+
+  <nav data-dc-tpl="43" style="position: absolute; left: 0px; right: 0px; bottom: 0px; height: 84px; box-sizing: border-box; padding: 6px 8px 18px; background: rgb(255, 255, 255); border-top: 1px solid rgb(232, 230, 238); display: flex; align-items: center; justify-content: space-around;">
+    
+      
+      
+        <a data-dc-tpl="50" href="Inicio.dc.html" style="width: 64px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; color: rgb(104, 101, 111); font-size: 11px; font-weight: 600;">
+          <svg data-dc-tpl="51" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="52" d="M12 2.5 21 10v11a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V10z" fill="#68656F" fill-rule="evenodd"></path></svg>
+          <span data-dc-tpl="53"><span class="sc-interp">Inicio</span></span>
+        </a>
+      
+    
+      
+      
+        <a data-dc-tpl="50" href="Buscar.dc.html" style="width: 64px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; color: rgb(109, 40, 217); font-size: 11px; font-weight: 600;">
+          <svg data-dc-tpl="51" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="52" d="M10.5 2a8.5 8.5 0 0 1 6.72 13.7l4.54 4.54-2.12 2.12-4.54-4.54A8.5 8.5 0 1 1 10.5 2zm0 3.2a5.3 5.3 0 1 0 0 10.6 5.3 5.3 0 0 0 0-10.6z" fill="#6D28D9" fill-rule="evenodd"></path></svg>
+          <span data-dc-tpl="53"><span class="sc-interp">Buscar</span></span>
+        </a>
+      
+    
+      
+        <a data-dc-tpl="46" href="Valorar.dc.html" aria-label="Valorar un juego" style="width: 56px; height: 56px; border-radius: 18px; background: rgb(109, 40, 217); display: flex; align-items: center; justify-content: center; margin-top: -16px; text-decoration: none;">
+          <svg data-dc-tpl="47" width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="48" d="M12 5v14M5 12h14" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" fill="none"></path></svg>
+        </a>
+      
+      
+    
+      
+      
+        <a data-dc-tpl="50" href="Rankings.dc.html" style="width: 64px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; color: rgb(104, 101, 111); font-size: 11px; font-weight: 600;">
+          <svg data-dc-tpl="51" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="52" d="M3 12.5a1 1 0 0 1 1-1h4V22H4a1 1 0 0 1-1-1zM9.5 4a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v18h-5zM16 8.5h4a1 1 0 0 1 1 1V21a1 1 0 0 1-1 1h-4z" fill="#68656F" fill-rule="evenodd"></path></svg>
+          <span data-dc-tpl="53"><span class="sc-interp">Rankings</span></span>
+        </a>
+      
+    
+      
+      
+        <a data-dc-tpl="50" href="Perfil.dc.html" style="width: 64px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; color: rgb(104, 101, 111); font-size: 11px; font-weight: 600;">
+          <svg data-dc-tpl="51" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="52" d="M12 2.5a5 5 0 1 1 0 10 5 5 0 0 1 0-10zM3 21c0-4.4 4-7 9-7s9 2.6 9 7v1H3z" fill="#68656F" fill-rule="evenodd"></path></svg>
+          <span data-dc-tpl="53"><span class="sc-interp">Perfil</span></span>
+        </a>
+      
+    
+  </nav></div></div></div>
+<script type="text/x-dc" data-dc-script="" data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#6D28D9&quot;,&quot;options&quot;:[&quot;#6D28D9&quot;,&quot;#8B5CF6&quot;,&quot;#5B21B6&quot;,&quot;#A21CAF&quot;]},&quot;oscuro&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false},&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:844}}">
+class Component extends DCLogic {
+  constructor(p){super(p);this.state={q:'ghost',plat:'Todas'};}
+  hx(h){h=String(h).replace('#','');if(h.length===3){h=h.split('').map(function(x){return x+x;}).join('');}return [0,2,4].map(function(i){return parseInt(h.substr(i,2),16)||0;});}
+  mix(a,b,t){var A=this.hx(a),B=this.hx(b);return '#'+A.map(function(v,i){return Math.round(v+(B[i]-v)*t).toString(16).padStart(2,'0');}).join('');}
+  theme(){var acc=this.props.accent||'#6D28D9';var d=!!this.props.oscuro;return d?{dark:true,bg:'#0F0E13',sf:'#1A1920',sf2:'#24222B',tx:'#F3F2F7',mu:'#A6A3B1',ln:'#2E2C36',ac:this.mix(acc,'#ffffff',0.38),acs:this.mix(acc,'#0F0E13',0.72),act:this.mix(acc,'#ffffff',0.55),on:'#0F0E13'}:{dark:false,bg:'#FFFFFF',sf:'#F6F5F9',sf2:'#EDEBF2',tx:'#15131A',mu:'#68656F',ln:'#E8E6EE',ac:acc,acs:this.mix(acc,'#ffffff',0.88),act:acc,on:'#FFFFFF'};}
+  tiers(c){var self=this;var L=['S','A','B','C','D','E','F'];var r=[0,0.25,0.45,0.6,0.72,0.82,0.9];var o={};L.forEach(function(l,i){o[l]={bg:self.mix(c.ac,'#ffffff',r[i]),fg:c.dark?'#0F0E13':(i<2?'#FFFFFF':'#15131A')};});return o;}
+  letra(n){return n>=9?'S':n>=8?'A':n>=7?'B':n>=6?'C':n>=5?'D':n>=3.5?'E':'F';}
+  nav(active,c){var I={inicio:'M12 2.5 21 10v11a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V10z',buscar:'M10.5 2a8.5 8.5 0 0 1 6.72 13.7l4.54 4.54-2.12 2.12-4.54-4.54A8.5 8.5 0 1 1 10.5 2zm0 3.2a5.3 5.3 0 1 0 0 10.6 5.3 5.3 0 0 0 0-10.6z',rankings:'M3 12.5a1 1 0 0 1 1-1h4V22H4a1 1 0 0 1-1-1zM9.5 4a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v18h-5zM16 8.5h4a1 1 0 0 1 1 1V21a1 1 0 0 1-1 1h-4z',perfil:'M12 2.5a5 5 0 1 1 0 10 5 5 0 0 1 0-10zM3 21c0-4.4 4-7 9-7s9 2.6 9 7v1H3z'};var L=[['inicio','Inicio','Inicio.dc.html'],['buscar','Buscar','Buscar.dc.html'],['fab'],['rankings','Rankings','Rankings.dc.html'],['perfil','Perfil','Perfil.dc.html']];return L.map(function(x){if(x[0]==='fab'){return {fab:true,tab:false};}return {fab:false,tab:true,label:x[1],href:x[2],d:I[x[0]],col:x[0]===active?c.act:c.mu};});}
+  renderVals() {
+    var c=this.theme();var T=this.tiers(c);var self=this;
+    var cat=[
+      {t:'Ghost of Yōtei',c:'#7A2222',y:2025,p:['PS5'],n:7.6,k:5},
+      {t:'Ghost of Tsushima',c:'#5C1F1F',y:2020,p:['PS5','PS4','PC'],n:8.7,k:4},
+      {t:'Ghostrunner',c:'#1F2A44',y:2020,p:['PS5','PS4','PC','Xbox','Switch'],n:null,k:0},
+      {t:'Ghostwire: Tokyo',c:'#2B1F44',y:2022,p:['PS5','PC','Xbox'],n:6.4,k:1},
+      {t:'God of War Ragnarök',c:'#2C4A5A',y:2022,p:['PS5','PS4','PC'],n:8.1,k:6},
+      {t:'Hades II',c:'#4A1F3D',y:2025,p:['PS5','PC','Switch'],n:null,k:0}
+    ];
+    var q=(this.state.q||'').toLowerCase().trim();var plat=this.state.plat;
+    var results=cat.filter(function(g){return (!q||g.t.toLowerCase().indexOf(q)>=0)&&(plat==='Todas'||g.p.indexOf(plat)>=0);}).map(function(g){var l=g.n!=null?self.letra(g.n):'F';return {t:g.t,c:g.c,meta:g.y+' · '+g.p.join(', '),played:g.n!=null,unplayed:g.n==null,n:g.n!=null?g.n.toFixed(1):'',l:l,tb:T[l].bg,tf:T[l].fg,who:g.k===1?'1 del grupo':g.k+' del grupo'};});
+    var plats=['Todas','PS5','PS4','PC','Xbox','Switch'].map(function(p){var on=p===plat;return {label:p,bg:on?c.ac:c.bg,fg:on?c.on:c.tx,bd:on?c.ac:c.ln,pick:function(){self.setState({plat:p});}};});
+    return {c:c,q:this.state.q,results:results,plats:plats,countLabel:results.length+' resultados',
+      onQ:function(e){self.setState({q:e.target.value});},nav:this.nav('buscar',c)};
+  }
+}
+</script>
+
+
+</body></html>

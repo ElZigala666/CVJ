@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="es"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style><script>window.__resources = {"https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js":"blob:null/0ed4e906-f0b9-4612-a921-55fb94828a73","https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js":"blob:null/3fc08ce2-4945-4db2-bf66-63e36f51564d"};</script>
+<meta charset="utf-8">
+<title>CVJ · Inicio</title>
+<script src="blob:null/ce35a39e-e954-4164-a61d-a579954dbffd"></script>
+<style>x-dc{display:none!important}</style><script src="blob:null/0ed4e906-f0b9-4612-a921-55fb94828a73"></script><script src="blob:null/3fc08ce2-4945-4db2-bf66-63e36f51564d"></script><style data-dc-tpl="1">/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+</style><style data-dc-tpl="2">body{margin:0}</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="b8200cd7-445c-4164-916a-bf9f686117d3"><div data-dc-tpl="3" style="width: 390px; height: 1240px; position: relative; box-sizing: border-box; padding-bottom: 100px; background: rgb(255, 255, 255); color: rgb(21, 19, 26); font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; gap: 28px; overflow: hidden;">
+
+  <header data-dc-tpl="4" style="display: flex; align-items: center; justify-content: space-between; padding: 20px 20px 0px;">
+    <div data-dc-tpl="5" style="display: flex; align-items: center; gap: 10px;">
+      <svg data-dc-tpl="6" width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="7" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9"></path><path data-dc-tpl="8" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+      <span data-dc-tpl="9" style="font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 24px; font-weight: 700; letter-spacing: -0.02em;">CVJ</span>
+    </div>
+    <a data-dc-tpl="10" href="Perfil.dc.html" aria-label="Tu perfil" style="width: 40px; height: 40px; border-radius: 50%; background: rgb(109, 40, 217); color: rgb(255, 255, 255); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; text-decoration: none;">M</a>
+  </header>
+
+  <section data-dc-tpl="11" style="display: flex; flex-direction: column; gap: 12px;">
+    <h2 data-dc-tpl="12" style="margin: 0px; padding: 0px 20px; font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 20px;">Jugando ahora</h2>
+    <div data-dc-tpl="13" style="display: flex; gap: 12px; padding: 0px 20px; overflow-x: auto;">
+      
+        <a data-dc-tpl="15" href="Ficha.dc.html" style="width: 104px; flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; text-decoration: none; color: rgb(21, 19, 26);">
+          <div data-dc-tpl="16" style="width: 104px; height: 139px; border-radius: 12px; background: rgb(122, 34, 34); position: relative; overflow: hidden;">
+            <span data-dc-tpl="17" style="position: absolute; width: 150px; height: 150px; border-radius: 50%; background: rgba(255, 255, 255, 0.08); top: -60px; right: -70px;"></span>
+            <span data-dc-tpl="18" style="position: absolute; left: 8px; right: 8px; top: 9px; color: rgb(255, 255, 255); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 11px; line-height: 1.1; text-transform: uppercase;"><span class="sc-interp">Ghost of Yōtei</span></span>
+            <span data-dc-tpl="19" style="position: absolute; left: 6px; bottom: 6px; width: 30px; height: 30px; border-radius: 50%; background: rgb(190, 24, 93); border: 2px solid rgb(255, 255, 255); color: rgb(255, 255, 255); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;"><span class="sc-interp">P</span></span>
+          </div>
+          <span data-dc-tpl="20" style="font-size: 13px; font-weight: 600; line-height: 1.2;"><span class="sc-interp">Pablo</span></span>
+        </a>
+      
+        <a data-dc-tpl="15" href="Ficha.dc.html" style="width: 104px; flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; text-decoration: none; color: rgb(21, 19, 26);">
+          <div data-dc-tpl="16" style="width: 104px; height: 139px; border-radius: 12px; background: rgb(90, 46, 42); position: relative; overflow: hidden;">
+            <span data-dc-tpl="17" style="position: absolute; width: 150px; height: 150px; border-radius: 50%; background: rgba(255, 255, 255, 0.08); top: -60px; right: -70px;"></span>
+            <span data-dc-tpl="18" style="position: absolute; left: 8px; right: 8px; top: 9px; color: rgb(255, 255, 255); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 11px; line-height: 1.1; text-transform: uppercase;"><span class="sc-interp">Clair Obscur: Expedition 33</span></span>
+            <span data-dc-tpl="19" style="position: absolute; left: 6px; bottom: 6px; width: 30px; height: 30px; border-radius: 50%; background: rgb(29, 78, 216); border: 2px solid rgb(255, 255, 255); color: rgb(255, 255, 255); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;"><span class="sc-interp">I</span></span>
+          </div>
+          <span data-dc-tpl="20" style="font-size: 13px; font-weight: 600; line-height: 1.2;"><span class="sc-interp">Iván</span></span>
+        </a>
+      
+        <a data-dc-tpl="15" href="Ficha.dc.html" style="width: 104px; flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; text-decoration: none; color: rgb(21, 19, 26);">
+          <div data-dc-tpl="16" style="width: 104px; height: 139px; border-radius: 12px; background: rgb(74, 31, 61); position: relative; overflow: hidden;">
+            <span data-dc-tpl="17" style="position: absolute; width: 150px; height: 150px; border-radius: 50%; background: rgba(255, 255, 255, 0.08); top: -60px; right: -70px;"></span>
+            <span data-dc-tpl="18" style="position: absolute; left: 8px; right: 8px; top: 9px; color: rgb(255, 255, 255); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 11px; line-height: 1.1; text-transform: uppercase;"><span class="sc-interp">Hades II</span></span>
+            <span data-dc-tpl="19" style="position: absolute; left: 6px; bottom: 6px; width: 30px; height: 30px; border-radius: 50%; background: rgb(109, 40, 217); border: 2px solid rgb(255, 255, 255); color: rgb(255, 255, 255); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;"><span class="sc-interp">M</span></span>
+          </div>
+          <span data-dc-tpl="20" style="font-size: 13px; font-weight: 600; line-height: 1.2;"><span class="sc-interp">Marcos</span></span>
+        </a>
+      
+        <a data-dc-tpl="15" href="Ficha.dc.html" style="width: 104px; flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; text-decoration: none; color: rgb(21, 19, 26);">
+          <div data-dc-tpl="16" style="width: 104px; height: 139px; border-radius: 12px; background: rgb(107, 43, 43); position: relative; overflow: hidden;">
+            <span data-dc-tpl="17" style="position: absolute; width: 150px; height: 150px; border-radius: 50%; background: rgba(255, 255, 255, 0.08); top: -60px; right: -70px;"></span>
+            <span data-dc-tpl="18" style="position: absolute; left: 8px; right: 8px; top: 9px; color: rgb(255, 255, 255); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 11px; line-height: 1.1; text-transform: uppercase;"><span class="sc-interp">Hollow Knight: Silksong</span></span>
+            <span data-dc-tpl="19" style="position: absolute; left: 6px; bottom: 6px; width: 30px; height: 30px; border-radius: 50%; background: rgb(180, 83, 9); border: 2px solid rgb(255, 255, 255); color: rgb(255, 255, 255); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;"><span class="sc-interp">D</span></span>
+          </div>
+          <span data-dc-tpl="20" style="font-size: 13px; font-weight: 600; line-height: 1.2;"><span class="sc-interp">Dani</span></span>
+        </a>
+      
+    </div>
+  </section>
+
+  <section data-dc-tpl="21" style="display: flex; flex-direction: column; gap: 12px;">
+    <h2 data-dc-tpl="22" style="margin: 0px; padding: 0px 20px; font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 20px;">Destacados del grupo</h2>
+    <div data-dc-tpl="23" style="display: flex; gap: 8px; padding: 0px 20px;">
+      
+        <button data-dc-tpl="25" type="button" style="height: 36px; padding: 0px 14px; border-radius: 18px; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; background: rgb(109, 40, 217); color: rgb(255, 255, 255); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Mejor valorados</span></button>
+      
+        <button data-dc-tpl="25" type="button" style="height: 36px; padding: 0px 14px; border-radius: 18px; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; background: rgb(246, 245, 249); color: rgb(21, 19, 26); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Más jugados</span></button>
+      
+        <button data-dc-tpl="25" type="button" style="height: 36px; padding: 0px 14px; border-radius: 18px; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; background: rgb(246, 245, 249); color: rgb(21, 19, 26); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Más polémicos</span></button>
+      
+    </div>
+    <div data-dc-tpl="26" style="display: flex; gap: 12px; padding: 0px 20px; overflow-x: auto;">
+      
+        <a data-dc-tpl="28" href="Ficha.dc.html" style="width: 132px; flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; text-decoration: none; color: rgb(21, 19, 26);">
+          <div data-dc-tpl="29" style="width: 132px; height: 176px; border-radius: 12px; background: rgb(30, 79, 168); position: relative; overflow: hidden;">
+            <span data-dc-tpl="30" style="position: absolute; width: 180px; height: 180px; border-radius: 50%; background: rgba(255, 255, 255, 0.08); top: -70px; right: -90px;"></span>
+            <span data-dc-tpl="31" style="position: absolute; left: 10px; right: 10px; bottom: 10px; color: rgb(255, 255, 255); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 12px; line-height: 1.1; text-transform: uppercase;"><span class="sc-interp">Astro Bot</span></span>
+          </div>
+          <div data-dc-tpl="32" style="display: flex; align-items: center; gap: 6px;">
+            <span data-dc-tpl="33" style="font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 17px;"><span class="sc-interp">9.3</span></span>
+            <span data-dc-tpl="34" style="padding: 2px 6px; border-radius: 6px; background: rgb(109, 40, 217); color: rgb(255, 255, 255); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 12px;"><span class="sc-interp">S</span></span>
+            <span data-dc-tpl="35" style="margin-left: auto; font-size: 12px; font-weight: 600; color: rgb(104, 101, 111);"><span class="sc-interp">5 de 5</span></span>
+          </div>
+          <div data-dc-tpl="36" role="img" aria-label="Lo recomiendan 5 de 5" style="display: flex; gap: 4px; flex-wrap: wrap;">
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(109, 40, 217); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 1;"><span class="sc-interp">M</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(180, 83, 9); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 1;"><span class="sc-interp">D</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(14, 116, 144); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 1;"><span class="sc-interp">Á</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(21, 128, 61); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 1;"><span class="sc-interp">S</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(29, 78, 216); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 1;"><span class="sc-interp">I</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+          </div>
+          
+        </a>
+      
+        <a data-dc-tpl="28" href="Ficha.dc.html" style="width: 132px; flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; text-decoration: none; color: rgb(21, 19, 26);">
+          <div data-dc-tpl="29" style="width: 132px; height: 176px; border-radius: 12px; background: rgb(59, 51, 38); position: relative; overflow: hidden;">
+            <span data-dc-tpl="30" style="position: absolute; width: 180px; height: 180px; border-radius: 50%; background: rgba(255, 255, 255, 0.08); top: -70px; right: -90px;"></span>
+            <span data-dc-tpl="31" style="position: absolute; left: 10px; right: 10px; bottom: 10px; color: rgb(255, 255, 255); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 12px; line-height: 1.1; text-transform: uppercase;"><span class="sc-interp">Elden Ring</span></span>
+          </div>
+          <div data-dc-tpl="32" style="display: flex; align-items: center; gap: 6px;">
+            <span data-dc-tpl="33" style="font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 17px;"><span class="sc-interp">9.1</span></span>
+            <span data-dc-tpl="34" style="padding: 2px 6px; border-radius: 6px; background: rgb(109, 40, 217); color: rgb(255, 255, 255); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 12px;"><span class="sc-interp">S</span></span>
+            <span data-dc-tpl="35" style="margin-left: auto; font-size: 12px; font-weight: 600; color: rgb(104, 101, 111);"><span class="sc-interp">6 de 6</span></span>
+          </div>
+          <div data-dc-tpl="36" role="img" aria-label="Lo recomiendan 6 de 6" style="display: flex; gap: 4px; flex-wrap: wrap;">
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(109, 40, 217); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 1;"><span class="sc-interp">M</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(14, 116, 144); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 1;"><span class="sc-interp">Á</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(180, 83, 9); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 1;"><span class="sc-interp">D</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(190, 24, 93); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 1;"><span class="sc-interp">P</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(21, 128, 61); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 1;"><span class="sc-interp">S</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(29, 78, 216); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 1;"><span class="sc-interp">I</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+          </div>
+          
+        </a>
+      
+        <a data-dc-tpl="28" href="Ficha.dc.html" style="width: 132px; flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; text-decoration: none; color: rgb(21, 19, 26);">
+          <div data-dc-tpl="29" style="width: 132px; height: 176px; border-radius: 12px; background: rgb(58, 45, 79); position: relative; overflow: hidden;">
+            <span data-dc-tpl="30" style="position: absolute; width: 180px; height: 180px; border-radius: 50%; background: rgba(255, 255, 255, 0.08); top: -70px; right: -90px;"></span>
+            <span data-dc-tpl="31" style="position: absolute; left: 10px; right: 10px; bottom: 10px; color: rgb(255, 255, 255); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 12px; line-height: 1.1; text-transform: uppercase;"><span class="sc-interp">Baldur's Gate 3</span></span>
+          </div>
+          <div data-dc-tpl="32" style="display: flex; align-items: center; gap: 6px;">
+            <span data-dc-tpl="33" style="font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 17px;"><span class="sc-interp">8.8</span></span>
+            <span data-dc-tpl="34" style="padding: 2px 6px; border-radius: 6px; background: rgb(146, 94, 227); color: rgb(255, 255, 255); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 12px;"><span class="sc-interp">A</span></span>
+            <span data-dc-tpl="35" style="margin-left: auto; font-size: 12px; font-weight: 600; color: rgb(104, 101, 111);"><span class="sc-interp">5 de 6</span></span>
+          </div>
+          <div data-dc-tpl="36" role="img" aria-label="Lo recomiendan 5 de 6" style="display: flex; gap: 4px; flex-wrap: wrap;">
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(109, 40, 217); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 1;"><span class="sc-interp">M</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(14, 116, 144); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 1;"><span class="sc-interp">Á</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(180, 83, 9); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 1;"><span class="sc-interp">D</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(21, 128, 61); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 1;"><span class="sc-interp">S</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(29, 78, 216); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 1;"><span class="sc-interp">I</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(190, 24, 93); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 0.4;"><span class="sc-interp">P</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#68656F" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 10.5l4 4 4-4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+          </div>
+          
+        </a>
+      
+        <a data-dc-tpl="28" href="Ficha.dc.html" style="width: 132px; flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; text-decoration: none; color: rgb(21, 19, 26);">
+          <div data-dc-tpl="29" style="width: 132px; height: 176px; border-radius: 12px; background: rgb(107, 43, 43); position: relative; overflow: hidden;">
+            <span data-dc-tpl="30" style="position: absolute; width: 180px; height: 180px; border-radius: 50%; background: rgba(255, 255, 255, 0.08); top: -70px; right: -90px;"></span>
+            <span data-dc-tpl="31" style="position: absolute; left: 10px; right: 10px; bottom: 10px; color: rgb(255, 255, 255); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 12px; line-height: 1.1; text-transform: uppercase;"><span class="sc-interp">Hollow Knight: Silksong</span></span>
+          </div>
+          <div data-dc-tpl="32" style="display: flex; align-items: center; gap: 6px;">
+            <span data-dc-tpl="33" style="font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 17px;"><span class="sc-interp">8.6</span></span>
+            <span data-dc-tpl="34" style="padding: 2px 6px; border-radius: 6px; background: rgb(146, 94, 227); color: rgb(255, 255, 255); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 12px;"><span class="sc-interp">A</span></span>
+            <span data-dc-tpl="35" style="margin-left: auto; font-size: 12px; font-weight: 600; color: rgb(104, 101, 111);"><span class="sc-interp">4 de 5</span></span>
+          </div>
+          <div data-dc-tpl="36" role="img" aria-label="Lo recomiendan 4 de 5" style="display: flex; gap: 4px; flex-wrap: wrap;">
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(109, 40, 217); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 1;"><span class="sc-interp">M</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(21, 128, 61); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 1;"><span class="sc-interp">S</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(180, 83, 9); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 1;"><span class="sc-interp">D</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(14, 116, 144); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 1;"><span class="sc-interp">Á</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+              <span data-dc-tpl="38" style="position: relative; width: 18px; height: 18px; flex: 0 0 auto;">
+                <span data-dc-tpl="39" style="width: 18px; height: 18px; border-radius: 50%; background: rgb(190, 24, 93); color: rgb(255, 255, 255); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; opacity: 0.4;"><span class="sc-interp">P</span></span>
+                <svg data-dc-tpl="40" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; right: -3px; bottom: -3px;"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#68656F" stroke="#FFFFFF" stroke-width="3"></path><path data-dc-tpl="42" d="M8 10.5l4 4 4-4" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+              </span>
+            
+          </div>
+          
+        </a>
+      
+    </div>
+  </section>
+
+  <section data-dc-tpl="45" style="display: flex; flex-direction: column; gap: 4px; padding: 0px 20px;">
+    <h2 data-dc-tpl="46" style="margin: 0px 0px 8px; font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 20px;">Actividad reciente</h2>
+    
+      <div data-dc-tpl="48" style="display: flex; gap: 12px; padding: 12px 0px; border-bottom: 1px solid rgb(232, 230, 238);">
+        <span data-dc-tpl="49" style="width: 36px; height: 36px; flex: 0 0 auto; border-radius: 50%; background: rgb(180, 83, 9); color: rgb(255, 255, 255); font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center;"><span class="sc-interp">D</span></span>
+        <div data-dc-tpl="50" style="flex: 1 1 0%; min-width: 0px; display: flex; flex-direction: column; gap: 6px;">
+          <span data-dc-tpl="51" style="font-size: 14px; line-height: 1.35;"><strong data-dc-tpl="52"><span class="sc-interp">Dani</span></strong> <span class="sc-interp">valoró</span> <strong data-dc-tpl="53"><span class="sc-interp">Astro Bot</span></strong></span>
+          
+            <div data-dc-tpl="55" style="display: flex; align-items: center; gap: 6px;">
+              <span data-dc-tpl="56" style="font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 15px;"><span class="sc-interp">9.6</span></span>
+              <span data-dc-tpl="57" style="padding: 1px 6px; border-radius: 6px; background: rgb(109, 40, 217); color: rgb(255, 255, 255); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 12px;"><span class="sc-interp">S</span></span>
+              <svg data-dc-tpl="58" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style="margin-left: 2px;"><path data-dc-tpl="59" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9"></path><path data-dc-tpl="60" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+            </div>
+          
+          
+            <p data-dc-tpl="62" style="margin: 0px; font-size: 13px; line-height: 1.4; color: rgb(104, 101, 111);">«<span class="sc-interp">Lo mejor que ha sacado Sony en años.</span>»</p>
+          
+          <span data-dc-tpl="63" style="font-size: 12px; color: rgb(104, 101, 111);"><span class="sc-interp">Hace 2 h</span></span>
+        </div>
+        <div data-dc-tpl="64" style="width: 44px; height: 59px; flex: 0 0 auto; border-radius: 7px; background: rgb(30, 79, 168);"></div>
+      </div>
+    
+      <div data-dc-tpl="48" style="display: flex; gap: 12px; padding: 12px 0px; border-bottom: 1px solid rgb(232, 230, 238);">
+        <span data-dc-tpl="49" style="width: 36px; height: 36px; flex: 0 0 auto; border-radius: 50%; background: rgb(190, 24, 93); color: rgb(255, 255, 255); font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center;"><span class="sc-interp">P</span></span>
+        <div data-dc-tpl="50" style="flex: 1 1 0%; min-width: 0px; display: flex; flex-direction: column; gap: 6px;">
+          <span data-dc-tpl="51" style="font-size: 14px; line-height: 1.35;"><strong data-dc-tpl="52"><span class="sc-interp">Pablo</span></strong> <span class="sc-interp">empezó a jugar</span> <strong data-dc-tpl="53"><span class="sc-interp">Ghost of Yōtei</span></strong></span>
+          
+          
+          <span data-dc-tpl="63" style="font-size: 12px; color: rgb(104, 101, 111);"><span class="sc-interp">Hace 5 h</span></span>
+        </div>
+        <div data-dc-tpl="64" style="width: 44px; height: 59px; flex: 0 0 auto; border-radius: 7px; background: rgb(122, 34, 34);"></div>
+      </div>
+    
+      <div data-dc-tpl="48" style="display: flex; gap: 12px; padding: 12px 0px; border-bottom: 1px solid rgb(232, 230, 238);">
+        <span data-dc-tpl="49" style="width: 36px; height: 36px; flex: 0 0 auto; border-radius: 50%; background: rgb(21, 128, 61); color: rgb(255, 255, 255); font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center;"><span class="sc-interp">S</span></span>
+        <div data-dc-tpl="50" style="flex: 1 1 0%; min-width: 0px; display: flex; flex-direction: column; gap: 6px;">
+          <span data-dc-tpl="51" style="font-size: 14px; line-height: 1.35;"><strong data-dc-tpl="52"><span class="sc-interp">Sergio</span></strong> <span class="sc-interp">completó</span> <strong data-dc-tpl="53"><span class="sc-interp">Hollow Knight: Silksong</span></strong></span>
+          
+            <div data-dc-tpl="55" style="display: flex; align-items: center; gap: 6px;">
+              <span data-dc-tpl="56" style="font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 15px;"><span class="sc-interp">8.8</span></span>
+              <span data-dc-tpl="57" style="padding: 1px 6px; border-radius: 6px; background: rgb(146, 94, 227); color: rgb(255, 255, 255); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 12px;"><span class="sc-interp">A</span></span>
+              <svg data-dc-tpl="58" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style="margin-left: 2px;"><path data-dc-tpl="59" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#6D28D9"></path><path data-dc-tpl="60" d="M8 13.5l4-4 4 4" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+            </div>
+          
+          
+          <span data-dc-tpl="63" style="font-size: 12px; color: rgb(104, 101, 111);"><span class="sc-interp">Ayer</span></span>
+        </div>
+        <div data-dc-tpl="64" style="width: 44px; height: 59px; flex: 0 0 auto; border-radius: 7px; background: rgb(107, 43, 43);"></div>
+      </div>
+    
+      <div data-dc-tpl="48" style="display: flex; gap: 12px; padding: 12px 0px; border-bottom: 1px solid rgb(232, 230, 238);">
+        <span data-dc-tpl="49" style="width: 36px; height: 36px; flex: 0 0 auto; border-radius: 50%; background: rgb(14, 116, 144); color: rgb(255, 255, 255); font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center;"><span class="sc-interp">Á</span></span>
+        <div data-dc-tpl="50" style="flex: 1 1 0%; min-width: 0px; display: flex; flex-direction: column; gap: 6px;">
+          <span data-dc-tpl="51" style="font-size: 14px; line-height: 1.35;"><strong data-dc-tpl="52"><span class="sc-interp">Álex</span></strong> <span class="sc-interp">abandonó</span> <strong data-dc-tpl="53"><span class="sc-interp">Death Stranding 2</span></strong></span>
+          
+            <div data-dc-tpl="55" style="display: flex; align-items: center; gap: 6px;">
+              <span data-dc-tpl="56" style="font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 15px;"><span class="sc-interp">4.5</span></span>
+              <span data-dc-tpl="57" style="padding: 1px 6px; border-radius: 6px; background: rgb(229, 216, 248); color: rgb(21, 19, 26); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 12px;"><span class="sc-interp">E</span></span>
+              <svg data-dc-tpl="58" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style="margin-left: 2px;"><path data-dc-tpl="59" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#68656F"></path><path data-dc-tpl="60" d="M8 10.5l4 4 4-4" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+            </div>
+          
+          
+            <p data-dc-tpl="62" style="margin: 0px; font-size: 13px; line-height: 1.4; color: rgb(104, 101, 111);">«<span class="sc-interp">Precioso, pero no me engancha.</span>»</p>
+          
+          <span data-dc-tpl="63" style="font-size: 12px; color: rgb(104, 101, 111);"><span class="sc-interp">Ayer</span></span>
+        </div>
+        <div data-dc-tpl="64" style="width: 44px; height: 59px; flex: 0 0 auto; border-radius: 7px; background: rgb(47, 58, 64);"></div>
+      </div>
+    
+      <div data-dc-tpl="48" style="display: flex; gap: 12px; padding: 12px 0px; border-bottom: 1px solid rgb(232, 230, 238);">
+        <span data-dc-tpl="49" style="width: 36px; height: 36px; flex: 0 0 auto; border-radius: 50%; background: rgb(29, 78, 216); color: rgb(255, 255, 255); font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center;"><span class="sc-interp">I</span></span>
+        <div data-dc-tpl="50" style="flex: 1 1 0%; min-width: 0px; display: flex; flex-direction: column; gap: 6px;">
+          <span data-dc-tpl="51" style="font-size: 14px; line-height: 1.35;"><strong data-dc-tpl="52"><span class="sc-interp">Iván</span></strong> <span class="sc-interp">añadió a pendientes</span> <strong data-dc-tpl="53"><span class="sc-interp">Hades II</span></strong></span>
+          
+          
+          <span data-dc-tpl="63" style="font-size: 12px; color: rgb(104, 101, 111);"><span class="sc-interp">Hace 2 días</span></span>
+        </div>
+        <div data-dc-tpl="64" style="width: 44px; height: 59px; flex: 0 0 auto; border-radius: 7px; background: rgb(74, 31, 61);"></div>
+      </div>
+    
+  </section>
+
+  <nav data-dc-tpl="65" style="position: absolute; left: 0px; right: 0px; bottom: 0px; height: 84px; box-sizing: border-box; padding: 6px 8px 18px; background: rgb(255, 255, 255); border-top: 1px solid rgb(232, 230, 238); display: flex; align-items: center; justify-content: space-around;">
+    
+      
+      
+        <a data-dc-tpl="72" href="Inicio.dc.html" style="width: 64px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; color: rgb(109, 40, 217); font-size: 11px; font-weight: 600;">
+          <svg data-dc-tpl="73" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="74" d="M12 2.5 21 10v11a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V10z" fill="#6D28D9" fill-rule="evenodd"></path></svg>
+          <span data-dc-tpl="75"><span class="sc-interp">Inicio</span></span>
+        </a>
+      
+    
+      
+      
+        <a data-dc-tpl="72" href="Buscar.dc.html" style="width: 64px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; color: rgb(104, 101, 111); font-size: 11px; font-weight: 600;">
+          <svg data-dc-tpl="73" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="74" d="M10.5 2a8.5 8.5 0 0 1 6.72 13.7l4.54 4.54-2.12 2.12-4.54-4.54A8.5 8.5 0 1 1 10.5 2zm0 3.2a5.3 5.3 0 1 0 0 10.6 5.3 5.3 0 0 0 0-10.6z" fill="#68656F" fill-rule="evenodd"></path></svg>
+          <span data-dc-tpl="75"><span class="sc-interp">Buscar</span></span>
+        </a>
+      
+    
+      
+        <a data-dc-tpl="68" href="Valorar.dc.html" aria-label="Valorar un juego" style="width: 56px; height: 56px; border-radius: 18px; background: rgb(109, 40, 217); display: flex; align-items: center; justify-content: center; margin-top: -16px; text-decoration: none;">
+          <svg data-dc-tpl="69" width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="70" d="M12 5v14M5 12h14" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" fill="none"></path></svg>
+        </a>
+      
+      
+    
+      
+      
+        <a data-dc-tpl="72" href="Rankings.dc.html" style="width: 64px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; color: rgb(104, 101, 111); font-size: 11px; font-weight: 600;">
+          <svg data-dc-tpl="73" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="74" d="M3 12.5a1 1 0 0 1 1-1h4V22H4a1 1 0 0 1-1-1zM9.5 4a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v18h-5zM16 8.5h4a1 1 0 0 1 1 1V21a1 1 0 0 1-1 1h-4z" fill="#68656F" fill-rule="evenodd"></path></svg>
+          <span data-dc-tpl="75"><span class="sc-interp">Rankings</span></span>
+        </a>
+      
+    
+      
+      
+        <a data-dc-tpl="72" href="Perfil.dc.html" style="width: 64px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; color: rgb(104, 101, 111); font-size: 11px; font-weight: 600;">
+          <svg data-dc-tpl="73" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="74" d="M12 2.5a5 5 0 1 1 0 10 5 5 0 0 1 0-10zM3 21c0-4.4 4-7 9-7s9 2.6 9 7v1H3z" fill="#68656F" fill-rule="evenodd"></path></svg>
+          <span data-dc-tpl="75"><span class="sc-interp">Perfil</span></span>
+        </a>
+      
+    
+  </nav></div></div></div>
+<script type="text/x-dc" data-dc-script="" data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#6D28D9&quot;,&quot;options&quot;:[&quot;#6D28D9&quot;,&quot;#8B5CF6&quot;,&quot;#5B21B6&quot;,&quot;#A21CAF&quot;]},&quot;oscuro&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false},&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:1240}}">
+class Component extends DCLogic {
+  constructor(p){super(p);this.state={tab:'mejor'};}
+  hx(h){h=String(h).replace('#','');if(h.length===3){h=h.split('').map(function(x){return x+x;}).join('');}return [0,2,4].map(function(i){return parseInt(h.substr(i,2),16)||0;});}
+  mix(a,b,t){var A=this.hx(a),B=this.hx(b);return '#'+A.map(function(v,i){return Math.round(v+(B[i]-v)*t).toString(16).padStart(2,'0');}).join('');}
+  theme(){var acc=this.props.accent||'#6D28D9';var d=!!this.props.oscuro;return d?{dark:true,bg:'#0F0E13',sf:'#1A1920',sf2:'#24222B',tx:'#F3F2F7',mu:'#A6A3B1',ln:'#2E2C36',ac:this.mix(acc,'#ffffff',0.38),acs:this.mix(acc,'#0F0E13',0.72),act:this.mix(acc,'#ffffff',0.55),on:'#0F0E13'}:{dark:false,bg:'#FFFFFF',sf:'#F6F5F9',sf2:'#EDEBF2',tx:'#15131A',mu:'#68656F',ln:'#E8E6EE',ac:acc,acs:this.mix(acc,'#ffffff',0.88),act:acc,on:'#FFFFFF'};}
+  tiers(c){var self=this;var L=['S','A','B','C','D','E','F'];var r=[0,0.25,0.45,0.6,0.72,0.82,0.9];var o={};L.forEach(function(l,i){o[l]={bg:self.mix(c.ac,'#ffffff',r[i]),fg:c.dark?'#0F0E13':(i<2?'#FFFFFF':'#15131A')};});return o;}
+  letra(n){return n>=9?'S':n>=8?'A':n>=7?'B':n>=6?'C':n>=5?'D':n>=3.5?'E':'F';}
+  score(n,rec,c,T){var l=this.letra(n);return {n:n.toFixed(1),l:l,tb:T[l].bg,tf:T[l].fg,rc:rec?c.ac:c.mu,ro:rec?'M8 13.5l4-4 4 4':'M8 10.5l4 4 4-4'};}
+  stack(yes,no,c){var U={M:['M','#6D28D9'],A:['Á','#0E7490'],D:['D','#B45309'],P:['P','#BE185D'],S:['S','#15803D'],I:['I','#1D4ED8']};var out=[];yes.split('').forEach(function(k){if(U[k]){out.push({i:U[k][0],c:U[k][1],op:1,bc:c.ac,bo:'M8 13.5l4-4 4 4'});}});no.split('').forEach(function(k){if(U[k]){out.push({i:U[k][0],c:U[k][1],op:0.4,bc:c.mu,bo:'M8 10.5l4 4 4-4'});}});return out;}
+  nav(active,c){var I={inicio:'M12 2.5 21 10v11a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V10z',buscar:'M10.5 2a8.5 8.5 0 0 1 6.72 13.7l4.54 4.54-2.12 2.12-4.54-4.54A8.5 8.5 0 1 1 10.5 2zm0 3.2a5.3 5.3 0 1 0 0 10.6 5.3 5.3 0 0 0 0-10.6z',rankings:'M3 12.5a1 1 0 0 1 1-1h4V22H4a1 1 0 0 1-1-1zM9.5 4a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v18h-5zM16 8.5h4a1 1 0 0 1 1 1V21a1 1 0 0 1-1 1h-4z',perfil:'M12 2.5a5 5 0 1 1 0 10 5 5 0 0 1 0-10zM3 21c0-4.4 4-7 9-7s9 2.6 9 7v1H3z'};var L=[['inicio','Inicio','Inicio.dc.html'],['buscar','Buscar','Buscar.dc.html'],['fab'],['rankings','Rankings','Rankings.dc.html'],['perfil','Perfil','Perfil.dc.html']];return L.map(function(x){if(x[0]==='fab'){return {fab:true,tab:false};}return {fab:false,tab:true,label:x[1],href:x[2],d:I[x[0]],col:x[0]===active?c.act:c.mu};});}
+  renderVals() {
+    var c=this.theme();var T=this.tiers(c);var self=this;
+    var G={er:{t:'Elden Ring',c:'#3B3326'},ab:{t:'Astro Bot',c:'#1E4FA8'},cx:{t:'Clair Obscur: Expedition 33',c:'#5A2E2A'},ds:{t:'Death Stranding 2',c:'#2F3A40'},gy:{t:'Ghost of Yōtei',c:'#7A2222'},bg:{t:"Baldur's Gate 3",c:'#3A2D4F'},hd:{t:'Hades II',c:'#4A1F3D'},sk:{t:'Hollow Knight: Silksong',c:'#6B2B2B'},gw:{t:'God of War Ragnarök',c:'#2C4A5A'},ls:{t:'Lies of P',c:'#3E3A30'}};
+    var U={M:{n:'Marcos',i:'M',c:'#6D28D9'},A:{n:'Álex',i:'Á',c:'#0E7490'},D:{n:'Dani',i:'D',c:'#B45309'},P:{n:'Pablo',i:'P',c:'#BE185D'},S:{n:'Sergio',i:'S',c:'#15803D'},I:{n:'Iván',i:'I',c:'#1D4ED8'}};
+    var playing=[{u:U.P,g:G.gy},{u:U.I,g:G.cx},{u:U.M,g:G.hd},{u:U.D,g:G.sk}];
+    var mk=function(g,n,yes,no,sub){var s=self.score(n,yes.length/(yes.length+no.length)>=0.6,c,T);s.g=G[g];s.st=self.stack(yes,no,c);s.frac=yes.length+' de '+(yes.length+no.length);s.aria='Lo recomiendan '+yes.length+' de '+(yes.length+no.length);s.sub=sub||'';s.hasSub=!!sub;return s;};
+    var lists={
+      mejor:[mk('ab',9.3,'MDASI',''),mk('er',9.1,'MADPSI',''),mk('bg',8.8,'MADSI','P'),mk('sk',8.6,'MSDA','P')],
+      jugados:[mk('er',9.1,'MADPSI',''),mk('bg',8.8,'MADSI','P'),mk('gw',8.1,'MADPS','I'),mk('ab',9.3,'MDASI','')],
+      polemicos:[mk('ds',6.9,'MS','ADP','Notas de 4.5 a 8.9'),mk('ls',7.0,'DS','MI','Notas de 5.6 a 8.7'),mk('gy',7.6,'DPS','MA','Notas de 6.2 a 9.0')]
+    };
+    var tab=this.state.tab;
+    var tabs=[['mejor','Mejor valorados'],['jugados','Más jugados'],['polemicos','Más polémicos']].map(function(x){var on=x[0]===tab;return {label:x[1],bg:on?c.ac:c.sf,fg:on?c.on:c.tx,pick:function(){self.setState({tab:x[0]});}};});
+    var fe=function(u,verb,g,n,rec,review,when){var o={u:U[u],verb:verb,g:G[g],when:when,hasScore:n!=null,hasReview:!!review,review:review||''};if(n!=null){var s=self.score(n,rec,c,T);for(var k in s){o[k]=s[k];}}return o;};
+    var feed=[
+      fe('D','valoró','ab',9.6,true,'Lo mejor que ha sacado Sony en años.','Hace 2 h'),
+      fe('P','empezó a jugar','gy',null,false,'','Hace 5 h'),
+      fe('S','completó','sk',8.8,true,'','Ayer'),
+      fe('A','abandonó','ds',4.5,false,'Precioso, pero no me engancha.','Ayer'),
+      fe('I','añadió a pendientes','hd',null,false,'','Hace 2 días')
+    ];
+    return {c:c,playing:playing,tabs:tabs,featured:lists[tab],feed:feed,nav:this.nav('inicio',c)};
+  }
+}
+</script>
+
+
+</body></html>

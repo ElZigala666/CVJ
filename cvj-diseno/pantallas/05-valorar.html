@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="es"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style><script>window.__resources = {"https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js":"blob:null/2b554933-cfd4-44dd-b57d-968ca8eaa5dd","https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js":"blob:null/aa025987-60a1-4939-8b60-4ac58286e15c"};</script>
+<meta charset="utf-8">
+<title>CVJ · Valorar juego</title>
+<script src="blob:null/ff3e9795-1a6d-4de9-99a7-d00ecf8fa76c"></script>
+<style>x-dc{display:none!important}</style><script src="blob:null/2b554933-cfd4-44dd-b57d-968ca8eaa5dd"></script><script src="blob:null/aa025987-60a1-4939-8b60-4ac58286e15c"></script><style data-dc-tpl="1">/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("FONT_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+</style><style data-dc-tpl="2">body{margin:0} textarea::placeholder{color:#8E8A97}</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="903aeaa2-db36-40eb-bc81-dfa20e1424cb"><div data-dc-tpl="3" style="width: 390px; height: 900px; position: relative; background: rgb(58, 31, 28); color: rgb(21, 19, 26); font-family: Inter, system-ui, sans-serif; overflow: hidden;">
+  <div data-dc-tpl="4" style="position: absolute; inset: 0px; background: rgba(10, 8, 14, 0.55);"></div>
+  <div data-dc-tpl="5" style="position: absolute; left: 0px; right: 0px; bottom: 0px; box-sizing: border-box; padding: 10px 20px 24px; border-radius: 24px 24px 0px 0px; background: rgb(255, 255, 255); display: flex; flex-direction: column; gap: 18px;">
+    <div data-dc-tpl="6" style="width: 40px; height: 5px; border-radius: 3px; background: rgb(232, 230, 238); align-self: center;"></div>
+
+    <div data-dc-tpl="7" style="display: flex; align-items: center; gap: 12px;">
+      <div data-dc-tpl="8" style="width: 42px; height: 56px; flex: 0 0 auto; border-radius: 7px; background: rgb(90, 46, 42);"></div>
+      <div data-dc-tpl="9" style="flex: 1 1 0%; min-width: 0px;">
+        <span data-dc-tpl="10" style="display: block; font-size: 12px; color: rgb(104, 101, 111); font-weight: 600;">Valorar</span>
+        <span data-dc-tpl="11" style="display: block; font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 18px; font-weight: 700; line-height: 1.15;">Clair Obscur: Expedition 33</span>
+      </div>
+      <a data-dc-tpl="12" href="Ficha.dc.html" aria-label="Cerrar" style="width: 44px; height: 44px; flex: 0 0 auto; border-radius: 14px; background: rgb(246, 245, 249); display: flex; align-items: center; justify-content: center;">
+        <svg data-dc-tpl="13" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="14" d="M6 6l12 12M18 6 6 18" stroke="#15131A" stroke-width="2.6" stroke-linecap="round" fill="none"></path></svg>
+      </a>
+    </div>
+
+    <div data-dc-tpl="15" style="display: grid; grid-template-columns: repeat(4, minmax(0px, 1fr)); gap: 8px;">
+      
+        <button data-dc-tpl="17" type="button" style="height: 64px; border-radius: 14px; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; background: rgb(246, 245, 249); color: rgb(21, 19, 26); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer;">
+          <svg data-dc-tpl="18" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="19" d="M7.5 6h9a5.5 5.5 0 0 1 5.4 6.5l-.8 4.3a2.6 2.6 0 0 1-4.5 1.3L14.4 16H9.6l-2.2 2.1a2.6 2.6 0 0 1-4.5-1.3l-.8-4.3A5.5 5.5 0 0 1 7.5 6z" fill="#15131A" fill-rule="evenodd"></path><path data-dc-tpl="20" d="M8 9.5v4M6 11.5h4" stroke="#F6F5F9" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+          <span class="sc-interp">Jugando</span>
+        </button>
+      
+        <button data-dc-tpl="17" type="button" style="height: 64px; border-radius: 14px; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; background: rgb(109, 40, 217); color: rgb(255, 255, 255); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer;">
+          <svg data-dc-tpl="18" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="19" d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20z" fill="#FFFFFF" fill-rule="evenodd"></path><path data-dc-tpl="20" d="M7.5 12.3l3 3 6-6.3" stroke="#6D28D9" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+          <span class="sc-interp">Completado</span>
+        </button>
+      
+        <button data-dc-tpl="17" type="button" style="height: 64px; border-radius: 14px; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; background: rgb(246, 245, 249); color: rgb(21, 19, 26); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer;">
+          <svg data-dc-tpl="18" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="19" d="M5 2.5h2V22H5zM8.5 3.5H20l-3 4.5 3 4.5H8.5z" fill="#15131A" fill-rule="evenodd"></path><path data-dc-tpl="20" d="" stroke="#F6F5F9" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+          <span class="sc-interp">Abandonado</span>
+        </button>
+      
+        <button data-dc-tpl="17" type="button" style="height: 64px; border-radius: 14px; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; background: rgb(246, 245, 249); color: rgb(21, 19, 26); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer;">
+          <svg data-dc-tpl="18" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="19" d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20z" fill="#15131A" fill-rule="evenodd"></path><path data-dc-tpl="20" d="M12 7v5.2l3.3 2" stroke="#F6F5F9" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+          <span class="sc-interp">Pendiente</span>
+        </button>
+      
+    </div>
+
+    
+      <div data-dc-tpl="22" style="display: flex; flex-direction: column; gap: 12px;">
+        <div data-dc-tpl="23" style="display: flex; align-items: center; justify-content: space-between;">
+          <span data-dc-tpl="24" style="font-size: 14px; font-weight: 600;">Tu nota</span>
+          <div data-dc-tpl="25" style="display: flex; padding: 3px; border-radius: 12px; background: rgb(246, 245, 249);">
+            
+              <button data-dc-tpl="27" type="button" style="height: 32px; padding: 0px 14px; border-radius: 9px; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; background: rgb(255, 255, 255); color: rgb(21, 19, 26); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Nota</span></button>
+            
+              <button data-dc-tpl="27" type="button" style="height: 32px; padding: 0px 14px; border-radius: 9px; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; background: rgb(246, 245, 249); color: rgb(104, 101, 111); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Letra</span></button>
+            
+          </div>
+        </div>
+        
+          <div data-dc-tpl="29" style="display: flex; flex-direction: column; gap: 10px;">
+            <div data-dc-tpl="30" style="display: flex; align-items: center; gap: 12px;">
+              <button data-dc-tpl="31" type="button" aria-label="Bajar 0,1" style="width: 48px; height: 48px; border-radius: 14px; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; background: rgb(246, 245, 249); color: rgb(21, 19, 26); font-size: 24px; font-weight: 600; cursor: pointer;">−</button>
+              <div data-dc-tpl="32" style="flex: 1 1 0%; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                <span data-dc-tpl="33" style="font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 52px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums;"><span class="sc-interp">8.5</span></span>
+                <span data-dc-tpl="34" style="padding: 4px 10px; border-radius: 9px; background: rgb(146, 94, 227); color: rgb(255, 255, 255); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 20px;"><span class="sc-interp">A</span></span>
+              </div>
+              <button data-dc-tpl="35" type="button" aria-label="Subir 0,1" style="width: 48px; height: 48px; border-radius: 14px; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; background: rgb(246, 245, 249); color: rgb(21, 19, 26); font-size: 24px; font-weight: 600; cursor: pointer;">+</button>
+            </div>
+            <label data-dc-tpl="36" for="slider" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0px, 0px, 0px, 0px);">Nota de 0 a 10</label>
+            <input data-dc-tpl="37" id="slider" type="range" min="0" max="10" step="0.1" value="8.5" style="width: 100%; accent-color: rgb(109, 40, 217); height: 28px; margin: 0px;">
+          </div>
+        
+        
+      </div>
+    
+
+    <div data-dc-tpl="44" style="display: flex; flex-direction: column; gap: 10px;">
+      <span data-dc-tpl="45" style="font-size: 14px; font-weight: 600;">¿Lo recomiendas?</span>
+      <div data-dc-tpl="46" style="display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 8px;">
+        
+          <button data-dc-tpl="48" type="button" style="height: 52px; border-radius: 14px; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; background: rgb(109, 40, 217); color: rgb(255, 255, 255); display: flex; align-items: center; justify-content: center; gap: 8px; font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer;">
+            <svg data-dc-tpl="49" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="50" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#FFFFFF"></path><path data-dc-tpl="51" d="M8 13.5l4-4 4 4" stroke="#6D28D9" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+            <span class="sc-interp">Sí</span>
+          </button>
+        
+          <button data-dc-tpl="48" type="button" style="height: 52px; border-radius: 14px; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; background: rgb(246, 245, 249); color: rgb(104, 101, 111); display: flex; align-items: center; justify-content: center; gap: 8px; font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer;">
+            <svg data-dc-tpl="49" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="50" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#68656F"></path><path data-dc-tpl="51" d="M8 10.5l4 4 4-4" stroke="#F6F5F9" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg>
+            <span class="sc-interp">No</span>
+          </button>
+        
+      </div>
+    </div>
+
+    <div data-dc-tpl="52" style="display: flex; flex-direction: column; gap: 10px;">
+      <span data-dc-tpl="53" style="font-size: 14px; font-weight: 600;">Plataforma</span>
+      <div data-dc-tpl="54" style="display: flex; gap: 6px; flex-wrap: wrap;">
+        
+          <button data-dc-tpl="56" type="button" style="height: 36px; padding: 0px 14px; border-radius: 18px; border: 1px solid rgb(109, 40, 217); background: rgb(109, 40, 217); color: rgb(255, 255, 255); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;"><span class="sc-interp">PS5</span></button>
+        
+          <button data-dc-tpl="56" type="button" style="height: 36px; padding: 0px 14px; border-radius: 18px; border: 1px solid rgb(232, 230, 238); background: rgb(255, 255, 255); color: rgb(21, 19, 26); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;"><span class="sc-interp">PS4</span></button>
+        
+          <button data-dc-tpl="56" type="button" style="height: 36px; padding: 0px 14px; border-radius: 18px; border: 1px solid rgb(232, 230, 238); background: rgb(255, 255, 255); color: rgb(21, 19, 26); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;"><span class="sc-interp">PC</span></button>
+        
+          <button data-dc-tpl="56" type="button" style="height: 36px; padding: 0px 14px; border-radius: 18px; border: 1px solid rgb(232, 230, 238); background: rgb(255, 255, 255); color: rgb(21, 19, 26); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Xbox</span></button>
+        
+          <button data-dc-tpl="56" type="button" style="height: 36px; padding: 0px 14px; border-radius: 18px; border: 1px solid rgb(232, 230, 238); background: rgb(255, 255, 255); color: rgb(21, 19, 26); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;"><span class="sc-interp">Switch</span></button>
+        
+      </div>
+    </div>
+
+    <div data-dc-tpl="57" style="display: flex; flex-direction: column; gap: 8px;">
+      <label data-dc-tpl="58" for="resena" style="font-size: 14px; font-weight: 600;">Reseña corta <span data-dc-tpl="59" style="font-weight: 400; color: rgb(104, 101, 111);">(opcional)</span></label>
+      <textarea data-dc-tpl="60" id="resena" rows="2" maxlength="280" placeholder="Una o dos frases para el grupo" style="box-sizing: border-box; width: 100%; border-radius: 14px; border: 1px solid rgb(232, 230, 238); background: rgb(246, 245, 249); color: rgb(21, 19, 26); padding: 12px 14px; font-family: inherit; font-size: 15px; resize: none; outline: none;"></textarea>
+    </div>
+
+    <a data-dc-tpl="61" href="Ficha.dc.html" style="height: 56px; border-radius: 16px; background: rgb(109, 40, 217); color: rgb(255, 255, 255); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; text-decoration: none;">Guardar valoración</a>
+  </div></div></div></div>
+<script type="text/x-dc" data-dc-script="" data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#6D28D9&quot;,&quot;options&quot;:[&quot;#6D28D9&quot;,&quot;#8B5CF6&quot;,&quot;#5B21B6&quot;,&quot;#A21CAF&quot;]},&quot;oscuro&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false},&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  constructor(p){super(p);this.state={estado:'Completado',modo:'nota',nota:8.5,rec:true,plat:'PS5'};}
+  hx(h){h=String(h).replace('#','');if(h.length===3){h=h.split('').map(function(x){return x+x;}).join('');}return [0,2,4].map(function(i){return parseInt(h.substr(i,2),16)||0;});}
+  mix(a,b,t){var A=this.hx(a),B=this.hx(b);return '#'+A.map(function(v,i){return Math.round(v+(B[i]-v)*t).toString(16).padStart(2,'0');}).join('');}
+  theme(){var acc=this.props.accent||'#6D28D9';var d=!!this.props.oscuro;return d?{dark:true,bg:'#0F0E13',sf:'#1A1920',sf2:'#24222B',tx:'#F3F2F7',mu:'#A6A3B1',ln:'#2E2C36',ac:this.mix(acc,'#ffffff',0.38),acs:this.mix(acc,'#0F0E13',0.72),act:this.mix(acc,'#ffffff',0.55),on:'#0F0E13'}:{dark:false,bg:'#FFFFFF',sf:'#F6F5F9',sf2:'#EDEBF2',tx:'#15131A',mu:'#68656F',ln:'#E8E6EE',ac:acc,acs:this.mix(acc,'#ffffff',0.88),act:acc,on:'#FFFFFF'};}
+  tiers(c){var self=this;var L=['S','A','B','C','D','E','F'];var r=[0,0.25,0.45,0.6,0.72,0.82,0.9];var o={};L.forEach(function(l,i){o[l]={bg:self.mix(c.ac,'#ffffff',r[i]),fg:c.dark?'#0F0E13':(i<2?'#FFFFFF':'#15131A')};});return o;}
+  letra(n){return n>=9?'S':n>=8?'A':n>=7?'B':n>=6?'C':n>=5?'D':n>=3.5?'E':'F';}
+  renderVals() {
+    var c=this.theme();var T=this.tiers(c);var self=this;var s=this.state;
+    var EQ={S:9.5,A:8.5,B:7.5,C:6.5,D:5.5,E:4.2,F:2.0};
+    var set=function(o){self.setState(o);};
+    var clamp=function(v){return Math.max(0,Math.min(10,Math.round(v*10)/10));};
+    var ST=[
+      ['Jugando','M7.5 6h9a5.5 5.5 0 0 1 5.4 6.5l-.8 4.3a2.6 2.6 0 0 1-4.5 1.3L14.4 16H9.6l-2.2 2.1a2.6 2.6 0 0 1-4.5-1.3l-.8-4.3A5.5 5.5 0 0 1 7.5 6z','M8 9.5v4M6 11.5h4'],
+      ['Completado','M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20z','M7.5 12.3l3 3 6-6.3'],
+      ['Abandonado','M5 2.5h2V22H5zM8.5 3.5H20l-3 4.5 3 4.5H8.5z',''],
+      ['Pendiente','M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20z','M12 7v5.2l3.3 2']
+    ];
+    var estados=ST.map(function(x){var on=s.estado===x[0];return {label:x[0],d:x[1],o:x[2],bg:on?c.ac:c.sf,fg:on?c.on:c.tx,pick:function(){set({estado:x[0]});}};});
+    var modos=[['nota','Nota'],['letra','Letra']].map(function(x){var on=s.modo===x[0];return {label:x[1],bg:on?c.bg:c.sf,fg:on?c.tx:c.mu,pick:function(){set({modo:x[0]});}};});
+    var la=this.letra(s.nota);
+    var letras=['S','A','B','C','D','E','F'].map(function(l){var on=la===l;return {l:l,bg:on?T[l].bg:c.bg,fg:on?T[l].fg:c.tx,bd:on?T[l].bg:c.ln,pick:function(){set({nota:EQ[l]});}};});
+    var recs=[[true,'Sí'],[false,'No']].map(function(x){var on=s.rec===x[0];return {label:x[1],o:x[0]?'M8 13.5l4-4 4 4':'M8 10.5l4 4 4-4',bg:on?(x[0]?c.ac:c.tx):c.sf,fg:on?c.bg:c.mu,pick:function(){set({rec:x[0]});}};});
+    var plats=['PS5','PS4','PC','Xbox','Switch'].map(function(p){var on=s.plat===p;return {label:p,bg:on?c.ac:c.bg,fg:on?c.on:c.tx,bd:on?c.ac:c.ln,pick:function(){set({plat:p});}};});
+    return {c:c,estados:estados,modos:modos,letras:letras,recs:recs,plats:plats,
+      showNota:s.estado!=='Pendiente',modoNota:s.modo==='nota',modoLetra:s.modo==='letra',
+      notaStr:s.nota.toFixed(1),letraActual:la,tl:T[la],
+      menos:function(){set({nota:clamp(self.state.nota-0.1)});},
+      mas:function(){set({nota:clamp(self.state.nota+0.1)});},
+      onSlide:function(e){set({nota:clamp(parseFloat(e.target.value)||0)});}};
+  }
+}
+</script>
+
+
+</body></html>

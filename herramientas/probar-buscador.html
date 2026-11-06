@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>CVJ · Probar buscador</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@700&display=swap">
+<link rel="stylesheet" href="../css/tokens.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fondo); color: var(--texto); font-family: var(--fuente-texto); }
+  main { max-width: 640px; margin: 0 auto; padding: 28px 20px 48px; display: flex; flex-direction: column; gap: 16px; }
+  h1 { margin: 0; font-family: var(--fuente-titulos); font-size: 26px; }
+  p { margin: 0; color: var(--texto-2); font-size: 14px; line-height: 1.5; }
+  label { font-size: 13px; font-weight: 600; }
+  input { width: 100%; height: 48px; border-radius: 14px; border: 2px solid var(--borde); background: var(--superficie); color: var(--texto); padding: 0 14px; font: 14px var(--fuente-texto); }
+  button { height: 48px; border: 0; border-radius: 14px; background: var(--acento); color: var(--sobre-acento); font: 700 15px var(--fuente-texto); cursor: pointer; }
+  .bloque { background: var(--superficie); border-radius: 18px; padding: 16px; }
+  .bloque h2 { margin: 0 0 8px; font-size: 15px; }
+  ol { margin: 0; padding-left: 22px; font-size: 14px; line-height: 1.6; }
+  .tiempo { font-weight: 400; color: var(--texto-2); font-size: 12px; }
+  .error { color: var(--peligro); font-weight: 600; }
+  code { font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Probar el buscador</h1>
+  <p>Llama a la función <code>igdb</code> desplegada con cuatro textos y enseña el top 5 de cada uno, además de los tipos de juego que está usando. No guarda nada.</p>
+  <label for="url">URL de la función</label>
+  <input id="url">
+  <label for="textos">Textos (separados por comas)</label>
+  <input id="textos" value="cyberpunk, rocket le, ghost, zelda">
+  <button id="probar" type="button">Probar</button>
+  <div id="salida"></div>
+</main>
+<script type="module">
+  import { URL_FUNCION_IGDB, SUPABASE_KEY } from '../js/config.js';
+  const $ = (id) => document.getElementById(id);
+  $('url').value = URL_FUNCION_IGDB;
+  const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  async function llamar(cuerpo) {
+    const t0 = performance.now();
+    const r = await fetch($('url').value.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY },
+      body: JSON.stringify(cuerpo),
+    });
+    const datos = await r.json().catch(() => null);
+    if (!r.ok) throw new Error(datos?.error || datos?.message || `Error ${r.status}`);
+    return { datos, ms: Math.round(performance.now() - t0) };
+  }
+
+  $('probar').addEventListener('click', async () => {
+    const salida = $('salida');
+    salida.innerHTML = '<p>Probando…</p>';
+    const bloques = [];
+    try {
+      const { datos } = await llamar({ accion: 'tipos' });
+      const usados = new Set(datos.usados);
+      bloques.push(`<div class="bloque"><h2>Tipos de juego (${esc(datos.origen)})</h2><ol start="0">${
+        (datos.todos.length ? datos.todos : datos.usados.map((id) => ({ id, type: '?' })))
+          .map((t) => `<li>${t.id} · ${esc(t.type)} ${usados.has(t.id) ? '<strong>— se usa</strong>' : ''}</li>`).join('')
+      }</ol></div>`);
+    } catch (e) {
+      bloques.push(`<div class="bloque"><h2>Tipos de juego</h2><p class="error">${esc(e.message)} (¿está desplegada la versión nueva?)</p></div>`);
+    }
+    for (const texto of $('textos').value.split(',').map((t) => t.trim()).filter(Boolean)) {
+      try {
+        const { datos, ms } = await llamar({ accion: 'buscar', texto });
+        const top = (datos.resultados || []).slice(0, 5);
+        bloques.push(`<div class="bloque"><h2>«${esc(texto)}» <span class="tiempo">${ms} ms · ${datos.resultados.length} resultados</span></h2><ol>${
+          top.map((j) => `<li>${esc(j.nombre)} <span class="tiempo">${j.anio ?? 's/f'}${j.cover_id ? '' : ' · sin portada'}</span></li>`).join('') || '<li>Sin resultados</li>'
+        }</ol></div>`);
+      } catch (e) {
+        bloques.push(`<div class="bloque"><h2>«${esc(texto)}»</h2><p class="error">${esc(e.message)}</p></div>`);
+      }
+      salida.innerHTML = bloques.join('');
+    }
+    salida.innerHTML = bloques.join('');
+  });
+</script>
+</body>
+</html>

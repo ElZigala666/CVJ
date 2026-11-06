@@ -8,6 +8,7 @@
 // Peticiones (POST, JSON):
 //   { "accion": "buscar", "texto": "ghost" }
 //   { "accion": "juego",  "igdb_id": 1942 }
+//   { "accion": "tipos" }   (depuración: tipos de juego de IGDB y los que se usan)
 // =============================================================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -189,35 +190,149 @@ type JuegoIGDB = {
   genres?: { name: string }[];
   involved_companies?: { developer?: boolean; company?: { name?: string } }[];
   summary?: string;
+  total_rating_count?: number;
+  hypes?: number;
+  rating?: number;
 };
 
-// game_type sustituye al antiguo "category". Ids de /game_types:
-// 0 juego principal, 4 expansión independiente, 8 remake, 9 remaster,
-// 10 juego ampliado, 11 port. Se excluyen DLC (1), expansiones (2), packs (3, 13),
-// mods (5), episodios (6), temporadas (7), forks (12) y actualizaciones (14).
-// version_parent = null quita las ediciones (GOTY, Deluxe...).
-const TIPOS_VALIDOS = "(0,4,8,9,10,11)";
-const CAMPOS_LISTA = "name,first_release_date,cover.image_id,platforms.abbreviation,platforms.name";
+// -----------------------------------------------------------------------------
+// Tipos de juego (game_type sustituye al antiguo "category").
+// Los ids se leen de /v4/game_types por su nombre y se guardan en memoria; si esa
+// consulta falla, se usan los de respaldo (comprobados con la acción "tipos").
+// Se aceptan: juego principal, remake, remaster, port, expansión independiente y
+// juego ampliado (p. ej. Persona 5 Royal). Fuera: DLC, expansiones, bundles,
+// packs, mods, episodios, temporadas, forks y actualizaciones.
+// -----------------------------------------------------------------------------
+const NOMBRES_TIPOS_VALIDOS = ["main game", "remake", "remaster", "port", "standalone expansion", "expanded game"];
+const IDS_RESPALDO = [0, 4, 8, 9, 10, 11];
+let tiposCache: { ids: number[]; todos: { id: number; type: string }[]; origen: string } | null = null;
+
+async function tiposValidos() {
+  if (tiposCache) return tiposCache;
+  try {
+    const todos = await igdb<{ id: number; type: string }[]>("game_types", "fields id,type; limit 50; sort id asc;");
+    const ids = todos
+      .filter((t) => NOMBRES_TIPOS_VALIDOS.includes(String(t.type).trim().toLowerCase()))
+      .map((t) => t.id);
+    if (ids.length >= 3) {
+      tiposCache = { ids, todos, origen: "game_types" };
+      return tiposCache;
+    }
+    console.error("game_types sin los nombres esperados:", JSON.stringify(todos));
+  } catch (e) {
+    console.error("No se han podido leer los game_types:", (e as Error).message);
+  }
+  // Sin cachear el respaldo: se reintenta en la próxima búsqueda.
+  return { ids: IDS_RESPALDO, todos: [], origen: "respaldo" };
+}
+
+const CAMPOS_LISTA =
+  "name,first_release_date,cover.image_id,platforms.abbreviation,platforms.name,total_rating_count,hypes,rating";
+
+// <puntuacion> (bloque sin dependencias: se prueba en local con node)
+/** minúsculas, sin tildes ni signos: "Ghost of Yōtei!" → "ghost of yotei" */
+export function normalizar(t: string): string {
+  return String(t ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+export type Candidato = {
+  name: string;
+  first_release_date?: number;
+  cover?: { image_id?: string };
+  total_rating_count?: number;
+  hypes?: number;
+  posicionBusqueda?: number; // posición en el "search" de IGDB (0 = la mejor)
+};
+
+/**
+ * Puntuación propia para ordenar resultados:
+ *  - popularidad (log del número de valoraciones en IGDB) pesa mucho;
+ *  - "hypes" cuentan para juegos recientes o que aún no han salido;
+ *  - bonus si el nombre empieza por el texto, más si coincide exactamente;
+ *  - un poco por la relevancia de IGDB y por contener todas las palabras;
+ *  - ligera penalización sin portada o sin fecha.
+ */
+export function puntuar(j: Candidato, texto: string, ahoraSeg = Date.now() / 1000): number {
+  const q = normalizar(texto);
+  const n = normalizar(j.name);
+  const palabras = q.split(" ").filter(Boolean);
+  let p = 0;
+
+  p += 3 * Math.log10(1 + (j.total_rating_count ?? 0));
+
+  const fecha = j.first_release_date;
+  const reciente = !fecha || fecha > ahoraSeg - 365 * 86400;
+  if (reciente && j.hypes) p += 1.5 * Math.log10(1 + j.hypes);
+
+  if (n === q) p += 6;
+  else if (n.startsWith(q)) p += 3;
+  else if (n.split(" ").some((w, i, ws) => ws.slice(i).join(" ").startsWith(q))) p += 1.5; // "the legend of zelda" con "zelda"
+
+  // Todas las palabras presentes (la última puede estar a medias).
+  const ws = n.split(" ");
+  const todas = palabras.every((w, i) =>
+    i === palabras.length - 1 ? ws.some((x) => x.startsWith(w)) : ws.includes(w) || ws.some((x) => x.startsWith(w))
+  );
+  if (todas) p += 1;
+
+  if (j.posicionBusqueda !== undefined) p += 1.2 * (1 - j.posicionBusqueda / 50);
+
+  if (!j.cover?.image_id) p -= 1.5;
+  if (!fecha) p -= 1;
+
+  return p;
+}
+
+/** Une las dos listas sin duplicados y las ordena por puntuación. */
+export function ordenar<T extends Candidato & { id: number }>(busqueda: T[], parcial: T[], texto: string, max = 20): T[] {
+  const porId = new Map<number, T>();
+  busqueda.forEach((j, i) => porId.set(j.id, { ...j, posicionBusqueda: i }));
+  for (const j of parcial) if (!porId.has(j.id)) porId.set(j.id, j);
+  const ahora = Date.now() / 1000;
+  return [...porId.values()]
+    .map((j) => ({ j, p: puntuar(j, texto, ahora) }))
+    .sort((a, b) => b.p - a.p)
+    .slice(0, max)
+    .map((x) => x.j);
+}
+// </puntuacion>
+
+/** Filtro de coincidencia parcial: el nombre contiene cada palabra (sin mayúsculas). */
+function filtroNombre(texto: string): string {
+  const palabras = texto.trim().split(/\s+/).filter(Boolean).slice(0, 6);
+  return palabras.map((w) => `name ~ *"${escaparTexto(w)}"*`).join(" & ");
+}
+
+type RespuestaMulti = { name: string; result: JuegoIGDB[] }[];
 
 async function buscar(texto: string) {
   const q = texto.trim().slice(0, 100);
   if (q.length < 2) return { resultados: [] };
-  const s = escaparTexto(q);
+  const { ids } = await tiposValidos();
+  const filtro = `version_parent = null & game_type = (${ids.join(",")})`;
 
-  let juegos = await igdb<JuegoIGDB[]>(
-    "games",
-    `search "${s}"; fields ${CAMPOS_LISTA}; where version_parent = null & game_type = ${TIPOS_VALIDOS}; limit 20;`,
+  // Dos consultas en una sola petición:
+  //  a) "search" (relevancia de IGDB; no encuentra palabras a medias)
+  //  b) nombre que contiene cada palabra, por popularidad (encuentra "rocket le")
+  const multi = await igdb<RespuestaMulti>(
+    "multiquery",
+    `query games "busqueda" {
+      search "${escaparTexto(q)}"; fields ${CAMPOS_LISTA}; where ${filtro}; limit 50;
+    };
+    query games "parcial" {
+      fields ${CAMPOS_LISTA}; where ${filtroNombre(q)} & ${filtro}; sort total_rating_count desc; limit 50;
+    };`,
   );
-  // Si el filtro deja la búsqueda vacía (fichas incompletas en IGDB), probar sin él.
-  if (!juegos.length) {
-    juegos = await igdb<JuegoIGDB[]>(
-      "games",
-      `search "${s}"; fields ${CAMPOS_LISTA}; where version_parent = null; limit 20;`,
-    );
-  }
+  const busqueda = multi.find((r) => r.name === "busqueda")?.result ?? [];
+  const parcial = multi.find((r) => r.name === "parcial")?.result ?? [];
 
   return {
-    resultados: juegos.map((j) => ({
+    resultados: ordenar(busqueda, parcial, q, 20).map((j) => ({
       igdb_id: j.id,
       nombre: j.name,
       anio: anio(j.first_release_date),
@@ -225,6 +340,13 @@ async function buscar(texto: string) {
       plataformas: normalizarPlataformas(j.platforms),
     })),
   };
+}
+
+/** Depuración: tipos de juego de IGDB y los que se están usando. */
+async function tipos() {
+  tiposCache = null;
+  const t = await tiposValidos();
+  return { usados: t.ids, origen: t.origen, todos: t.todos };
 }
 
 async function juego(igdbId: number) {
@@ -271,13 +393,15 @@ Deno.serve(async (req) => {
     switch (cuerpo.accion) {
       case "buscar":
         return json(await buscar(String(cuerpo.texto ?? "")));
+      case "tipos":
+        return json(await tipos());
       case "juego": {
         const id = Number(cuerpo.igdb_id);
         if (!Number.isInteger(id) || id <= 0) throw new ErrorPublico("igdb_id no válido");
         return json(await juego(id));
       }
       default:
-        throw new ErrorPublico('Acción desconocida (usa "buscar" o "juego")');
+        throw new ErrorPublico('Acción desconocida (usa "buscar", "juego" o "tipos")');
     }
   } catch (e) {
     if (e instanceof ErrorPublico) return json({ error: e.message }, e.estado);

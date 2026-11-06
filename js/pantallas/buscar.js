@@ -2,8 +2,10 @@
 import { icono } from '../icons.js';
 import { buscarJuegos } from '../igdb.js';
 import * as datos from '../datos.js';
-import { esc, portada, notaConLetra, skeletonFila } from '../ui.js';
+import { esc, portada, notaConLetra, skeletonFila, aviso } from '../ui.js';
 import { abrirValorar } from '../hoja-valorar.js';
+import { volver } from '../navegacion.js';
+import { limpiarNombrePsn } from '../psn.js';
 
 const PLATAFORMAS = ['Todas', 'PS5', 'PS4', 'PC', 'Xbox', 'Switch'];
 const ESPERA_MS = 300;
@@ -64,13 +66,31 @@ function tienePlataforma(juego, p) {
   return p === 'Todas' || (juego.plataformas || []).some((x) => x === p || x.startsWith(`${p} `));
 }
 
-export function render(el, { ruta } = {}) {
-  // Modo valorar (botón central): mismo buscador, pero tocar un resultado abre la hoja.
-  const modoValorar = ruta === 'valorar';
+export function render(el, { ruta, params = [] } = {}) {
+  // Modos:
+  //   buscar  normal: tocar un resultado abre su ficha
+  //   valorar botón central: tocar un resultado abre la hoja de Valorar
+  //   elegir  #elegir/{psnTitleId}: "¿Qué juego es?" para emparejar un título de PSN
+  const modo = ruta === 'valorar' ? 'valorar' : ruta === 'elegir' ? 'elegir' : 'buscar';
+  const modoValorar = modo; // (las filas reciben el modo)
+  const tituloPsn = modo === 'elegir' ? decodeURIComponent(params[0] ?? '') : null;
+  const filaPsn = tituloPsn ? datos.filaBiblioteca(tituloPsn) : null;
+  if (modo === 'elegir') {
+    // Empezar buscando el nombre de PSN sin "™", "PS4 & PS5"...
+    memoria.texto = limpiarNombrePsn(filaPsn?.nombre_psn ?? '');
+  }
+  const titulo = { buscar: 'Buscar', valorar: '¿Qué juego quieres valorar?', elegir: '¿Qué juego es?' }[modo];
   el.innerHTML = `
     <section class="buscar">
       <div class="buscar-cab">
-        <h1 class="titulo-pantalla">${modoValorar ? '¿Qué juego quieres valorar?' : 'Buscar'}</h1>
+        ${modo === 'elegir' ? `
+          <div class="elegir-cab">
+            <button type="button" class="boton-cuadrado" data-accion="atras" aria-label="Volver">${icono('atras', { tam: 20, color: 'var(--texto)' })}</button>
+            <div>
+              <h1 class="titulo-pantalla">${titulo}</h1>
+              <span class="elegir-sub">En PlayStation: «${esc(filaPsn?.nombre_psn ?? tituloPsn)}». Elige el juego correcto y quedará emparejado para todo el grupo.</span>
+            </div>
+          </div>` : `<h1 class="titulo-pantalla">${titulo}</h1>`}
         <div class="campo-busqueda">
           ${icono('buscar', { tam: 20, color: 'var(--texto-2)' })}
           <label for="q" class="sr">Buscar juego</label>
@@ -186,7 +206,21 @@ export function render(el, { ruta } = {}) {
     pintar();
   });
 
+  el.addEventListener('click', (e) => {
+    if (e.target.closest('[data-accion="atras"]')) volver('#perfil');
+  });
+
   lista.addEventListener('click', (e) => {
+    const elegir = e.target.closest('[data-elegir]');
+    if (elegir) {
+      e.preventDefault();
+      const j = datos.juegoConocido(elegir.dataset.elegir);
+      if (!j || !tituloPsn) return;
+      datos.emparejarPsn(tituloPsn, j, aviso);
+      aviso(`Emparejado con ${j.nombre}`);
+      volver('#perfil');
+      return;
+    }
     const valorar = e.target.closest('[data-valorar]');
     if (valorar) {
       e.preventDefault();
@@ -207,7 +241,7 @@ export function render(el, { ruta } = {}) {
   pintar();
   // Búsqueda que se quedó a medias en la visita anterior: repetirla.
   if (clave(memoria.texto).length >= MIN_LETRAS && !cache.has(clave(memoria.texto))) lanzarBusqueda();
-  if (!memoria.texto || modoValorar) requestAnimationFrame(() => input.focus({ preventScroll: true }));
+  if (!memoria.texto || modo === 'valorar') requestAnimationFrame(() => input.focus({ preventScroll: true }));
 
   return () => {
     desuscribir();
@@ -216,7 +250,7 @@ export function render(el, { ruta } = {}) {
   };
 }
 
-function fila(j, i, modoValorar) {
+function fila(j, i, modo) {
   const s = datos.statsJuego(j.igdb_id);
   const meta = [j.anio, (j.plataformas || []).join(', ')].filter(Boolean).join(' · ');
   const grupo = s.votos
@@ -224,10 +258,15 @@ function fila(j, i, modoValorar) {
     : `<span class="fila-sub">${s.jugadores ? `${s.jugadores} del grupo, sin nota todavía` : 'Nadie del grupo lo ha jugado'}</span>`;
   const href = `#juego/${j.igdb_id}`;
   const cover = esc(j.cover_id ?? '');
-  // En modo valorar, toda la fila abre la hoja; si no, abre la ficha (precargando la portada grande).
-  const enlaceFila = modoValorar
+  // En modo valorar, toda la fila abre la hoja; en elegir, empareja; si no, abre la ficha.
+  const enlaceFila = modo === 'valorar'
     ? `<a class="fila-enlace" href="${href}" data-valorar="${j.igdb_id}">`
-    : `<a class="fila-enlace" href="${href}" data-precarga="${cover}">`;
+    : modo === 'elegir'
+      ? `<a class="fila-enlace" href="${href}" data-elegir="${j.igdb_id}">`
+      : `<a class="fila-enlace" href="${href}" data-precarga="${cover}">`;
+  const boton = modo === 'elegir'
+    ? `<button type="button" class="boton-elegir" data-elegir="${j.igdb_id}">Es este</button>`
+    : `<button type="button" class="boton-mas" data-valorar="${j.igdb_id}" aria-label="Valorar ${esc(j.nombre)}">${icono('mas', { tam: 20, color: 'var(--acento-texto)' })}</button>`;
   return `
     <div class="fila-juego">
       ${enlaceFila}
@@ -238,6 +277,6 @@ function fila(j, i, modoValorar) {
           ${grupo}
         </div>
       </a>
-      <button type="button" class="boton-mas" data-valorar="${j.igdb_id}" aria-label="Valorar ${esc(j.nombre)}">${icono('mas', { tam: 20, color: 'var(--acento-texto)' })}</button>
+      ${boton}
     </div>`;
 }

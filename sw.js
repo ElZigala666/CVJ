@@ -26,7 +26,7 @@ const ESPERA_HTML_MS = 2000;
 
 // Archivos del app shell. El workflow sustituye esta línea por la lista real de
 // archivos publicados; en local se usa esta.
-const ARCHIVOS = ['./', 'index.html', 'manifest.webmanifest', 'css/tokens.css', 'css/app.css', 'js/app.js', 'js/version.js', 'js/icons.js', 'js/sesion.js', 'js/datos.js', 'js/ui.js', 'js/instalar.js', 'js/tema.js', 'js/acento.js', 'js/navegacion.js', 'js/portadas.js', 'js/notas.js', 'js/config.js', 'js/supabase.js', 'js/codigo.js', 'js/igdb.js', 'js/metricas.js', 'js/hoja.js', 'js/hoja-valorar.js', 'js/ajustes.js', 'js/refrescar.js', 'js/pantallas/entrada.js', 'js/pantallas/inicio.js', 'js/pantallas/buscar.js', 'js/pantallas/juego.js', 'js/pantallas/perfil.js', 'js/pantallas/estadisticas.js', 'js/pantallas/rankings.js', 'img/icon-192.png', 'img/icon-512.png', 'img/icon-maskable-512.png', 'img/apple-touch-icon.png']; // @archivos
+const ARCHIVOS = ['./', 'index.html', 'manifest.webmanifest', 'css/tokens.css', 'css/app.css', 'js/app.js', 'js/version.js', 'js/icons.js', 'js/sesion.js', 'js/datos.js', 'js/ui.js', 'js/instalar.js', 'js/tema.js', 'js/acento.js', 'js/navegacion.js', 'js/portadas.js', 'js/notas.js', 'js/config.js', 'js/supabase.js', 'js/codigo.js', 'js/igdb.js', 'js/metricas.js', 'js/hoja.js', 'js/hoja-valorar.js', 'js/ajustes.js', 'js/refrescar.js', 'js/psn.js', 'js/ajustes-psn.js', 'js/pantallas/entrada.js', 'js/pantallas/inicio.js', 'js/pantallas/buscar.js', 'js/pantallas/juego.js', 'js/pantallas/perfil.js', 'js/pantallas/estadisticas.js', 'js/pantallas/rankings.js', 'img/icon-192.png', 'img/icon-512.png', 'img/icon-maskable-512.png', 'img/apple-touch-icon.png']; // @archivos
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {

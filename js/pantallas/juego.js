@@ -10,6 +10,7 @@ import {
 } from '../ui.js';
 import { yaCargada, tamPara, ANCHOS } from '../portadas.js';
 import { volver } from '../navegacion.js';
+import * as metricas from '../metricas.js';
 import { abrirValorar } from '../hoja-valorar.js';
 
 export function render(el, { params }) {
@@ -150,11 +151,22 @@ export function render(el, { params }) {
     return `<section class="ficha-metricas">${notaHtml}${recHtml}${repartoHtml}</section>`;
   }
 
+  /** Horas y trofeos de PSN de un usuario en este juego: " · 42 h · 35 % trofeos". */
+  function extraPsn(uid) {
+    const b = metricas.bibliotecaDeJuego(id).get(uid);
+    if (!b) return '';
+    const partes = [];
+    const h = metricas.textoHoras(b.horas);
+    if (h) partes.push(h);
+    if (b.progreso) partes.push(`${b.progreso} % trofeos`);
+    return partes.length ? ` · ${partes.join(' · ')}` : '';
+  }
+
   function filaGrupo(v) {
     const u = datos.usuario(v.usuario_id);
     if (!u) return '';
     const est = ESTADOS.find((e) => e.id === v.estado);
-    const sub = [nombreEstado(v.estado), v.plataforma].filter(Boolean).join(' · ');
+    const sub = [nombreEstado(v.estado), v.plataforma].filter(Boolean).join(' · ') + extraPsn(u.id);
     const derecha = v.nota != null
       ? `<div class="grupo-nota">${notaConLetra(v.nota, 'lg')}${iconoRecomendacion(v.recomendado, 20)}</div>`
       : `<span class="grupo-sin-nota">Sin nota aún</span>`;
@@ -172,6 +184,41 @@ export function render(el, { params }) {
       </div>`;
   }
 
+  /** Quien lo tiene en su biblioteca de PSN pero no lo ha valorado: al final, sin nota. */
+  function filaBiblioteca(uid, b) {
+    const u = datos.usuario(uid);
+    if (!u) return '';
+    return `
+      <div class="grupo-fila grupo-biblioteca">
+        <div class="grupo-cab">
+          ${avatarPerfil(u, 40)}
+          <div class="grupo-quien">
+            <span class="grupo-nombre">${nombrePerfil(u)}${u.id === yo?.id ? ' <span class="grupo-tu">(tú)</span>' : ''}</span>
+            <span class="grupo-estado">${icono('jugando', { tam: 14, color: 'var(--texto-2)', grosor: 2.6, trazo: 'var(--fondo)' })}${u.id === yo?.id ? 'En tu biblioteca' : 'En su biblioteca'}${b.plataformas.length ? ` · ${b.plataformas.join(', ')}` : ''}${extraPsn(uid)}</span>
+          </div>
+          <span class="etiqueta-psn">PSN</span>
+        </div>
+      </div>`;
+  }
+
+  /** Títulos de PSN emparejados con este juego, para poder corregirlo si está mal. */
+  function corregirEmparejamiento() {
+    const titulos = new Map();
+    // Uno por nombre (las versiones de PS4 y PS5 suelen llamarse igual).
+    const nombres = new Set();
+    for (const f of datos.bibliotecaDeJuego(id)) {
+      if (nombres.has(f.nombre_psn)) continue;
+      nombres.add(f.nombre_psn);
+      titulos.set(f.psn_title_id, f.nombre_psn);
+    }
+    if (!titulos.size) return '';
+    return `
+      <p class="ficha-psn-nota">
+        ${icono('jugando', { tam: 16, color: 'var(--texto-2)', trazo: 'var(--fondo)' })}
+        <span>Emparejado desde PlayStation con ${[...titulos].map(([t, n]) => `«${esc(n)}» <a href="#elegir/${encodeURIComponent(t)}" class="enlace-discreto">¿No es este juego?</a>`).join(', ')}</span>
+      </p>`;
+  }
+
   function pintarCuerpo() {
     const st = datos.statsJuego(id);
     const filas = [...st.valoraciones].sort((a, b) => {
@@ -180,15 +227,22 @@ export function render(el, { params }) {
       if (b.nota != null) return 1;
       return new Date(b.actualizado_en) - new Date(a.actualizado_en);
     });
+    const conValoracion = new Set(st.valoraciones.map((v) => v.usuario_id));
+    const soloBiblioteca = [...metricas.bibliotecaDeJuego(id)]
+      .filter(([uid]) => !conValoracion.has(uid))
+      .sort((a, b) => b[1].horas - a[1].horas);
+    const hayGrupo = filas.length || soloBiblioteca.length;
     $('cuerpo').innerHTML = `
       ${bloqueMetricas(st)}
-      ${filas.length ? `
+      ${hayGrupo ? `
         <section class="ficha-grupo">
           <div class="seccion-cab">
             <h2 class="seccion-titulo">El grupo</h2>
             <span class="seccion-extra">${st.jugadores === 1 ? '1 lo ha jugado' : `${st.jugadores} lo han jugado`}</span>
           </div>
           ${filas.map(filaGrupo).join('')}
+          ${soloBiblioteca.map(([uid, b]) => filaBiblioteca(uid, b)).join('')}
+          ${corregirEmparejamiento()}
         </section>` : ''}`;
   }
 

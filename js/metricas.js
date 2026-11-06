@@ -234,3 +234,84 @@ export function comparar(idA, idB) {
     };
   });
 }
+
+// ---------------------------------------------------------------------------
+// Biblioteca de PlayStation
+// ---------------------------------------------------------------------------
+/**
+ * Biblioteca de un usuario agrupada por juego (las versiones PS4 y PS5 de un
+ * mismo juego cuentan como uno y suman sus horas).
+ * Cada entrada: { clave, igdbId, juego, filas, nombre, imagen, horas, plataformas,
+ *                 plataformaPrincipal, ultimaVez, progreso, valoracion }
+ */
+export function biblioteca(uid) {
+  return memoizar(`biblioteca:${uid}`, () => {
+    const filas = datos.bibliotecaDe(uid);
+    const grupos = new Map();
+    const porPlataforma = { PS4: 0, PS5: 0 };
+    for (const f of filas) {
+      const igdbId = datos.igdbDeBiblioteca(f);
+      const clave = igdbId != null ? `igdb:${igdbId}` : `psn:${f.psn_title_id}`;
+      const h = Number(f.horas ?? 0);
+      if (f.plataforma && porPlataforma[f.plataforma] !== undefined) porPlataforma[f.plataforma] += h;
+      if (!grupos.has(clave)) {
+        grupos.set(clave, { clave, igdbId, juego: igdbId != null ? datos.juegoConocido(igdbId) : null, filas: [], horas: 0, ultimaVez: null, progreso: null });
+      }
+      const g = grupos.get(clave);
+      g.filas.push(f);
+      g.horas += h;
+      if (f.ultima_vez && (!g.ultimaVez || f.ultima_vez > g.ultimaVez)) g.ultimaVez = f.ultima_vez;
+      if (f.progreso_trofeos != null) g.progreso = Math.max(g.progreso ?? 0, Number(f.progreso_trofeos));
+    }
+    const juegos = [...grupos.values()].map((g) => {
+      // La fila con más horas da el nombre, la imagen y la plataforma "principal".
+      const principal = [...g.filas].sort((a, b) => Number(b.horas ?? 0) - Number(a.horas ?? 0))[0];
+      return {
+        ...g,
+        horas: Math.round(g.horas * 10) / 10,
+        nombre: g.juego?.nombre ?? principal.nombre_psn,
+        imagen: principal.imagen_psn,
+        psnTitleId: principal.psn_title_id,
+        plataformas: [...new Set(g.filas.map((f) => f.plataforma).filter(Boolean))],
+        plataformaPrincipal: principal.plataforma,
+        valoracion: g.igdbId != null ? datos.miValoracion(uid, g.igdbId) : null,
+      };
+    }).sort((a, b) => b.horas - a.horas || (b.ultimaVez ?? '').localeCompare(a.ultimaVez ?? ''));
+    const horas = juegos.reduce((s, x) => s + x.horas, 0);
+    return {
+      juegos,
+      total: juegos.length,
+      horas: Math.round(horas),
+      porPlataforma: { PS4: Math.round(porPlataforma.PS4), PS5: Math.round(porPlataforma.PS5) },
+      top: juegos.filter((x) => x.horas > 0).slice(0, 5),
+      sinValorar: juegos.filter((x) => !x.valoracion),
+      ultimaVez: juegos.reduce((m, x) => (x.ultimaVez && (!m || x.ultimaVez > m) ? x.ultimaVez : m), null),
+    };
+  });
+}
+
+/** Horas y trofeos de cada usuario en un juego: Map(usuario_id → { horas, progreso, plataformas }). */
+export function bibliotecaDeJuego(igdbId) {
+  return memoizar(`bibJuego:${igdbId}`, () => {
+    const m = new Map();
+    for (const f of datos.bibliotecaDeJuego(igdbId)) {
+      if (!datos.usuario(f.usuario_id)) continue;
+      const x = m.get(f.usuario_id) ?? { horas: 0, progreso: null, plataformas: [], filas: [] };
+      x.horas += Number(f.horas ?? 0);
+      if (f.progreso_trofeos != null) x.progreso = Math.max(x.progreso ?? 0, Number(f.progreso_trofeos));
+      if (f.plataforma && !x.plataformas.includes(f.plataforma)) x.plataformas.push(f.plataforma);
+      x.filas.push(f);
+      m.set(f.usuario_id, x);
+    }
+    return m;
+  });
+}
+
+/** "42 h", "1,5 h", "35 min" */
+export function textoHoras(h) {
+  const n = Number(h ?? 0);
+  if (n <= 0) return '';
+  if (n < 1) return `${Math.max(1, Math.round(n * 60))} min`;
+  if (n < 10) return `${(Math.round(n * 10) / 10).toString().replace('.', ',')} h`;
+  return `${Math.round(n)} h`;
+}

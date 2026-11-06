@@ -6,6 +6,7 @@ import { usuarioActual } from '../sesion.js';
 import { LETRAS, formatearNota } from '../notas.js';
 import { esc, avatar, chipLetra, cabeceraAtras, estadoVacio } from '../ui.js';
 import { volver, rutaPerfil, reemplazarRuta } from '../navegacion.js';
+import { textoHoras } from '../metricas.js';
 
 const ALTO_BARRA = 80;
 
@@ -21,6 +22,7 @@ export function render(el, { params }) {
     }
     document.title = `CVJ · Estadísticas de ${u.nombre}`;
     const s = metricas.estadisticas(id);
+    const bib = metricas.biblioteca(id);
     const maxTier = Math.max(1, ...Object.values(s.reparto));
     const maxPlat = Math.max(1, ...s.plataformas.map((x) => x.n));
     const vsGrupo = s.vsGrupo === null ? '' : ` · ${s.vsGrupo > 0 ? '+' : s.vsGrupo < 0 ? '−' : '±'}${Math.abs(s.vsGrupo).toFixed(1)} vs grupo`;
@@ -42,7 +44,7 @@ export function render(el, { params }) {
           ${dato(s.abandonados, 'Abandonados')}
           ${dato(s.jugando, 'Jugando')}
           ${dato(s.pendientes, 'Pendientes')}
-          ${dato(null, 'En biblioteca')}
+          ${dato(bib.total || (u.psn_account_id ? 0 : null), 'En biblioteca')}
         </div>
       </section>
 
@@ -95,10 +97,7 @@ export function render(el, { params }) {
 
       <section class="stats-seccion">
         <h2 class="stats-titulo">Tiempo de juego</h2>
-        <div class="caja-punteada">
-          ${icono('pendiente', { tam: 18, color: 'var(--texto-2)', trazo: 'var(--fondo)' })}
-          <span>Las horas y la biblioteca aparecerán aquí cuando se conecte PlayStation.</span>
-        </div>
+        ${tiempoDeJuego(u, bib)}
       </section>`;
 
     // Que el chip activo se vea aunque haya muchos usuarios.
@@ -117,6 +116,44 @@ export function render(el, { params }) {
   const desuscribir = datos.suscribir(pintar);
   pintar();
   return desuscribir;
+}
+
+/** Horas totales, top 5 por horas y PS4 frente a PS5 (o la caja punteada si no hay PSN). */
+function tiempoDeJuego(u, bib) {
+  if (!u.psn_account_id || !bib.total) {
+    return `
+      <div class="caja-punteada">
+        ${icono('pendiente', { tam: 18, color: 'var(--texto-2)', trazo: 'var(--fondo)' })}
+        <span>${u.psn_account_id
+          ? 'PlayStation está conectada, pero aún no hay juegos sincronizados.'
+          : 'Las horas y la biblioteca aparecerán aquí cuando se conecte PlayStation.'}</span>
+      </div>`;
+  }
+  const max = Math.max(1, ...bib.top.map((x) => x.horas));
+  const totalPlat = bib.porPlataforma.PS4 + bib.porPlataforma.PS5;
+  return `
+    <div class="tarjeta-dato grande">
+      <span class="dato-num grande">${bib.horas}<span class="dato-de"> h</span></span>
+      <span class="dato-etq">jugadas en PlayStation · ${bib.total} ${bib.total === 1 ? 'juego' : 'juegos'}</span>
+    </div>
+    ${bib.top.length ? `
+      <span class="stats-nota">Los más jugados</span>
+      <div class="barras-plataforma barras-horas">
+        ${bib.top.map((x) => `
+          <div class="barra-plataforma">
+            <span class="barra-plataforma-nombre largo" title="${esc(x.nombre)}">${esc(x.nombre)}</span>
+            <div class="barra-plataforma-pista"><div style="width:${Math.max(4, Math.round((x.horas / max) * 100))}%"></div></div>
+            <span class="barra-plataforma-n ancho">${textoHoras(x.horas)}</span>
+          </div>`).join('')}
+      </div>` : ''}
+    ${totalPlat > 0 && bib.porPlataforma.PS4 > 0 && bib.porPlataforma.PS5 > 0 ? `
+      <span class="stats-nota">PS5 frente a PS4</span>
+      <div class="reparto-plataformas" role="img" aria-label="PS5 ${bib.porPlataforma.PS5} horas, PS4 ${bib.porPlataforma.PS4} horas">
+        <div class="reparto-plataformas-barra">
+          <div style="width:${Math.round((bib.porPlataforma.PS5 / totalPlat) * 100)}%"></div>
+        </div>
+        <div class="reparto-plataformas-pie"><span><strong>PS5</strong> ${bib.porPlataforma.PS5} h</span><span><strong>PS4</strong> ${bib.porPlataforma.PS4} h</span></div>
+      </div>` : ''}`;
 }
 
 function dato(n, etiqueta) {

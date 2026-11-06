@@ -7,7 +7,9 @@ import * as datos from '../datos.js';
 import * as metricas from '../metricas.js';
 import { usuarioActual } from '../sesion.js';
 import { LETRAS, rangoTier, formatearNota, notaALetra as notaLetra } from '../notas.js';
-import { esc, avatar, portada, chipLetra, cabeceraAtras, estadoVacio } from '../ui.js';
+import { esc, avatar, portada, chipLetra, cabeceraAtras, estadoVacio, tiempoRelativo } from '../ui.js';
+import { abrirValorar } from '../hoja-valorar.js';
+import { textoHoras } from '../metricas.js';
 import { volver, rutaPerfil } from '../navegacion.js';
 import { abrirAjustes } from '../ajustes.js';
 
@@ -44,6 +46,8 @@ function renderPerfil(el, id, alSalir) {
     }
     document.title = `CVJ · ${esMio ? 'Perfil' : u.nombre}`;
     const p = metricas.perfil(id);
+    const bib = metricas.biblioteca(id);
+    const vinculado = !!u.psn_account_id;
     if (!pestanaRecordada.has(id)) {
       const inicial = p.completados ? 'completado' : PESTANAS.find((x) => p.historial[x.id].length)?.id ?? 'completado';
       pestanaRecordada.set(id, inicial);
@@ -77,8 +81,9 @@ function renderPerfil(el, id, alSalir) {
             <span class="dato-etq">Nota media</span>
           </div>
           <div class="tarjeta-dato">
-            <span class="dato-num apagado">—</span>
-            <span class="dato-etq">Horas · sin datos</span>
+            ${vinculado && bib.total
+              ? `<span class="dato-num">${bib.horas}</span><span class="dato-etq">Horas en PlayStation</span>`
+              : '<span class="dato-num apagado">—</span><span class="dato-etq">Horas · sin datos</span>'}
           </div>
         </div>
 
@@ -102,23 +107,19 @@ function renderPerfil(el, id, alSalir) {
           <div data-ref="historial"></div>
         </section>
 
+        ${bib.sinValorar.length ? `
+          <section class="perfil-seccion">
+            <div class="seccion-cab">
+              <h2 class="seccion-titulo">${esMio ? 'En tu biblioteca sin valorar' : 'En su biblioteca sin valorar'}</h2>
+              <span class="seccion-extra">${bib.sinValorar.length}</span>
+            </div>
+            <div class="rejilla">${bib.sinValorar.slice(0, MAX_SIN_VALORAR).map((x, i) => itemBiblioteca(x, i, esMio)).join('')}</div>
+            ${bib.sinValorar.length > MAX_SIN_VALORAR ? `<p class="historial-tab-vacia">Y ${bib.sinValorar.length - MAX_SIN_VALORAR} más con menos horas.</p>` : ''}
+          </section>` : ''}
+
         <section class="perfil-seccion">
           <h2 class="seccion-titulo">Bibliotecas</h2>
-          <div class="bibliotecas">
-            <div class="bibliotecas-cab">
-              <span class="bibliotecas-icono">${icono('jugando', { tam: 24, color: 'var(--acento)', trazo: 'var(--acento-suave)' })}</span>
-              <div class="bibliotecas-texto">
-                <strong>Ninguna plataforma conectada</strong>
-                <span>${esMio
-                  ? 'Cuando la sincronización esté lista, tu biblioteca y tus horas se cargarán solas. Mientras, tu historial es lo que valores aquí.'
-                  : 'Cuando la sincronización esté lista, su biblioteca y sus horas se cargarán solas. Mientras, su historial es lo que valore aquí.'}</span>
-              </div>
-            </div>
-            <div class="bibliotecas-fila">
-              <span>PlayStation</span>
-              <span class="etiqueta-gris">Próximamente</span>
-            </div>
-          </div>
+          ${bloqueBibliotecas(u, esMio, vinculado, bib)}
         </section>
       </section>`;
     pintarHistorial(u, p);
@@ -151,8 +152,14 @@ function renderPerfil(el, id, alSalir) {
   };
 
   el.addEventListener('click', (e) => {
-    const b = e.target.closest('[data-accion], [data-pestana]');
+    const b = e.target.closest('[data-accion], [data-pestana], [data-valorar-psn]');
     if (!b) return;
+    if (b.dataset.valorarPsn) {
+      e.preventDefault();
+      abrirValorar(b.dataset.valorarPsn, { plataforma: b.dataset.plataforma || undefined });
+      return;
+    }
+    if (b.dataset.accion === 'vincular-psn') { abrirAjustes(alSalir); return; }
     if (b.dataset.pestana) {
       pestanaRecordada.set(id, b.dataset.pestana);
       const u = datos.usuario(id) ?? yo;
@@ -167,6 +174,75 @@ function renderPerfil(el, id, alSalir) {
   const desuscribir = datos.suscribir(pintar);
   pintar();
   return desuscribir;
+}
+
+// ---------------------------------------------------------------------------
+// PlayStation en el perfil
+// ---------------------------------------------------------------------------
+const MAX_SIN_VALORAR = 30;
+
+function bloqueBibliotecas(u, esMio, vinculado, bib) {
+  if (vinculado) {
+    return `
+      <div class="bibliotecas">
+        <div class="bibliotecas-cab">
+          <span class="bibliotecas-icono">${icono('jugando', { tam: 24, color: 'var(--acento)', trazo: 'var(--acento-suave)' })}</span>
+          <div class="bibliotecas-texto">
+            <strong>PlayStation · ${esc(u.psn_online_id)}</strong>
+            <span>${bib.total ? `${bib.total} ${bib.total === 1 ? 'juego' : 'juegos'} · ${bib.horas} h jugadas` : 'Aún sin juegos sincronizados'}${u.psn_sincronizado_en ? ` · sincronizado ${esc(tiempoRelativo(u.psn_sincronizado_en).toLowerCase())}` : ''}</span>
+          </div>
+        </div>
+        <div class="bibliotecas-fila">
+          <span>PlayStation</span>
+          <span class="etiqueta-acento">Conectada</span>
+        </div>
+      </div>`;
+  }
+  const disponible = 'psn_account_id' in u; // con la migración de PSN ya puesta
+  return `
+    <div class="bibliotecas">
+      <div class="bibliotecas-cab">
+        <span class="bibliotecas-icono">${icono('jugando', { tam: 24, color: 'var(--acento)', trazo: 'var(--acento-suave)' })}</span>
+        <div class="bibliotecas-texto">
+          <strong>Ninguna plataforma conectada</strong>
+          <span>${esMio
+            ? 'Conecta PlayStation y tu biblioteca, tus horas y tus trofeos se cargarán solos. Nunca se crean valoraciones automáticamente.'
+            : `${esc(u.nombre)} aún no ha conectado PlayStation. Mientras, su historial es lo que valore aquí.`}</span>
+        </div>
+      </div>
+      <div class="bibliotecas-fila">
+        <span>PlayStation</span>
+        ${esMio && disponible
+          ? '<button type="button" class="boton-secundario boton-pequeno" data-accion="vincular-psn">Vincular</button>'
+          : `<span class="etiqueta-gris">${disponible ? 'Sin conectar' : 'Próximamente'}</span>`}
+      </div>
+    </div>`;
+}
+
+function itemBiblioteca(x, i, esMio) {
+  const horas = textoHoras(x.horas);
+  const pie = `<span class="rejilla-nota">${horas || 'Sin horas'}</span>`;
+  if (x.igdbId != null && x.juego) {
+    // Emparejado: en mi perfil abre la hoja de Valorar con la plataforma de PSN; en otros, la ficha.
+    const attrs = esMio
+      ? `href="#juego/${x.igdbId}" data-valorar-psn="${x.igdbId}" data-plataforma="${esc(x.plataformaPrincipal ?? '')}"`
+      : `href="#juego/${x.igdbId}" data-precarga="${esc(x.juego.cover_id ?? '')}"`;
+    return `
+      <a class="rejilla-item" ${attrs} aria-label="${esc(x.juego.nombre)}${horas ? `, ${horas}` : ''}">
+        ${portada(x.juego, { clase: 'portada-rejilla', titulo: 'arriba', prioridad: i < 6 })}
+        ${pie}
+      </a>`;
+  }
+  // Sin emparejar: imagen de PSN y "¿Qué juego es?"
+  return `
+    <a class="rejilla-item sin-emparejar" href="#elegir/${encodeURIComponent(x.psnTitleId)}" aria-label="${esc(x.nombre)}: elegir qué juego es">
+      <div class="portada portada-rejilla portada-psn" style="--bloque:var(--superficie-2)">
+        <span class="portada-titulo portada-titulo-arriba">${esc(x.nombre)}</span>
+        ${x.imagen ? `<img src="${esc(x.imagen)}" alt="" loading="lazy" decoding="async" onload="this.classList.add('ok')" onerror="this.remove()">` : ''}
+        <span class="que-juego">¿Qué juego es?</span>
+      </div>
+      ${pie}
+    </a>`;
 }
 
 function textoVacio(estado, esMio, nombre) {

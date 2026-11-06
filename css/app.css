@@ -1034,3 +1034,87 @@ body.sin-barra #aviso-version { bottom: calc(96px + env(safe-area-inset-bottom))
 :root[data-tema="oscuro"] .tirar-indicador { background: var(--superficie); }
 :root[data-tema="oscuro"] .hoja-fondo { background: rgba(0, 0, 0, 0.6); }
 :root[data-tema="oscuro"] .portada-ficha { box-shadow: rgba(0, 0, 0, 0.6) 0 16px 40px; }
+
+/* ===========================================================================
+   FASE 5 · PlayStation
+   =========================================================================== */
+.etiqueta-psn {
+  padding: 2px 6px; border-radius: 6px; flex: 0 0 auto;
+  background: var(--superficie-2); color: var(--texto-2);
+  font-size: 10px; font-weight: 700; letter-spacing: .04em;
+}
+.etiqueta-psn.sobre-portada { position: absolute; top: 6px; right: 6px; z-index: 3; background: rgba(0, 0, 0, 0.6); color: #FFFFFF; }
+.etiqueta-acento { padding: 5px 10px; border-radius: 8px; background: var(--acento-suave); color: var(--acento-texto); font-size: 12px; font-weight: 700; }
+.boton-pequeno { height: 34px; padding: 0 14px; font-size: 13px; }
+
+/* Portadas de PSN (títulos sin emparejar) */
+.portada-psn img { object-fit: cover; }
+.portada-psn .portada-titulo { color: var(--texto); }
+.portada-psn img.ok ~ .portada-titulo { display: none; }
+.que-juego {
+  position: absolute; left: 6px; right: 6px; top: 6px; z-index: 3;
+  padding: 3px 6px; border-radius: 7px; text-align: center;
+  background: var(--acento); color: var(--sobre-acento); font-size: 11px; font-weight: 700;
+}
+.rejilla-item.sin-emparejar .rejilla-nota { background: rgba(0, 0, 0, 0.6); }
+
+/* Buscar en modo "¿Qué juego es?" */
+.elegir-cab { display: flex; align-items: flex-start; gap: 12px; }
+.elegir-sub { display: block; margin-top: 4px; font-size: 13px; color: var(--texto-2); line-height: 1.45; }
+.boton-elegir {
+  height: 40px; padding: 0 14px; flex: 0 0 auto; border: 0; border-radius: var(--r-md);
+  background: var(--acento-suave); color: var(--acento-texto); font-size: 13px; font-weight: 700;
+}
+
+/* Ficha: El grupo con PSN */
+.grupo-biblioteca .grupo-nombre { color: var(--texto); }
+.grupo-biblioteca .avatar { opacity: .75; }
+.ficha-psn-nota { margin: 12px 0 0; display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: var(--texto-2); line-height: 1.5; }
+.ficha-psn-nota svg { flex: 0 0 auto; margin-top: 1px; }
+.ficha-psn-nota .enlace-discreto { padding: 0; font-size: 12px; }
+
+/* Estadísticas: tiempo de juego */
+.barra-plataforma-nombre.largo { width: 120px; }
+.barra-plataforma-n.ancho { width: 48px; }
+.reparto-plataformas { display: flex; flex-direction: column; gap: 6px; }
+.reparto-plataformas-barra { height: 12px; border-radius: 6px; background: var(--tier-c); overflow: hidden; }
+.reparto-plataformas-barra > div { height: 100%; background: var(--acento); }
+.reparto-plataformas-pie { display: flex; justify-content: space-between; font-size: 13px; color: var(--texto-2); }
+.reparto-plataformas-pie strong { color: var(--texto); }
+
+/* Ajustes: PlayStation */
+.ajustes-psn, .ajustes-admin { gap: 12px; }
+.psn-conectado { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; background: var(--superficie); }
+.psn-icono { width: 40px; height: 40px; flex: 0 0 auto; border-radius: 12px; background: var(--acento-suave); display: flex; align-items: center; justify-content: center; }
+.psn-conectado-texto { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.psn-conectado-texto strong { font-size: 15px; overflow: hidden; text-overflow: ellipsis; }
+.psn-conectado-texto span { font-size: 12px; color: var(--texto-2); }
+.ajustes-psn .boton-principal { height: 48px; font-size: 15px; }
+.psn-acciones { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.psn-confirmar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--texto-2); }
+.enlace-discreto.peligro { color: var(--peligro); }
+.psn-form { display: flex; gap: 8px; }
+.psn-form .boton-principal { width: auto; padding: 0 18px; flex: 0 0 auto; }
+.psn-input {
+  flex: 1; min-width: 0; height: 48px; padding: 0 14px; border-radius: 14px;
+  border: 1px solid var(--borde); background: var(--superficie); color: var(--texto); font-size: 16px; outline: none;
+}
+.psn-input:focus { border-color: var(--acento); }
+.psn-mensaje { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--acento-suave); color: var(--texto); font-size: 13px; line-height: 1.45; }
+.psn-mensaje.error { background: color-mix(in srgb, var(--peligro) 12%, var(--fondo)); }
+.guia-psn { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 14px; background: var(--superficie); }
+.guia-psn p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--texto-2); }
+.guia-psn strong { color: var(--texto); }
+.pasos-lista { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.5; color: var(--texto-2); }
+.pasos-lista strong { color: var(--texto); }
+.pasos-lista code { font-size: 12px; padding: 1px 4px; border-radius: 4px; background: var(--superficie-2); color: var(--texto); }
+
+/* Inicio: aviso para el admin */
+.aviso-admin {
+  margin: 16px 20px 0; padding: 12px 14px; border-radius: 14px;
+  background: color-mix(in srgb, var(--peligro) 12%, var(--fondo)); color: var(--texto);
+}
+.aviso-admin summary { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; cursor: pointer; list-style: none; }
+.aviso-admin summary::-webkit-details-marker { display: none; }
+.aviso-admin p { margin: 10px 0 6px; font-size: 13px; color: var(--texto-2); }
+.sin-emparejar .portada-titulo-arriba { top: 34px; }

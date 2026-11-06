@@ -27,8 +27,11 @@ export function cerrarValorar() {
   abierta?.cerrar();
 }
 
-/** Abre la hoja de Valorar para un juego. */
-export function abrirValorar(igdbId) {
+/**
+ * Abre la hoja de Valorar para un juego.
+ * @param {{ plataforma?: string }} [op] plataforma ya puesta (p. ej. la de PSN)
+ */
+export function abrirValorar(igdbId, op = {}) {
   const yo = usuarioActual();
   const id = Number(igdbId);
   const juego = datos.juegoConocido(id);
@@ -39,9 +42,12 @@ export function abrirValorar(igdbId) {
 
   // Plataformas del juego (si IGDB no trae ninguna, las de siempre).
   let plataformas = juego.plataformas?.length ? [...juego.plataformas] : [...PLATAFORMAS_GENERICAS];
-  if (previa?.plataforma && !plataformas.includes(previa.plataforma)) plataformas.unshift(previa.plataforma);
+  for (const p of [previa?.plataforma, op.plataforma]) {
+    if (p && !plataformas.includes(p)) plataformas.unshift(p);
+  }
   const ultima = leer(CLAVE_PLATAFORMA);
   const plataformaInicial = previa?.plataforma
+    ?? op.plataforma
     ?? (ultima && plataformas.includes(ultima) ? ultima : plataformas.includes('PS5') ? 'PS5' : plataformas[0]);
 
   const s = {

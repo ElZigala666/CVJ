@@ -9,6 +9,7 @@ import { PALETA, ACENTO_DEFECTO, acentoSeguro } from './acento.js';
 import { usuarioActual } from './sesion.js';
 import * as datos from './datos.js';
 import { VERSION_CORTA } from './version.js';
+import { montarPsn } from './ajustes-psn.js';
 
 function bloqueApariencia(acentoActual) {
   const tema = preferenciaTema();
@@ -71,6 +72,7 @@ export function abrirAjustes(alSalir) {
     html: `
       <div class="ajustes">
         <div data-ref="apariencia" class="ajustes-apariencia"></div>
+        <div data-ref="psn" class="ajustes-apariencia"></div>
         <div data-ref="instalar"></div>
         <button type="button" class="boton-secundario neutro ajustes-salir" data-accion="salir">Cerrar sesión en este móvil</button>
         <p class="ajustes-version">CVJ · versión ${esc(VERSION_CORTA)}</p>
@@ -80,6 +82,10 @@ export function abrirAjustes(alSalir) {
         cuerpo.querySelector('[data-ref="instalar"]').innerHTML = bloqueInstalar(modoInstalacion(), pasosAbiertos);
       };
       pintarInstalar();
+      // PlayStation (se quita la suscripción al cerrar la hoja).
+      const quitarPsn = montarPsn(cuerpo.querySelector('[data-ref="psn"]'));
+      const vigilar = new MutationObserver(() => { if (!cuerpo.isConnected) { quitarPsn(); vigilar.disconnect(); } });
+      vigilar.observe(document.body, { childList: true });
 
       // --- Apariencia ---------------------------------------------------------
       const yo = usuarioActual();

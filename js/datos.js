@@ -8,7 +8,7 @@ const CLAVE = 'cvj.datos.v1';
 const LIMITE_ACTIVIDAD = 60;
 const VENTANA_ACTIVIDAD_MS = 10 * 60 * 1000; // agrupar cambios del mismo juego en 10 min
 
-const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], cargadoEn: null });
+const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], cargadoEn: null });
 
 // Versión de los datos: sube cada vez que cambian (refresco, escritura o reversión).
 // metricas.js la usa para memoizar los cálculos.
@@ -40,7 +40,7 @@ function guardarCache() {
   } catch { /* sin espacio o modo privado */ }
 }
 
-const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad]);
+const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb]);
 
 /** Pinta desde caché (síncrono) y lanza el refresco en segundo plano. */
 export function iniciar() {
@@ -59,16 +59,19 @@ export function refrescar() {
   if (refrescando) return refrescando;
   refrescando = (async () => {
     const sb = await cliente();
-    const [u, v, j, a] = await Promise.all([
-      sb.from('usuarios').select('id, nombre, inicial, color, acento, creado_en').order('creado_en'),
+    const [u, v, j, a, bib, emp] = await Promise.all([
+      leerUsuarios(sb),
       sb.from('valoraciones').select('*'),
       sb.from('juegos').select('*'),
       sb.from('actividad').select('*').order('creado_en', { ascending: false }).limit(LIMITE_ACTIVIDAD),
+      // PSN es un extra: si falla (o aún no existe la tabla), se sigue sin ello.
+      sb.from('biblioteca').select('*').then((r) => (r.error ? { data: estado.biblioteca } : r), () => ({ data: estado.biblioteca })),
+      sb.from('psn_igdb').select('*').then((r) => (r.error ? { data: estado.psnIgdb } : r), () => ({ data: estado.psnIgdb })),
     ]);
     const error = u.error || v.error || j.error || a.error;
     if (error) throw new Error(error.message);
     if (escriturasEnCurso) { refrescoAplazado = true; return; }
-    const nuevo = { usuarios: u.data, valoraciones: v.data, juegos: j.data, actividad: a.data };
+    const nuevo = { usuarios: u.data, valoraciones: v.data, juegos: j.data, actividad: a.data, biblioteca: bib.data ?? [], psnIgdb: emp.data ?? [] };
     const cambia = firma(nuevo) !== firma(estado);
     Object.assign(estado, nuevo, { cargadoEn: new Date().toISOString() });
     guardarCache();
@@ -84,6 +87,15 @@ export function refrescar() {
       refrescando = null;
     });
   return refrescando;
+}
+
+const COLUMNAS_USUARIO = 'id, nombre, inicial, color, acento, creado_en';
+const COLUMNAS_PSN = ', psn_online_id, psn_account_id, psn_sincronizado_en, es_admin';
+/** Usuarios con sus datos de PSN; si la migración 003 aún no está, sin ellos. */
+async function leerUsuarios(sb) {
+  const r = await sb.from('usuarios').select(COLUMNAS_USUARIO + COLUMNAS_PSN).order('creado_en');
+  if (!r.error) return r;
+  return sb.from('usuarios').select(COLUMNAS_USUARIO).order('creado_en');
 }
 
 export function borrarCache() {
@@ -120,7 +132,20 @@ function construirIndices(s) {
     if (!porJuego.has(id)) porJuego.set(id, []);
     porJuego.get(id).push(v);
   }
-  return { usuarios, juegos, porJuego };
+  // PSN: emparejamientos compartidos y biblioteca por usuario y por juego.
+  const psnIgdb = new Map((s.psnIgdb ?? []).map((x) => [x.psn_title_id, x]));
+  const bibUsuario = new Map();
+  const bibJuego = new Map();
+  for (const b of s.biblioteca ?? []) {
+    if (!bibUsuario.has(b.usuario_id)) bibUsuario.set(b.usuario_id, []);
+    bibUsuario.get(b.usuario_id).push(b);
+    const emp = psnIgdb.get(b.psn_title_id);
+    const jid = emp ? emp.igdb_id : b.juego_id; // lo emparejado en psn_igdb manda
+    if (jid == null) continue;
+    if (!bibJuego.has(Number(jid))) bibJuego.set(Number(jid), []);
+    bibJuego.get(Number(jid)).push(b);
+  }
+  return { usuarios, juegos, porJuego, psnIgdb, bibUsuario, bibJuego };
 }
 
 export const usuario = (id) => indices.usuarios.get(id) ?? null;
@@ -131,6 +156,20 @@ export const juegoConocido = (igdbId) => juego(igdbId) ?? parciales.get(Number(i
 export const valoracionesDeJuego = (igdbId) => indices.porJuego.get(Number(igdbId)) ?? [];
 export const miValoracion = (usuarioId, igdbId) =>
   valoracionesDeJuego(igdbId).find((v) => v.usuario_id === usuarioId) ?? null;
+
+// ---------------------------------------------------------------------------
+// PlayStation
+// ---------------------------------------------------------------------------
+/** Juego de IGDB de una fila de la biblioteca (o null si está sin emparejar). */
+export function igdbDeBiblioteca(fila) {
+  const emp = indices.psnIgdb.get(fila.psn_title_id);
+  const id = emp ? emp.igdb_id : fila.juego_id;
+  return id == null ? null : Number(id);
+}
+export const emparejamiento = (psnTitleId) => indices.psnIgdb.get(psnTitleId) ?? null;
+export const bibliotecaDe = (uid) => indices.bibUsuario.get(uid) ?? [];
+export const bibliotecaDeJuego = (igdbId) => indices.bibJuego.get(Number(igdbId)) ?? [];
+export const filaBiblioteca = (psnTitleId) => (estado.biblioteca ?? []).find((b) => b.psn_title_id === psnTitleId) ?? null;
 
 /** Métricas del grupo para un juego. */
 export function statsJuego(igdbId) {
@@ -176,7 +215,7 @@ export function recordarJuego(fila) {
  * @param {(msg:string)=>void} [onError]
  */
 async function escribirOptimista(aplicar, guardar, onError, mensajeError = 'No se ha podido guardar. Se ha deshecho el cambio.') {
-  const copia = { valoraciones: estado.valoraciones, actividad: estado.actividad, juegos: estado.juegos, usuarios: estado.usuarios };
+  const copia = { valoraciones: estado.valoraciones, actividad: estado.actividad, juegos: estado.juegos, usuarios: estado.usuarios, psnIgdb: estado.psnIgdb };
   escriturasEnCurso++;
   aplicar(estado);
   indices = construirIndices(estado);
@@ -299,6 +338,35 @@ export function actualizarUsuario(id, cambios, onError) {
     async (sb) => { comprobar(await sb.from('usuarios').update(cambios).eq('id', id)); },
     onError,
     'No se ha podido guardar el color. Se ha deshecho el cambio.',
+  );
+}
+
+/**
+ * Empareja a mano un título de PSN con un juego de IGDB (vale para todo el grupo).
+ * @param {string} psnTitleId
+ * @param {object} juegoElegido juego de IGDB (de Buscar o de la tabla)
+ */
+export function emparejarPsn(psnTitleId, juegoElegido, onError) {
+  const id = Number(juegoElegido.igdb_id);
+  const fila = {
+    psn_title_id: psnTitleId,
+    igdb_id: id,
+    confirmado: true,
+    nombre_psn: filaBiblioteca(psnTitleId)?.nombre_psn ?? null,
+    actualizado_en: new Date().toISOString(),
+  };
+  const faltaJuego = !juego(id);
+  return escribirOptimista(
+    (s) => {
+      if (faltaJuego) s.juegos = [...s.juegos, filaJuego(juegoElegido)];
+      s.psnIgdb = [...(s.psnIgdb ?? []).filter((x) => x.psn_title_id !== psnTitleId), fila];
+    },
+    async (sb) => {
+      if (faltaJuego) comprobar(await sb.from('juegos').upsert(filaJuego(juegoElegido), { onConflict: 'igdb_id', ignoreDuplicates: true }));
+      comprobar(await sb.from('psn_igdb').upsert(fila, { onConflict: 'psn_title_id' }));
+    },
+    onError,
+    'No se ha podido guardar el emparejamiento. Se ha deshecho.',
   );
 }
 

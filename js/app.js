@@ -5,6 +5,7 @@ import * as datos from './datos.js';
 import { aplicarAcento } from './ui.js';
 import { iniciarInstalacion } from './instalar.js';
 import { iniciarTema } from './tema.js';
+import * as psn from './psn.js';
 import * as entrada from './pantallas/entrada.js';
 import * as inicio from './pantallas/inicio.js';
 import * as buscar from './pantallas/buscar.js';
@@ -21,6 +22,7 @@ const RUTAS = {
   inicio,
   buscar,
   valorar: buscar, // el botón central abre Buscar en modo valorar
+  elegir: buscar,  // #elegir/{psnTitleId}: "¿Qué juego es?" (emparejar con PSN)
   rankings,          // #rankings y #rankings/comparar/{a}/{b}
   perfil,            // #perfil, #perfil/{id} y #perfil/{id}/tiers
   estadisticas,      // #estadisticas/{id}
@@ -120,6 +122,7 @@ function alEntrar(usuario) {
 
 function alSalir() {
   salir();
+  psn.olvidar();
   datos.borrarCache();
   datosIniciados = false;
   aplicarAcento(null);
@@ -127,10 +130,14 @@ function alSalir() {
   navegar();
 }
 
+let suscrito = false;
 function iniciarDatos() {
   if (datosIniciados) return;
   datosIniciados = true;
-  datos.suscribir(() => {
+  if (!suscrito) suscrito = !!datos.suscribir(() => {
+    // PlayStation: sincronización automática y estado del token (admin), en segundo plano.
+    psn.revisarAutomatico();
+    psn.revisarAdmin();
     // Si cambian mis datos (nombre, color, acento) en el servidor, actualizarlos aquí.
     const yo = usuarioActual();
     const fresco = yo && datos.usuario(yo.id);

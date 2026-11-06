@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>CVJ · Probar PSN</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@700&display=swap">
+<link rel="stylesheet" href="../css/tokens.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fondo); color: var(--texto); font-family: var(--fuente-texto); }
+  main { max-width: 680px; margin: 0 auto; padding: 28px 20px 48px; display: flex; flex-direction: column; gap: 16px; }
+  h1 { margin: 0; font-family: var(--fuente-titulos); font-size: 26px; }
+  h2 { margin: 0; font-size: 16px; }
+  p { margin: 0; color: var(--texto-2); font-size: 14px; line-height: 1.5; }
+  label { font-size: 13px; font-weight: 600; }
+  input, select { width: 100%; height: 46px; border-radius: 12px; border: 2px solid var(--borde); background: var(--superficie); color: var(--texto); padding: 0 12px; font: 14px var(--fuente-texto); }
+  button { height: 44px; padding: 0 16px; border: 0; border-radius: 12px; background: var(--acento); color: var(--sobre-acento); font: 700 14px var(--fuente-texto); cursor: pointer; }
+  button:disabled { opacity: .5; }
+  .bloque { background: var(--superficie); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .bloque input, .bloque select { background: var(--fondo); }
+  .fila { display: flex; gap: 8px; flex-wrap: wrap; }
+  pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: 12px/1.5 ui-monospace, Consolas, monospace; background: var(--fondo); border-radius: 12px; padding: 12px; max-height: 60vh; overflow: auto; }
+  .ok { color: var(--acento-texto); font-weight: 700; }
+  .mal { color: var(--peligro); font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Probar PSN</h1>
+  <p>Llama a la función <code>psn</code> desplegada y enseña la respuesta en bruto. <strong>Vincular</strong> y <strong>Sincronizar</strong> escriben de verdad en la base (es lo que haría la app), pero nunca crean valoraciones ni actividad.</p>
+
+  <div class="bloque">
+    <h2>1 · Estado del token</h2>
+    <p>Debe decir <code>"funciona": true</code>. Si dice <code>npsso_caducado</code> o <code>falta_npsso</code>, revisa el secreto PSN_NPSSO.</p>
+    <div class="fila"><button data-accion="estado">Comprobar estado</button></div>
+  </div>
+
+  <div class="bloque">
+    <h2>2 · Vincular un ID online</h2>
+    <label for="usuario">Usuario de CVJ</label>
+    <select id="usuario"><option value="">Cargando usuarios…</option></select>
+    <label for="online">ID online de PlayStation</label>
+    <input id="online" placeholder="Por ejemplo: MiIDdePSN" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="fila">
+      <button data-accion="vincular">Vincular</button>
+      <button data-accion="sincronizar">Sincronizar</button>
+      <button data-accion="desvincular" style="background:var(--superficie-2);color:var(--texto)">Desvincular</button>
+    </div>
+  </div>
+
+  <div class="bloque">
+    <h2>Respuesta <span id="resumen"></span></h2>
+    <pre id="salida">(todavía nada)</pre>
+  </div>
+</main>
+<script type="module">
+  import { SUPABASE_BASE, SUPABASE_KEY } from '../js/config.js';
+  const URL_PSN = `${SUPABASE_BASE}/functions/v1/psn`;
+  const $ = (id) => document.getElementById(id);
+
+  // Usuarios (para no tener que copiar ids a mano).
+  try {
+    const r = await fetch(`${SUPABASE_BASE}/rest/v1/usuarios?select=*&order=nombre`, { headers: { apikey: SUPABASE_KEY } });
+    const us = await r.json();
+    $('usuario').innerHTML = us.map((u) => `<option value="${u.id}" data-online="${u.psn_online_id ?? ''}">${u.nombre}${u.psn_online_id ? ` (PSN: ${u.psn_online_id})` : ''}${u.es_admin ? ' · admin' : ''}</option>`).join('');
+    const marcar = () => { const o = $('usuario').selectedOptions[0]; if (o?.dataset.online) $('online').value = o.dataset.online; };
+    $('usuario').addEventListener('change', marcar);
+    marcar();
+  } catch {
+    $('usuario').innerHTML = '<option value="">No se han podido cargar los usuarios</option>';
+  }
+
+  async function llamar(cuerpo) {
+    const t0 = performance.now();
+    $('salida').textContent = 'Llamando…';
+    $('resumen').textContent = '';
+    document.querySelectorAll('button').forEach((b) => (b.disabled = true));
+    try {
+      const r = await fetch(URL_PSN, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY }, body: JSON.stringify(cuerpo) });
+      const texto = await r.text();
+      let bonito = texto;
+      let datos = null;
+      try { datos = JSON.parse(texto); bonito = JSON.stringify(datos, null, 2); } catch { /* no es JSON */ }
+      $('salida').textContent = `HTTP ${r.status} · ${Math.round(performance.now() - t0)} ms\n\n${bonito}`;
+      const bien = r.ok && datos?.ok !== false;
+      $('resumen').innerHTML = bien ? '<span class="ok">· bien</span>' : `<span class="mal">· ${datos?.codigo ?? 'error'}</span>`;
+    } catch (e) {
+      $('salida').textContent = `No se ha podido llamar a la función: ${e.message}\n(¿Está desplegada con el nombre "psn" y sin verificación JWT?)`;
+      $('resumen').innerHTML = '<span class="mal">· sin respuesta</span>';
+    } finally {
+      document.querySelectorAll('button').forEach((b) => (b.disabled = false));
+    }
+  }
+
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('[data-accion]')?.dataset.accion;
+    if (!a) return;
+    const usuario_id = $('usuario').value;
+    if (a === 'estado') return llamar({ accion: 'estado' });
+    if (!usuario_id) { $('salida').textContent = 'Elige un usuario.'; return; }
+    if (a === 'vincular') return llamar({ accion: 'vincular', usuario_id, online_id: $('online').value.trim() });
+    if (a === 'sincronizar') return llamar({ accion: 'sincronizar', usuario_id });
+    if (a === 'desvincular') return llamar({ accion: 'desvincular', usuario_id });
+  });
+</script>
+</body>
+</html>

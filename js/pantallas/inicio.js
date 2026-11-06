@@ -2,6 +2,8 @@
 import { icono } from '../icons.js';
 import * as datos from '../datos.js';
 import { tirarParaRefrescar } from '../refrescar.js';
+import * as psn from '../psn.js';
+import { pasosRenovarHtml } from '../ajustes-psn.js';
 import { usuarioActual } from '../sesion.js';
 import { mediaGrupo, recomendacionGrupo, desviacionTipica } from '../notas.js';
 import {
@@ -43,6 +45,7 @@ export function render(el) {
     }
   });
   const desuscribir = datos.suscribir(pintar);
+  const desuscribirPsn = psn.suscribirEstado(pintar); // aviso del admin
   pintar();
   // Los "Hace 5 min" se actualizan solos sin repintar la pantalla.
   const reloj = setInterval(() => {
@@ -53,6 +56,7 @@ export function render(el) {
   const quitarGesto = tirarParaRefrescar(() => datos.refrescar());
   return () => {
     desuscribir();
+    desuscribirPsn();
     clearInterval(reloj);
     quitarGesto();
   };
@@ -60,10 +64,11 @@ export function render(el) {
 
 function html() {
   const yo = usuarioActual();
-  const hayAlgo = datos.estado.valoraciones.length > 0;
+  const hayAlgo = datos.estado.valoraciones.length > 0 || jugandoPsn(new Set()).length > 0;
   if (!hayAlgo) {
     return `
       ${cabecera(yo)}
+      ${avisoAdmin()}
       <div class="inicio-vacio">
         <span class="vacio-icono grande">${icono('valorar', { tam: 36, color: 'var(--acento)', trazo: 'var(--acento-suave)' })}</span>
         <h1 class="inicio-vacio-titulo">Aún no hay nada por aquí</h1>
@@ -73,6 +78,7 @@ function html() {
   }
   return `
     ${cabecera(yo)}
+    ${avisoAdmin()}
     <div class="inicio">
       ${jugandoAhora()}
       <section class="inicio-seccion">
@@ -98,19 +104,15 @@ function jugandoAhora() {
   }
   const lista = [...porUsuario.values()]
     .sort((a, b) => new Date(b.actualizado_en) - new Date(a.actualizado_en))
-    .map((v) => ({ v, j: datos.juegoConocido(v.juego_id), u: datos.usuario(v.usuario_id) }))
+    .map((v) => ({ v, j: datos.juegoConocido(v.juego_id), u: datos.usuario(v.usuario_id), cuando: v.actualizado_en }))
     .filter((x) => x.j);
+  // Quien no tiene nada en "Jugando" pero ha jugado en PSN en los últimos 3 días.
+  const conJugando = new Set(lista.map((x) => x.u.id));
+  const todos = [...lista, ...jugandoPsn(conJugando)];
 
-  const contenido = lista.length
+  const contenido = todos.length
     ? `<div class="carrusel" data-scroll="jugando">
-        ${lista.map(({ j, u }, i) => `
-          <a class="tarjeta-jugando" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}">
-            <div class="tarjeta-jugando-portada">
-              ${portada(j, { clase: 'portada-jugando', titulo: 'arriba', deco: true, prioridad: i < 4 })}
-              <span class="tarjeta-avatar">${avatarPerfil(u, 30)}</span>
-            </div>
-            ${nombrePerfil(u, 'span', 'tarjeta-nombre')}
-          </a>`).join('')}
+        ${todos.map((x, i) => tarjetaJugando(x, i)).join('')}
       </div>`
     : `<p class="seccion-vacia">${icono('jugando', { tam: 20, color: 'var(--texto-2)', trazo: 'var(--fondo)' })}<span>Nadie está jugando nada ahora mismo.</span></p>`;
 
@@ -119,6 +121,66 @@ function jugandoAhora() {
       <h2 class="seccion-titulo con-margen">Jugando ahora</h2>
       ${contenido}
     </section>`;
+}
+
+const DIAS_PSN = 3;
+
+/** Entradas de "Jugando ahora" sacadas de PSN para quien no tiene nada en Jugando. */
+function jugandoPsn(excluir) {
+  const limite = Date.now() - DIAS_PSN * 86400000;
+  const porUsuario = new Map();
+  for (const f of datos.estado.biblioteca ?? []) {
+    if (excluir.has(f.usuario_id) || !f.ultima_vez || !datos.usuario(f.usuario_id)) continue;
+    if (new Date(f.ultima_vez).getTime() < limite) continue;
+    const prev = porUsuario.get(f.usuario_id);
+    if (!prev || f.ultima_vez > prev.ultima_vez) porUsuario.set(f.usuario_id, f);
+  }
+  return [...porUsuario.values()]
+    .sort((a, b) => b.ultima_vez.localeCompare(a.ultima_vez))
+    .map((f) => {
+      const igdbId = datos.igdbDeBiblioteca(f);
+      return { u: datos.usuario(f.usuario_id), j: igdbId != null ? datos.juegoConocido(igdbId) : null, fila: f, psn: true };
+    });
+}
+
+function tarjetaJugando(x, i) {
+  const { j, u } = x;
+  const etiqueta = x.psn ? '<span class="etiqueta-psn sobre-portada">PSN</span>' : '';
+  if (j) {
+    return `
+      <a class="tarjeta-jugando" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}">
+        <div class="tarjeta-jugando-portada">
+          ${portada(j, { clase: 'portada-jugando', titulo: 'arriba', deco: true, prioridad: i < 4 })}
+          <span class="tarjeta-avatar">${avatarPerfil(u, 30)}</span>
+          ${etiqueta}
+        </div>
+        ${nombrePerfil(u, 'span', 'tarjeta-nombre')}
+      </a>`;
+  }
+  // Juego de PSN sin emparejar: su imagen de PSN; tocarla lleva a elegir qué juego es.
+  return `
+    <a class="tarjeta-jugando" href="#elegir/${encodeURIComponent(x.fila.psn_title_id)}">
+      <div class="tarjeta-jugando-portada">
+        <div class="portada portada-jugando portada-psn" style="--bloque:var(--superficie-2)">
+          <span class="portada-titulo portada-titulo-arriba">${esc(x.fila.nombre_psn)}</span>
+          ${x.fila.imagen_psn ? `<img src="${esc(x.fila.imagen_psn)}" alt="" loading="lazy" decoding="async" onload="this.classList.add('ok')" onerror="this.remove()">` : ''}
+        </div>
+        <span class="tarjeta-avatar">${avatarPerfil(u, 30)}</span>
+        ${etiqueta}
+      </div>
+      ${nombrePerfil(u, 'span', 'tarjeta-nombre')}
+    </a>`;
+}
+
+/** Solo para el admin: hay que renovar el token de PlayStation. */
+function avisoAdmin() {
+  if (!psn.hayQueRenovar()) return '';
+  return `
+    <details class="aviso-admin">
+      <summary>${icono('ajustes', { tam: 18, color: 'currentColor' })}<span>Hay que renovar el token de PlayStation</span></summary>
+      <p>La sincronización con PSN está parada hasta que pongas un NPSSO nuevo. Pasos:</p>
+      ${pasosRenovarHtml()}
+    </details>`;
 }
 
 // ---------------------------------------------------------------------------

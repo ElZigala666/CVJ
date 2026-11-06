@@ -249,12 +249,17 @@ export type Candidato = {
   total_rating_count?: number;
   hypes?: number;
   posicionBusqueda?: number; // posición en el "search" de IGDB (0 = la mejor)
+  game_type?: number | { id: number } | null;
 };
+
+const ANIO_SEG = 365 * 86400;
+const TIPO_JUEGO_AMPLIADO = 10; // "Expanded Game": Director's Cut, Royal...
 
 /**
  * Puntuación propia para ordenar resultados:
  *  - popularidad (log del número de valoraciones en IGDB) pesa mucho;
- *  - "hypes" cuentan para juegos recientes o que aún no han salido;
+ *  - extra por novedad (últimos 3 años) y "hypes" de lo reciente o por salir;
+ *  - las ediciones ampliadas (Director's Cut...) bajan un poco;
  *  - bonus si el nombre empieza por el texto, más si coincide exactamente;
  *  - un poco por la relevancia de IGDB y por contener todas las palabras;
  *  - ligera penalización sin portada o sin fecha.
@@ -267,9 +272,16 @@ export function puntuar(j: Candidato, texto: string, ahoraSeg = Date.now() / 100
 
   p += 3 * Math.log10(1 + (j.total_rating_count ?? 0));
 
+  // Novedad: lo de los últimos 3 años sube (tiene menos valoraciones solo por ser nuevo)
+  // y lo que aún no ha salido o salió hace menos de 2 años cuenta sus "hypes".
   const fecha = j.first_release_date;
-  const reciente = !fecha || fecha > ahoraSeg - 365 * 86400;
-  if (reciente && j.hypes) p += 1.5 * Math.log10(1 + j.hypes);
+  const edad = fecha ? (ahoraSeg - fecha) / ANIO_SEG : null;
+  if (edad !== null && edad < 3) p += 2.5 * (1 - Math.max(0, edad) / 3);
+  if ((edad === null || edad < 2) && j.hypes) p += 1.5 * Math.log10(1 + j.hypes);
+
+  // Ediciones ampliadas (Director's Cut...) por debajo del juego original.
+  const tipo = typeof j.game_type === "object" && j.game_type !== null ? j.game_type.id : j.game_type;
+  if (tipo === TIPO_JUEGO_AMPLIADO) p -= 2;
 
   if (n === q) p += 6;
   else if (n.startsWith(q)) p += 3;
@@ -310,8 +322,6 @@ function filtroNombre(texto: string): string {
   return palabras.map((w) => `name ~ *"${escaparTexto(w)}"*`).join(" & ");
 }
 
-type ItemMulti = { name?: string; result?: unknown; results?: unknown };
-
 const idTipo = (j: JuegoIGDB) =>
   typeof j.game_type === "object" && j.game_type !== null ? j.game_type.id : j.game_type;
 
@@ -320,30 +330,19 @@ function soloJuegosPrincipales(lista: JuegoIGDB[], ids: number[]) {
   return lista.filter((j) => idTipo(j) == null || ids.includes(Number(idTipo(j))));
 }
 
-/** Saca la lista de una consulta de multiquery (por nombre o, si no, por posición). */
-function listaMulti(multi: unknown, nombre: string, posicion: number): JuegoIGDB[] {
-  if (!Array.isArray(multi)) return [];
-  const item = (multi as ItemMulti[]).find((x) => x?.name === nombre) ?? (multi as ItemMulti[])[posicion];
-  const v = item?.result ?? item?.results;
-  return Array.isArray(v) ? (v as JuegoIGDB[]) : [];
-}
-
 const cuerpoBusqueda = (q: string, where: string) =>
   `search "${escaparTexto(q)}"; fields ${CAMPOS_LISTA}; ${where ? `where ${where}; ` : ""}limit 50;`;
 const cuerpoParcial = (q: string, where: string) =>
   `fields ${CAMPOS_LISTA}; where ${filtroNombre(q)}${where ? ` & ${where}` : ""}; sort total_rating_count desc; limit 50;`;
 
-/** Las dos consultas en una sola petición (multiquery). */
-async function multiquery(q: string, where: string) {
-  const multi = await igdb<unknown>(
-    "multiquery",
-    `query games "busqueda" { ${cuerpoBusqueda(q, where)} };\nquery games "parcial" { ${cuerpoParcial(q, where)} };`,
-  );
-  return { busqueda: listaMulti(multi, "busqueda", 0), parcial: listaMulti(multi, "parcial", 1), crudo: multi };
-}
-
-/** Las mismas dos consultas como peticiones normales a /games (en paralelo). */
-async function dosPeticiones(q: string, where: string) {
+/**
+ * Las dos consultas, en paralelo (tardan lo mismo que una):
+ *  a) "search" de IGDB (relevancia; no encuentra palabras a medias)
+ *  b) nombre que contiene cada palabra, por popularidad (encuentra "rocket le")
+ * Nota: se probó /v4/multiquery para hacerlo en una sola petición, pero con esta
+ * cuenta IGDB responde siempre "[]" (incluso sin filtros), así que no se usa.
+ */
+async function dosConsultas(q: string, where: string) {
   const [busqueda, parcial] = await Promise.all([
     igdb<JuegoIGDB[]>("games", cuerpoBusqueda(q, where)),
     igdb<JuegoIGDB[]>("games", cuerpoParcial(q, where)),
@@ -351,41 +350,22 @@ async function dosPeticiones(q: string, where: string) {
   return { busqueda, parcial };
 }
 
-/**
- * Intenta, en orden, hasta que algo devuelva juegos:
- *  1. multiquery filtrando tipo de juego en IGDB
- *  2. multiquery sin filtrar el tipo en IGDB (se filtra aquí con el campo game_type)
- *  3. dos peticiones normales a /games, filtrando el tipo aquí
- */
 async function obtenerCandidatos(q: string) {
   const { ids } = await tiposValidos();
-  const conTipo = `version_parent = null & game_type = (${ids.join(",")})`;
-  const sinTipo = "version_parent = null";
-  const pasos: [string, () => Promise<{ busqueda: JuegoIGDB[]; parcial: JuegoIGDB[] }>][] = [
-    ["multiquery-tipo", () => multiquery(q, conTipo)],
-    ["multiquery", () => multiquery(q, sinTipo)],
-    ["games", () => dosPeticiones(q, sinTipo)],
-  ];
-  const informe: { paso: string; busqueda?: number; parcial?: number; error?: string }[] = [];
-  for (const [paso, fn] of pasos) {
-    try {
-      const r = await fn();
-      const busqueda = soloJuegosPrincipales(r.busqueda, ids);
-      const parcial = soloJuegosPrincipales(r.parcial, ids);
-      informe.push({ paso, busqueda: busqueda.length, parcial: parcial.length });
-      if (busqueda.length || parcial.length) return { busqueda, parcial, paso, informe };
-    } catch (e) {
-      informe.push({ paso, error: (e as Error).message });
-    }
+  const r = await dosConsultas(q, `version_parent = null & game_type = (${ids.join(",")})`);
+  // Por si algún día IGDB deja de aceptar el filtro de tipo: se repite sin él
+  // y se filtra aquí con el campo game_type.
+  if (!r.busqueda.length && !r.parcial.length) {
+    const s = await dosConsultas(q, "version_parent = null");
+    return { busqueda: soloJuegosPrincipales(s.busqueda, ids), parcial: soloJuegosPrincipales(s.parcial, ids) };
   }
-  return { busqueda: [] as JuegoIGDB[], parcial: [] as JuegoIGDB[], paso: "ninguno", informe };
+  return r;
 }
 
 async function buscar(texto: string) {
   const q = texto.trim().slice(0, 100);
   if (q.length < 2) return { resultados: [] };
-  const { busqueda, parcial, paso, informe } = await obtenerCandidatos(q);
-  if (paso !== "multiquery-tipo") console.warn(`buscar "${q}": paso ${paso}`, JSON.stringify(informe));
+  const { busqueda, parcial } = await obtenerCandidatos(q);
 
   return {
     resultados: ordenar(busqueda, parcial, q, 20).map((j) => ({
@@ -405,28 +385,22 @@ async function tipos() {
   return { usados: t.ids, origen: t.origen, todos: t.todos };
 }
 
-/** Depuración: qué devuelve cada forma de consultar para un texto. */
+/** Depuración: qué devuelve cada consulta para un texto y la puntuación final. */
 async function depurar(texto: string) {
   const q = texto.trim().slice(0, 100) || "cyberpunk";
   const { ids } = await tiposValidos();
   const conTipo = `version_parent = null & game_type = (${ids.join(",")})`;
-  const salida: Record<string, unknown> = { texto: q, ids };
-  const nombres = (l: JuegoIGDB[]) => l.slice(0, 5).map((j) => `${j.name} [tipo ${idTipo(j) ?? "?"}, ${j.total_rating_count ?? 0} val.]`);
-  const probar = async (clave: string, fn: () => Promise<unknown>) => {
-    try { salida[clave] = await fn(); } catch (e) { salida[clave] = { error: (e as Error).message }; }
+  const nombres = (l: JuegoIGDB[]) =>
+    l.slice(0, 8).map((j) => `${j.name} [tipo ${idTipo(j) ?? "?"}, ${j.total_rating_count ?? 0} val., ${anio(j.first_release_date) ?? "s/f"}]`);
+  const r = await dosConsultas(q, conTipo);
+  const ahora = Date.now() / 1000;
+  return {
+    texto: q,
+    ids,
+    search: nombres(r.busqueda),
+    parcial: nombres(r.parcial),
+    final: ordenar(r.busqueda, r.parcial, q, 10).map((j) => `${j.name} (${puntuar(j, q, ahora).toFixed(2)})`),
   };
-  await probar("multiquery_con_tipo", async () => {
-    const r = await multiquery(q, conTipo);
-    return { busqueda: nombres(r.busqueda), parcial: nombres(r.parcial), crudo: JSON.stringify(r.crudo).slice(0, 600) };
-  });
-  await probar("multiquery_sin_tipo", async () => {
-    const r = await multiquery(q, "version_parent = null");
-    return { busqueda: nombres(r.busqueda), parcial: nombres(r.parcial) };
-  });
-  await probar("games_search_con_tipo", async () => nombres(await igdb<JuegoIGDB[]>("games", cuerpoBusqueda(q, conTipo))));
-  await probar("games_search_sin_filtro", async () => nombres(await igdb<JuegoIGDB[]>("games", cuerpoBusqueda(q, ""))));
-  await probar("games_parcial_sin_filtro", async () => nombres(await igdb<JuegoIGDB[]>("games", cuerpoParcial(q, ""))));
-  return salida;
 }
 
 async function juego(igdbId: number) {

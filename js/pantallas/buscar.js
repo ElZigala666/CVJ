@@ -40,7 +40,7 @@ const clave = (t) => normalizar(t);
 
 /** minúsculas, sin tildes ni signos (igual que en la función igdb). */
 function normalizar(t) {
-  return String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return String(t ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
 /** El nombre contiene todas las palabras (la última puede estar a medias). */

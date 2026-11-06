@@ -79,6 +79,13 @@
       }
       salida.innerHTML = bloques.join('');
     }
+    try {
+      const primero = $('textos').value.split(',')[0].trim();
+      const { datos } = await llamar({ accion: 'depurar', texto: primero });
+      bloques.push(`<div class="bloque"><h2>Diagnóstico de «${esc(primero)}»</h2><pre style="white-space:pre-wrap;font-size:12px;margin:0">${esc(JSON.stringify(datos, null, 2))}</pre></div>`);
+    } catch (e) {
+      bloques.push(`<div class="bloque"><h2>Diagnóstico</h2><p class="error">${esc(e.message)}</p></div>`);
+    }
     salida.innerHTML = bloques.join('');
   });
 </script>

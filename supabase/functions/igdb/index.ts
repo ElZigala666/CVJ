@@ -9,6 +9,7 @@
 //   { "accion": "buscar", "texto": "ghost" }
 //   { "accion": "juego",  "igdb_id": 1942 }
 //   { "accion": "tipos" }   (depuración: tipos de juego de IGDB y los que se usan)
+//   { "accion": "depurar", "texto": "cyberpunk" }   (depuración: qué devuelve cada consulta)
 // =============================================================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -193,6 +194,7 @@ type JuegoIGDB = {
   total_rating_count?: number;
   hypes?: number;
   rating?: number;
+  game_type?: number | { id: number } | null;
 };
 
 // -----------------------------------------------------------------------------
@@ -227,14 +229,14 @@ async function tiposValidos() {
 }
 
 const CAMPOS_LISTA =
-  "name,first_release_date,cover.image_id,platforms.abbreviation,platforms.name,total_rating_count,hypes,rating";
+  "name,first_release_date,cover.image_id,platforms.abbreviation,platforms.name,total_rating_count,hypes,rating,game_type";
 
 // <puntuacion> (bloque sin dependencias: se prueba en local con node)
 /** minúsculas, sin tildes ni signos: "Ghost of Yōtei!" → "ghost of yotei" */
 export function normalizar(t: string): string {
   return String(t ?? "")
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/\p{Diacritic}/gu, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
@@ -308,28 +310,82 @@ function filtroNombre(texto: string): string {
   return palabras.map((w) => `name ~ *"${escaparTexto(w)}"*`).join(" & ");
 }
 
-type RespuestaMulti = { name: string; result: JuegoIGDB[] }[];
+type ItemMulti = { name?: string; result?: unknown; results?: unknown };
+
+const idTipo = (j: JuegoIGDB) =>
+  typeof j.game_type === "object" && j.game_type !== null ? j.game_type.id : j.game_type;
+
+/** Quita DLC, bundles, mods... mirando el game_type de cada juego (si lo trae). */
+function soloJuegosPrincipales(lista: JuegoIGDB[], ids: number[]) {
+  return lista.filter((j) => idTipo(j) == null || ids.includes(Number(idTipo(j))));
+}
+
+/** Saca la lista de una consulta de multiquery (por nombre o, si no, por posición). */
+function listaMulti(multi: unknown, nombre: string, posicion: number): JuegoIGDB[] {
+  if (!Array.isArray(multi)) return [];
+  const item = (multi as ItemMulti[]).find((x) => x?.name === nombre) ?? (multi as ItemMulti[])[posicion];
+  const v = item?.result ?? item?.results;
+  return Array.isArray(v) ? (v as JuegoIGDB[]) : [];
+}
+
+const cuerpoBusqueda = (q: string, where: string) =>
+  `search "${escaparTexto(q)}"; fields ${CAMPOS_LISTA}; ${where ? `where ${where}; ` : ""}limit 50;`;
+const cuerpoParcial = (q: string, where: string) =>
+  `fields ${CAMPOS_LISTA}; where ${filtroNombre(q)}${where ? ` & ${where}` : ""}; sort total_rating_count desc; limit 50;`;
+
+/** Las dos consultas en una sola petición (multiquery). */
+async function multiquery(q: string, where: string) {
+  const multi = await igdb<unknown>(
+    "multiquery",
+    `query games "busqueda" { ${cuerpoBusqueda(q, where)} };\nquery games "parcial" { ${cuerpoParcial(q, where)} };`,
+  );
+  return { busqueda: listaMulti(multi, "busqueda", 0), parcial: listaMulti(multi, "parcial", 1), crudo: multi };
+}
+
+/** Las mismas dos consultas como peticiones normales a /games (en paralelo). */
+async function dosPeticiones(q: string, where: string) {
+  const [busqueda, parcial] = await Promise.all([
+    igdb<JuegoIGDB[]>("games", cuerpoBusqueda(q, where)),
+    igdb<JuegoIGDB[]>("games", cuerpoParcial(q, where)),
+  ]);
+  return { busqueda, parcial };
+}
+
+/**
+ * Intenta, en orden, hasta que algo devuelva juegos:
+ *  1. multiquery filtrando tipo de juego en IGDB
+ *  2. multiquery sin filtrar el tipo en IGDB (se filtra aquí con el campo game_type)
+ *  3. dos peticiones normales a /games, filtrando el tipo aquí
+ */
+async function obtenerCandidatos(q: string) {
+  const { ids } = await tiposValidos();
+  const conTipo = `version_parent = null & game_type = (${ids.join(",")})`;
+  const sinTipo = "version_parent = null";
+  const pasos: [string, () => Promise<{ busqueda: JuegoIGDB[]; parcial: JuegoIGDB[] }>][] = [
+    ["multiquery-tipo", () => multiquery(q, conTipo)],
+    ["multiquery", () => multiquery(q, sinTipo)],
+    ["games", () => dosPeticiones(q, sinTipo)],
+  ];
+  const informe: { paso: string; busqueda?: number; parcial?: number; error?: string }[] = [];
+  for (const [paso, fn] of pasos) {
+    try {
+      const r = await fn();
+      const busqueda = soloJuegosPrincipales(r.busqueda, ids);
+      const parcial = soloJuegosPrincipales(r.parcial, ids);
+      informe.push({ paso, busqueda: busqueda.length, parcial: parcial.length });
+      if (busqueda.length || parcial.length) return { busqueda, parcial, paso, informe };
+    } catch (e) {
+      informe.push({ paso, error: (e as Error).message });
+    }
+  }
+  return { busqueda: [] as JuegoIGDB[], parcial: [] as JuegoIGDB[], paso: "ninguno", informe };
+}
 
 async function buscar(texto: string) {
   const q = texto.trim().slice(0, 100);
   if (q.length < 2) return { resultados: [] };
-  const { ids } = await tiposValidos();
-  const filtro = `version_parent = null & game_type = (${ids.join(",")})`;
-
-  // Dos consultas en una sola petición:
-  //  a) "search" (relevancia de IGDB; no encuentra palabras a medias)
-  //  b) nombre que contiene cada palabra, por popularidad (encuentra "rocket le")
-  const multi = await igdb<RespuestaMulti>(
-    "multiquery",
-    `query games "busqueda" {
-      search "${escaparTexto(q)}"; fields ${CAMPOS_LISTA}; where ${filtro}; limit 50;
-    };
-    query games "parcial" {
-      fields ${CAMPOS_LISTA}; where ${filtroNombre(q)} & ${filtro}; sort total_rating_count desc; limit 50;
-    };`,
-  );
-  const busqueda = multi.find((r) => r.name === "busqueda")?.result ?? [];
-  const parcial = multi.find((r) => r.name === "parcial")?.result ?? [];
+  const { busqueda, parcial, paso, informe } = await obtenerCandidatos(q);
+  if (paso !== "multiquery-tipo") console.warn(`buscar "${q}": paso ${paso}`, JSON.stringify(informe));
 
   return {
     resultados: ordenar(busqueda, parcial, q, 20).map((j) => ({
@@ -347,6 +403,30 @@ async function tipos() {
   tiposCache = null;
   const t = await tiposValidos();
   return { usados: t.ids, origen: t.origen, todos: t.todos };
+}
+
+/** Depuración: qué devuelve cada forma de consultar para un texto. */
+async function depurar(texto: string) {
+  const q = texto.trim().slice(0, 100) || "cyberpunk";
+  const { ids } = await tiposValidos();
+  const conTipo = `version_parent = null & game_type = (${ids.join(",")})`;
+  const salida: Record<string, unknown> = { texto: q, ids };
+  const nombres = (l: JuegoIGDB[]) => l.slice(0, 5).map((j) => `${j.name} [tipo ${idTipo(j) ?? "?"}, ${j.total_rating_count ?? 0} val.]`);
+  const probar = async (clave: string, fn: () => Promise<unknown>) => {
+    try { salida[clave] = await fn(); } catch (e) { salida[clave] = { error: (e as Error).message }; }
+  };
+  await probar("multiquery_con_tipo", async () => {
+    const r = await multiquery(q, conTipo);
+    return { busqueda: nombres(r.busqueda), parcial: nombres(r.parcial), crudo: JSON.stringify(r.crudo).slice(0, 600) };
+  });
+  await probar("multiquery_sin_tipo", async () => {
+    const r = await multiquery(q, "version_parent = null");
+    return { busqueda: nombres(r.busqueda), parcial: nombres(r.parcial) };
+  });
+  await probar("games_search_con_tipo", async () => nombres(await igdb<JuegoIGDB[]>("games", cuerpoBusqueda(q, conTipo))));
+  await probar("games_search_sin_filtro", async () => nombres(await igdb<JuegoIGDB[]>("games", cuerpoBusqueda(q, ""))));
+  await probar("games_parcial_sin_filtro", async () => nombres(await igdb<JuegoIGDB[]>("games", cuerpoParcial(q, ""))));
+  return salida;
 }
 
 async function juego(igdbId: number) {
@@ -395,6 +475,8 @@ Deno.serve(async (req) => {
         return json(await buscar(String(cuerpo.texto ?? "")));
       case "tipos":
         return json(await tipos());
+      case "depurar":
+        return json(await depurar(String(cuerpo.texto ?? "")));
       case "juego": {
         const id = Number(cuerpo.igdb_id);
         if (!Number.isInteger(id) || id <= 0) throw new ErrorPublico("igdb_id no válido");

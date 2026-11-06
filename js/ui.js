@@ -1,6 +1,7 @@
 // Piezas de interfaz reutilizables (devuelven HTML como texto).
 import { icono } from './icons.js';
 import { notaALetra, formatearNota } from './notas.js';
+import { acentoSeguro } from './acento.js';
 
 export { portada, urlPortada, colorBloque, colorFondo, precargar, mejorCargada } from './portadas.js';
 
@@ -178,7 +179,8 @@ export function aviso(mensaje, ms = 2600) {
 // ---------------------------------------------------------------------------
 export function aplicarAcento(hex) {
   const raiz = document.documentElement;
-  if (hex && /^#[0-9a-f]{6}$/i.test(hex)) raiz.style.setProperty('--acento-base', hex);
+  // Siempre la versión legible (por si en la base hay un color que no se lee bien).
+  if (hex && /^#[0-9a-f]{6}$/i.test(hex)) raiz.style.setProperty('--acento-base', acentoSeguro(hex));
   else raiz.style.removeProperty('--acento-base');
 }
 

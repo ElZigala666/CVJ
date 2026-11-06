@@ -30,6 +30,31 @@ jobs:
           cp -r index.html manifest.webmanifest sw.js css js img herramientas _site/
           touch _site/.nojekyll
 
+      # Versión = hash corto del commit, en sw.js (nombre de su caché) y en js/version.js.
+      # Así cada publicación es una versión nueva sin tener que tocar nada a mano.
+      # También se genera la lista de archivos que el service worker guarda al instalarse.
+      - name: Poner la versión y la lista de archivos
+        run: |
+          VERSION="${GITHUB_SHA::8}"
+          sed -i "s/__VERSION__/${VERSION}/g" _site/sw.js _site/js/version.js
+          python3 - <<'PY'
+          import json, os, re
+          base = '_site'
+          archivos = ['./', 'index.html', 'manifest.webmanifest']
+          for carpeta in ('css', 'js', 'img'):
+              for raiz, _, nombres in os.walk(os.path.join(base, carpeta)):
+                  for n in sorted(nombres):
+                      archivos.append(os.path.relpath(os.path.join(raiz, n), base).replace(os.sep, '/'))
+          ruta = os.path.join(base, 'sw.js')
+          sw = open(ruta, encoding='utf-8').read()
+          linea = 'const ARCHIVOS = ' + json.dumps(archivos, ensure_ascii=False) + '; // @archivos'
+          sw, n = re.subn(r'^const ARCHIVOS = .*// @archivos$', linea, sw, flags=re.M)
+          assert n == 1, 'No se encontró la línea // @archivos en sw.js'
+          open(ruta, 'w', encoding='utf-8').write(sw)
+          print(len(archivos), 'archivos en el app shell')
+          PY
+          grep -q "${VERSION}" _site/sw.js && grep -q "${VERSION}" _site/js/version.js
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3

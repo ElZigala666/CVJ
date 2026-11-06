@@ -176,7 +176,7 @@ export function recordarJuego(fila) {
  * @param {(msg:string)=>void} [onError]
  */
 async function escribirOptimista(aplicar, guardar, onError, mensajeError = 'No se ha podido guardar. Se ha deshecho el cambio.') {
-  const copia = { valoraciones: estado.valoraciones, actividad: estado.actividad, juegos: estado.juegos };
+  const copia = { valoraciones: estado.valoraciones, actividad: estado.actividad, juegos: estado.juegos, usuarios: estado.usuarios };
   escriturasEnCurso++;
   aplicar(estado);
   indices = construirIndices(estado);
@@ -289,6 +289,16 @@ export function guardarValoracion(v, onError) {
       }
     },
     onError,
+  );
+}
+
+/** Cambia datos de un usuario (de momento, su color de acento). */
+export function actualizarUsuario(id, cambios, onError) {
+  return escribirOptimista(
+    (s) => { s.usuarios = s.usuarios.map((u) => (u.id === id ? { ...u, ...cambios } : u)); },
+    async (sb) => { comprobar(await sb.from('usuarios').update(cambios).eq('id', id)); },
+    onError,
+    'No se ha podido guardar el color. Se ha deshecho el cambio.',
   );
 }
 

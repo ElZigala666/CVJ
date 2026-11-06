@@ -4,6 +4,7 @@ import { usuarioActual, salir, refrescarUsuario } from './sesion.js';
 import * as datos from './datos.js';
 import { aplicarAcento } from './ui.js';
 import { iniciarInstalacion } from './instalar.js';
+import { iniciarTema } from './tema.js';
 import * as entrada from './pantallas/entrada.js';
 import * as inicio from './pantallas/inicio.js';
 import * as buscar from './pantallas/buscar.js';
@@ -144,6 +145,7 @@ function iniciarDatos() {
 // ---------------------------------------------------------------------------
 // Arranque
 // ---------------------------------------------------------------------------
+iniciarTema();
 iniciarInstalacion();
 pintarBarra();
 aplicarAcento(usuarioActual()?.acento);

@@ -96,6 +96,7 @@ export function precargar(coverId, tam = tamPara(ANCHOS['portada-ficha'])) {
   const url = urlPortada(coverId, tam);
   if (!url || cargadas.has(url) || precargas.has(url)) return;
   const img = new Image();
+  img.crossOrigin = 'anonymous'; // igual que las <img>: si no, el navegador las trata como recursos distintos
   img.decoding = 'async';
   img.fetchPriority = 'high';
   img.onload = () => { anotar(url); precargas.delete(url); };
@@ -132,7 +133,7 @@ export function portada(juego, op = {}) {
   if (url) {
     const lista = yaCargada(url);
     const carga = prioridad ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"';
-    img = `<img data-portada src="${url}" alt="" ${carga} decoding="async"${lista ? ' class="ok"' : ''}>`;
+    img = `<img data-portada crossorigin="anonymous" src="${url}" alt="" ${carga} decoding="async"${lista ? ' class="ok"' : ''}>`;
   }
   const tit = titulo && juego?.nombre
     ? `<span class="portada-titulo portada-titulo-${titulo}">${escAttr(juego.nombre)}</span>`

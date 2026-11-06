@@ -3,8 +3,29 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#FFFFFF">
+<meta name="theme-color" content="#FFFFFF" id="color-tema">
 <meta name="robots" content="noindex">
+<meta name="color-scheme" content="light dark">
+<!-- Tema y acento ANTES de pintar nada: sin pantalla blanca en oscuro ni parpadeo de color.
+     La misma lógica está en js/tema.js y js/acento.js (aquí va copiada porque tiene que ser inline). -->
+<style>
+  html { background: #FFFFFF; }
+  html[data-tema="oscuro"] { background: #0F0E13; }
+</style>
+<script>
+  (function () {
+    var raiz = document.documentElement;
+    try {
+      var pref = localStorage.getItem('cvj.tema') || 'auto';
+      var oscuro = pref === 'oscuro' || (pref === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+      if (oscuro) raiz.setAttribute('data-tema', 'oscuro');
+      document.getElementById('color-tema').setAttribute('content', oscuro ? '#0F0E13' : '#FFFFFF');
+      var s = JSON.parse(localStorage.getItem('cvj.sesion') || 'null');
+      var a = s && s.usuario && s.usuario.acento;
+      if (a && /^#[0-9a-f]{6}$/i.test(a)) raiz.style.setProperty('--acento-base', a);
+    } catch (e) {}
+  })();
+</script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
 <meta name="mobile-web-app-capable" content="yes">
@@ -14,23 +35,25 @@
 <meta name="application-name" content="CVJ">
 <title>CVJ · Críticas de VideoJuegos</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1.8 21 7v10l-9 5.2L3 17V7z' fill='%236D28D9'/%3E%3Cpath d='M8 13.5l4-4 4 4' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preconnect" href="https://images.igdb.com">
-<link rel="dns-prefetch" href="https://images.igdb.com">
-<link rel="preconnect" href="https://pthjktvmiaijhzvsbrnv.supabase.co" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/app.css">
+<!-- JS crítico: se descarga en paralelo en vez de ir descubriendo los imports uno a uno. -->
 <link rel="modulepreload" href="js/app.js">
-<script>
-  // Aplicar el acento guardado antes de pintar nada (evita un parpadeo de color).
-  try {
-    var s = JSON.parse(localStorage.getItem('cvj.sesion') || 'null');
-    var a = s && s.usuario && s.usuario.acento;
-    if (a && /^#[0-9a-f]{6}$/i.test(a)) document.documentElement.style.setProperty('--acento-base', a);
-  } catch (e) {}
-</script>
+<link rel="modulepreload" href="js/datos.js">
+<link rel="modulepreload" href="js/sesion.js">
+<link rel="modulepreload" href="js/ui.js">
+<link rel="modulepreload" href="js/icons.js">
+<link rel="modulepreload" href="js/notas.js">
+<link rel="modulepreload" href="js/portadas.js">
+<link rel="modulepreload" href="js/pantallas/inicio.js">
+<!-- Fuentes sin bloquear el primer pintado (display=swap: se ve el texto con la del sistema y cambia al llegar). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" media="print" onload="this.media='all'">
+<link rel="preconnect" href="https://images.igdb.com" crossorigin>
+<link rel="dns-prefetch" href="https://images.igdb.com">
+<link rel="preconnect" href="https://pthjktvmiaijhzvsbrnv.supabase.co" crossorigin>
 </head>
 <body>
   <div id="app"><main id="vista"></main></div>

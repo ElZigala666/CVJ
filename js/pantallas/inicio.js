@@ -1,6 +1,7 @@
 // Pantallas 02 / 10 · Inicio: jugando ahora, destacados del grupo y actividad reciente.
 import { icono } from '../icons.js';
 import * as datos from '../datos.js';
+import { tirarParaRefrescar } from '../refrescar.js';
 import { usuarioActual } from '../sesion.js';
 import { mediaGrupo, recomendacionGrupo, desviacionTipica } from '../notas.js';
 import {
@@ -48,9 +49,12 @@ export function render(el) {
     const ahora = new Date();
     for (const t of el.querySelectorAll('[data-fecha]')) t.textContent = tiempoRelativo(t.dataset.fecha, ahora);
   }, 60_000);
+  // Tirar hacia abajo para refrescar (la app instalada no tiene el del navegador).
+  const quitarGesto = tirarParaRefrescar(() => datos.refrescar());
   return () => {
     desuscribir();
     clearInterval(reloj);
+    quitarGesto();
   };
 }
 

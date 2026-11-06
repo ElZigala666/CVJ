@@ -44,8 +44,8 @@ export function render(el, { params }) {
     const grande = urlPortada(cover, tamPara(ANCHOS['portada-ficha']));
     const previa = mejorCargada(cover) || urlPortada(cover, tamPara(ANCHOS['portada-lista']));
     const capas = [];
-    if (previa && previa !== grande) capas.push(`<img class="ficha-previa${yaCargada(previa) ? ' ok' : ''}" data-portada src="${previa}" alt="" decoding="sync">`);
-    if (grande) capas.push(`<img data-portada src="${grande}" alt="" loading="eager" fetchpriority="high" decoding="async"${yaCargada(grande) ? ' class="ok"' : ''}>`);
+    if (previa && previa !== grande) capas.push(`<img class="ficha-previa${yaCargada(previa) ? ' ok' : ''}" data-portada crossorigin="anonymous" src="${previa}" alt="" decoding="sync">`);
+    if (grande) capas.push(`<img data-portada crossorigin="anonymous" src="${grande}" alt="" loading="eager" fetchpriority="high" decoding="async"${yaCargada(grande) ? ' class="ok"' : ''}>`);
     $('hero').style.setProperty('--fondo-hero', colorFondo(id));
     $('hero').innerHTML = `
       <button type="button" class="ficha-volver" data-accion="atras" aria-label="Volver">

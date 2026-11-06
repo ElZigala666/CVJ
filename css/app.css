@@ -682,3 +682,24 @@ body.hoja-abierta { overflow: hidden; }
 
 /* Fila de Buscar: el "+" es un botón (abre la hoja de Valorar) */
 button.boton-mas { border: 0; padding: 0; }
+
+/* ---------------------------------------------------------------------------
+   Instalar la app (en Perfil)
+   --------------------------------------------------------------------------- */
+.tarjeta-instalar {
+  width: 100%; max-width: 360px; margin: 4px 0 8px; padding: 18px;
+  border-radius: var(--r-2xl); background: var(--superficie);
+  display: flex; flex-direction: column; gap: 14px; text-align: left;
+}
+.tarjeta-instalar-cab { display: flex; align-items: center; gap: 12px; }
+.tarjeta-instalar-icono {
+  width: 44px; height: 44px; flex: 0 0 auto; border-radius: 14px;
+  background: var(--acento-suave); display: flex; align-items: center; justify-content: center;
+}
+.tarjeta-instalar-texto { display: flex; flex-direction: column; gap: 2px; }
+.tarjeta-instalar-texto strong { font-size: 15px; }
+.tarjeta-instalar-texto span { font-size: 13px; color: var(--texto-2); line-height: 1.4; }
+.tarjeta-instalar .boton-principal { height: 48px; font-size: 15px; }
+.pasos-instalar { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.pasos-instalar li { display: flex; align-items: center; gap: 12px; font-size: 14px; line-height: 1.4; }
+.pasos-instalar svg { flex: 0 0 auto; }

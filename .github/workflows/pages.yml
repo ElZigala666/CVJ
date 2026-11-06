@@ -27,7 +27,7 @@ jobs:
       - name: Preparar la carpeta de la web
         run: |
           mkdir _site
-          cp -r index.html css js herramientas _site/
+          cp -r index.html manifest.webmanifest sw.js css js img herramientas _site/
           touch _site/.nojekyll
 
       - uses: actions/configure-pages@v5

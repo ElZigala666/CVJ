@@ -3,6 +3,7 @@ import { icono } from './icons.js';
 import { usuarioActual, salir, refrescarUsuario } from './sesion.js';
 import * as datos from './datos.js';
 import { aplicarAcento } from './ui.js';
+import { iniciarInstalacion } from './instalar.js';
 import * as entrada from './pantallas/entrada.js';
 import * as inicio from './pantallas/inicio.js';
 import * as buscar from './pantallas/buscar.js';
@@ -134,6 +135,7 @@ function iniciarDatos() {
 // ---------------------------------------------------------------------------
 // Arranque
 // ---------------------------------------------------------------------------
+iniciarInstalacion();
 pintarBarra();
 aplicarAcento(usuarioActual()?.acento);
 window.addEventListener('hashchange', navegar);

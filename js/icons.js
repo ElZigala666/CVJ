@@ -20,6 +20,10 @@ const ICONOS = {
   atras: { d: 'M14.6 3.4 16 4.8 8.8 12l7.2 7.2-1.4 1.4L6 12z' },
   adelante: { d: 'M9.4 3.4 8 4.8l7.2 7.2L8 19.2l1.4 1.4L18 12z' },
   desplegable: { d: 'M4 8h16l-8 9z' },
+  // Instalar la app (flecha hacia una bandeja) y los dos pasos de iPhone
+  instalar: { d: 'M10.5 2.5h3v8.2H17l-5 5.6-5-5.6h3.5zM3 18.5h18V22H3z' },
+  compartir: { d: 'M12 1.5l5 5h-3.5v8.5h-3V6.5H7zM4 10h5v2.5H6.5v7h11v-7H15V10h5v12H4z' },
+  'anadir-inicio': { d: 'M6 3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3z', t: 'M12 8v8M8 12h8' },
   // Iconos de solo trazo (en el diseño van con trazo grueso redondeado)
   cerrar: { s: 'M6 6l12 12M18 6 6 18' },
   mas: { s: 'M12 5v14M5 12h14' },

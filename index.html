@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FFFFFF">
+<meta name="robots" content="noindex">
+<title>CVJ · Críticas de VideoJuegos</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1.8 21 7v10l-9 5.2L3 17V7z' fill='%236D28D9'/%3E%3Cpath d='M8 13.5l4-4 4 4' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://images.igdb.com">
+<link rel="preconnect" href="https://pthjktvmiaijhzvsbrnv.supabase.co" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/app.css">
+<link rel="modulepreload" href="js/app.js">
+<script>
+  // Aplicar el acento guardado antes de pintar nada (evita un parpadeo de color).
+  try {
+    var s = JSON.parse(localStorage.getItem('cvj.sesion') || 'null');
+    var a = s && s.usuario && s.usuario.acento;
+    if (a && /^#[0-9a-f]{6}$/i.test(a)) document.documentElement.style.setProperty('--acento-base', a);
+  } catch (e) {}
+</script>
+</head>
+<body>
+  <div id="app"><main id="vista"></main></div>
+  <nav id="barra" aria-label="Navegación principal" hidden></nav>
+  <div id="aviso" role="status" aria-live="polite"></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

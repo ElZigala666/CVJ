@@ -8,7 +8,7 @@ import {
   esc, urlPortada, colorBloque, colorFondo, mejorCargada, notaConLetra,
   iconoRecomendacion, avatar, avatarInsignia, nombreEstado, ESTADOS, aviso,
 } from '../ui.js';
-import { yaCargada } from '../portadas.js';
+import { yaCargada, tamPara, ANCHOS } from '../portadas.js';
 import { abrirValorar } from '../hoja-valorar.js';
 
 export function render(el, { params }) {
@@ -39,8 +39,9 @@ export function render(el, { params }) {
     const cover = j?.cover_id ?? null;
     if (coverPintado === cover && $('hero').childElementCount) return;
     coverPintado = cover;
-    const grande = urlPortada(cover, 'cover_big');
-    const previa = mejorCargada(cover) || urlPortada(cover, 'cover_small');
+    // La grande según el ancho real; mientras carga, la mejor que ya esté en caché.
+    const grande = urlPortada(cover, tamPara(ANCHOS['portada-ficha']));
+    const previa = mejorCargada(cover) || urlPortada(cover, tamPara(ANCHOS['portada-lista']));
     const capas = [];
     if (previa && previa !== grande) capas.push(`<img class="ficha-previa${yaCargada(previa) ? ' ok' : ''}" data-portada src="${previa}" alt="" decoding="sync">`);
     if (grande) capas.push(`<img data-portada src="${grande}" alt="" loading="eager" fetchpriority="high" decoding="async"${yaCargada(grande) ? ' class="ok"' : ''}>`);

@@ -102,7 +102,7 @@ function jugandoAhora() {
         ${lista.map(({ j, u }, i) => `
           <a class="tarjeta-jugando" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}">
             <div class="tarjeta-jugando-portada">
-              ${portada(j, { clase: 'portada-jugando', tam: 'cover_small_2x', titulo: 'arriba', deco: true, prioridad: i < 4 })}
+              ${portada(j, { clase: 'portada-jugando', titulo: 'arriba', deco: true, prioridad: i < 4 })}
               <span class="tarjeta-avatar">${avatar(u, 30)}</span>
             </div>
             <span class="tarjeta-nombre">${esc(u.nombre)}</span>
@@ -177,7 +177,7 @@ function tarjetaDestacado(x, i) {
     : x.rec.total ? `${x.rec.si} de ${x.rec.total}` : '';
   return `
     <a class="tarjeta-destacado" href="#juego/${x.j.igdb_id}" data-precarga="${esc(x.j.cover_id ?? '')}">
-      ${portada(x.j, { clase: 'portada-destacado', tam: 'cover_small_2x', titulo: 'abajo', deco: true, prioridad: i < 3 })}
+      ${portada(x.j, { clase: 'portada-destacado', titulo: 'abajo', deco: true, prioridad: i < 3 })}
       <div class="destacado-nota">
         ${x.media !== null ? notaConLetra(x.media, 'md2') : '<span class="destacado-sin-nota">Sin nota</span>'}
         ${extra ? `<span class="destacado-extra">${extra}</span>` : ''}
@@ -215,7 +215,7 @@ function actividad() {
             ${a.texto ? `<p class="actividad-resena">«${esc(a.texto)}»</p>` : ''}
             <span class="actividad-tiempo" data-fecha="${esc(a.creado_en)}">${tiempoRelativo(a.creado_en, ahora)}</span>
           </div>
-          ${portada(j, { clase: 'portada-actividad', tam: 'cover_small' })}
+          ${portada(j, { clase: 'portada-actividad' })}
         </a>`).join('')
     : `<p class="seccion-vacia">${icono('pendiente', { tam: 20, color: 'var(--texto-2)', trazo: 'var(--fondo)' })}<span>Todavía no hay actividad.</span></p>`;
 

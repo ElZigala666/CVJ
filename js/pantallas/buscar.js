@@ -231,7 +231,7 @@ function fila(j, i, modoValorar) {
   return `
     <div class="fila-juego">
       ${enlaceFila}
-        ${portada(j, { clase: 'portada-lista', tam: 'cover_small', prioridad: i < 6 })}
+        ${portada(j, { clase: 'portada-lista', prioridad: i < 6 })}
         <div class="fila-info">
           <span class="fila-titulo">${esc(j.nombre)}</span>
           ${meta ? `<span class="fila-meta">${esc(meta)}</span>` : ''}

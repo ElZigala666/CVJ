@@ -64,7 +64,7 @@ export function abrirValorar(igdbId) {
       <div class="hoja-arrastre">
         <div class="hoja-asa" aria-hidden="true"></div>
         <div class="hoja-cab">
-          ${portada(juego, { clase: 'portada-hoja', tam: 'cover_small' })}
+          ${portada(juego, { clase: 'portada-hoja' })}
           <div class="hoja-cab-texto">
             <span class="hoja-antetitulo">${previa ? 'Editar valoración' : 'Valorar'}</span>
             <span class="hoja-titulo" id="hoja-titulo">${esc(juego.nombre)}</span>

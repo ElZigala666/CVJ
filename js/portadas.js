@@ -3,11 +3,34 @@
 
 const BASE_IMG = 'https://images.igdb.com/igdb/image/upload';
 
-// Tamaños usados en la app. Uno por sitio, sin srcset: así cada portada se
-// descarga una sola vez y la ficha puede reutilizar la URL de la lista.
-//   cover_small    90×128   filas de Buscar, actividad, hoja de Valorar
-//   cover_small_2x 180×256  tarjetas de los carruseles de Inicio
-//   cover_big      264×374  ficha
+// Proporción de las portadas de IGDB: 264 / 374 (la misma en todos los tamaños).
+// Todos los contenedores de portada la usan (css/app.css, .portada).
+//
+// Tamaño de imagen según los píxeles REALES que ocupa (ancho CSS × devicePixelRatio):
+//   hasta 90 px   t_cover_small     (90×128)
+//   hasta 180 px  t_cover_small_2x  (180×256)
+//   hasta 264 px  t_cover_big       (264×374)
+//   más           t_cover_big_2x    (528×748)
+// Sin srcset: una sola URL por sitio, así cada portada se descarga una vez y la
+// ficha puede reutilizar la que ya esté en caché.
+export function tamPara(anchoCss) {
+  const px = anchoCss * (window.devicePixelRatio || 1);
+  if (px <= 90) return 'cover_small';
+  if (px <= 180) return 'cover_small_2x';
+  if (px <= 264) return 'cover_big';
+  return 'cover_big_2x';
+}
+
+// Ancho CSS de cada tipo de contenedor (el mismo que en css/app.css).
+export const ANCHOS = {
+  'portada-hoja': 42,
+  'portada-actividad': 44,
+  'portada-lista': 54,
+  'portada-jugando': 104,
+  'portada-destacado': 132,
+  'portada-ficha': 198,
+};
+
 export function urlPortada(coverId, tam = 'cover_small') {
   return coverId ? `${BASE_IMG}/t_${tam}/${coverId}.jpg` : null;
 }
@@ -29,7 +52,7 @@ export function colorFondo(id) {
 // ---------------------------------------------------------------------------
 const cargadas = new Set();
 const mejorPorJuego = new Map(); // coverId → URL más grande ya descargada
-const RANGO = { cover_small: 1, cover_small_2x: 2, cover_big: 3 };
+const RANGO = { cover_small: 1, cover_small_2x: 2, cover_big: 3, cover_big_2x: 4 };
 
 function anotar(url) {
   cargadas.add(url);
@@ -64,7 +87,7 @@ document.addEventListener('error', (e) => {
 // Precarga (al tocar un resultado o una tarjeta, antes de navegar)
 // ---------------------------------------------------------------------------
 const precargas = new Map();
-export function precargar(coverId, tam = 'cover_big') {
+export function precargar(coverId, tam = tamPara(ANCHOS['portada-ficha'])) {
   const url = urlPortada(coverId, tam);
   if (!url || cargadas.has(url) || precargas.has(url)) return;
   const img = new Image();
@@ -93,10 +116,12 @@ function escAttr(v) {
 /**
  * Bloque de color con el título (como en el diseño) y la imagen encima.
  * @param {{igdb_id:number, cover_id?:string|null, nombre?:string}} juego
- * @param {{ clase?: string, tam?: string, titulo?: 'arriba'|'abajo'|null, prioridad?: boolean, deco?: boolean }} op
+ * @param {{ clase?: string, ancho?: number, tam?: string, titulo?: 'arriba'|'abajo'|null, prioridad?: boolean, deco?: boolean }} op
  */
 export function portada(juego, op = {}) {
-  const { clase = 'portada-lista', tam = 'cover_small', titulo = null, prioridad = false, deco = false } = op;
+  const { clase = 'portada-lista', titulo = null, prioridad = false, deco = false } = op;
+  // El tamaño de imagen sale del ancho del contenedor (op.ancho o el de su clase).
+  const tam = op.tam ?? tamPara(op.ancho ?? ANCHOS[clase] ?? 54);
   const url = urlPortada(juego?.cover_id, tam);
   let img = '';
   if (url) {

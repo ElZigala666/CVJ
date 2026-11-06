@@ -185,7 +185,7 @@ body.sin-barra #aviso { bottom: calc(24px + env(safe-area-inset-bottom)); }
    El tamaño está reservado (ancho + aspect-ratio), así que no hay saltos. */
 .portada {
   position: relative; overflow: hidden; flex: 0 0 auto;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 264 / 374; /* proporción de las portadas de IGDB: nunca se recortan */
   background: var(--bloque, var(--superficie-2));
   isolation: isolate;
 }
@@ -214,7 +214,7 @@ body.sin-barra #aviso { bottom: calc(24px + env(safe-area-inset-bottom)); }
 .portada-destacado { width: 132px; border-radius: var(--r-md); }
 
 .sk { background: var(--superficie-2); animation: latir 1.4s ease-in-out infinite; }
-.sk-portada { width: 54px; height: 72px; border-radius: var(--r-sm); flex: 0 0 auto; }
+.sk-portada { width: 54px; aspect-ratio: 264 / 374; border-radius: var(--r-sm); flex: 0 0 auto; }
 .sk-linea { border-radius: 6px; }
 @keyframes latir { 50% { opacity: .55; } }
 

@@ -305,7 +305,10 @@ function claramenteIgual(a: string, b: string): boolean {
 // -----------------------------------------------------------------------------
 // Emparejar con IGDB usando la función igdb (misma búsqueda y puntuación)
 // -----------------------------------------------------------------------------
-const MAX_EMPAREJAR = 15; // por sincronización, para no hacerla eterna
+const MAX_EMPAREJAR = 15;          // por sincronización, para no hacerla eterna
+const MAX_EMPAREJAR_PRIMERA = 40;  // al conectar: que se vea casi toda la biblioteca desde el principio
+const EMPAREJAR_A_LA_VEZ = 4;      // búsquedas en IGDB en paralelo
+const EMPAREJAR_HASTA_MS = 80_000; // y sin pasar de ~80 s (Supabase corta a los 150 s)
 
 async function llamarIgdb(cuerpo: Record<string, unknown>) {
   const r = await fetch(`${SUPABASE_URL}/functions/v1/igdb`, {
@@ -384,7 +387,7 @@ async function conectar(usuarioId: string, textoNpsso: string) {
   // Primera sincronización. Si falla, la conexión ya está hecha: se puede reintentar.
   let sincronizacion: Record<string, unknown>;
   try {
-    sincronizacion = await sincronizar(usuarioId);
+    sincronizacion = await sincronizar(usuarioId, MAX_EMPAREJAR_PRIMERA);
   } catch (e) {
     sincronizacion = e instanceof ErrorPsn
       ? { ok: false, codigo: e.codigo, error: e.message }
@@ -423,7 +426,8 @@ async function estado(usuarioId: string) {
   };
 }
 
-async function sincronizar(usuarioId: string) {
+async function sincronizar(usuarioId: string, maxEmparejar = MAX_EMPAREJAR) {
+  const inicio = Date.now();
   await usuario(usuarioId);
   const c = await leerCuenta(usuarioId);
   if (!c) throw new ErrorPsn("sin_conectar", "Primero conecta tu cuenta de PlayStation.");
@@ -487,19 +491,20 @@ async function sincronizar(usuarioId: string) {
     for (const x of data ?? []) conocidos.set(x.psn_title_id, x);
   }
 
-  // Emparejar automáticamente los nuevos (los más jugados primero, como mucho MAX_EMPAREJAR).
+  // Emparejar automáticamente los nuevos (los más jugados primero, como mucho maxEmparejar),
+  // de EMPAREJAR_A_LA_VEZ en EMPAREJAR_A_LA_VEZ y parando si se acerca el límite de tiempo.
   const nuevos = [...filas.values()]
     .filter((f) => !conocidos.has(String(f.psn_title_id)))
     .sort((a, b) => Number(b.horas ?? 0) - Number(a.horas ?? 0))
-    .slice(0, MAX_EMPAREJAR);
+    .slice(0, maxEmparejar);
   let emparejados = 0;
-  for (const f of nuevos) {
+  const emparejarUno = async (f: Record<string, unknown>) => {
     let igdbId: number | null = null;
     try {
       igdbId = await emparejar(String(f.nombre_psn));
     } catch (e) {
       console.warn("Emparejar", f.nombre_psn, (e as Error).message);
-      continue; // se reintentará en la próxima sincronización
+      return; // se reintentará en la próxima sincronización
     }
     // igdb_id nulo = intentado sin éxito (no se repite cada vez; se puede elegir a mano).
     const { error } = await sb.from("psn_igdb").upsert(
@@ -508,6 +513,10 @@ async function sincronizar(usuarioId: string) {
     );
     if (!error) conocidos.set(String(f.psn_title_id), { igdb_id: igdbId });
     if (igdbId) emparejados++;
+  };
+  for (let i = 0; i < nuevos.length; i += EMPAREJAR_A_LA_VEZ) {
+    if (Date.now() - inicio > EMPAREJAR_HASTA_MS) break; // el resto, en la próxima sincronización
+    await Promise.all(nuevos.slice(i, i + EMPAREJAR_A_LA_VEZ).map(emparejarUno));
   }
 
   for (const f of filas.values()) f.juego_id = conocidos.get(String(f.psn_title_id))?.igdb_id ?? null;

@@ -325,9 +325,18 @@ export function biblioteca(uid) {
 
     const juegos = todos.filter((x) => !x.oculto);
     const identificados = juegos.filter((x) => x.coleccion || (x.igdbId != null && x.juego));
-    const porPlataforma = { PS4: 0, PS5: 0 };
-    for (const x of juegos) for (const f of x.filas) {
-      if (f.plataforma && porPlataforma[f.plataforma] !== undefined) porPlataforma[f.plataforma] += Number(f.horas ?? 0);
+    // Por plataforma (todas las fuentes): juegos y horas de cada una.
+    const plat = new Map();
+    for (const x of juegos) {
+      for (const p of x.plataformas) {
+        if (!plat.has(p)) plat.set(p, { nombre: p, juegos: 0, horas: 0 });
+        plat.get(p).juegos++;
+      }
+      for (const f of x.filas) if (f.plataforma && plat.has(f.plataforma)) plat.get(f.plataforma).horas += Number(f.horas ?? 0);
+    }
+    const porFuente = {};
+    for (const x of juegos) {
+      for (const fu of new Set(x.filas.map((f) => f.fuente ?? 'psn'))) porFuente[fu] = (porFuente[fu] ?? 0) + 1;
     }
     const horas = juegos.reduce((t, x) => t + x.horas, 0);
     return {
@@ -339,7 +348,8 @@ export function biblioteca(uid) {
       ocultos: todos.filter((x) => x.oculto),
       total: juegos.length,
       horas: Math.round(horas),
-      porPlataforma: { PS4: Math.round(porPlataforma.PS4), PS5: Math.round(porPlataforma.PS5) },
+      plataformas: [...plat.values()].map((x) => ({ ...x, horas: Math.round(x.horas) })).sort((a, b) => b.juegos - a.juegos),
+      porFuente, // juegos de cada fuente (psn, xbox...)
       top: juegos.filter((x) => x.horas > 0).slice(0, 5),
       sinValorar: identificados.filter((x) => !x.valoracion),
       ultimaVez: juegos.reduce((m, x) => (x.ultimaVez && (!m || x.ultimaVez > m) ? x.ultimaVez : m), null),

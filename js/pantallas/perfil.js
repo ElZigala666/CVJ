@@ -12,6 +12,7 @@ import { abrirHoja } from '../hoja.js';
 import { botonFoto } from '../foto-perfil.js';
 import { normalizarBusqueda } from '../psn-nombres.js';
 import { tarjetaSaga } from './revisar.js';
+import { iconoFuente, plataformaParaValorar } from '../plataformas-ui.js';
 import { abrirValorar } from '../hoja-valorar.js';
 import { textoHoras } from '../metricas.js';
 import { volver, rutaPerfil } from '../navegacion.js';
@@ -192,7 +193,7 @@ function renderPerfil(el, id, alSalir) {
         ${hayBiblioteca ? `
           <section class="perfil-seccion">
             <div class="seccion-cab">
-              <h2 class="seccion-titulo">Biblioteca de PlayStation</h2>
+              <h2 class="seccion-titulo">Biblioteca</h2>
               <span class="seccion-extra">${bib.total} ${bib.total === 1 ? 'juego' : 'juegos'}${bib.horas ? ` · ${bib.horas} h` : ''}</span>
             </div>
             <div data-ref="biblioteca"></div>
@@ -505,47 +506,41 @@ function renderPerfil(el, id, alSalir) {
 // ---------------------------------------------------------------------------
 // PlayStation en el perfil
 // ---------------------------------------------------------------------------
+/** Una fila por plataforma (PlayStation, Xbox): conectada con su ID y juegos, o el botón de conectar. */
 function bloqueBibliotecas(u, esMio, vinculado, bib) {
-  if (vinculado) {
-    return `
-      <div class="bibliotecas">
-        <div class="bibliotecas-cab">
-          <span class="bibliotecas-icono">${icono('jugando', { tam: 24, color: 'var(--acento)', trazo: 'var(--acento-suave)' })}</span>
-          <div class="bibliotecas-texto">
-            <strong>PlayStation · ${esc(u.psn_online_id)}</strong>
-            <span>${bib.total ? `${bib.total} ${bib.total === 1 ? 'juego' : 'juegos'} · ${bib.horas} h jugadas` : 'Aún sin juegos sincronizados'}${u.psn_sincronizado_en ? ` · sincronizado ${esc(tiempoRelativo(u.psn_sincronizado_en).toLowerCase())}` : ''}</span>
-          </div>
-        </div>
-        <div class="bibliotecas-fila">
-          <span>PlayStation</span>
-          ${!u.psn_reconectar ? '<span class="etiqueta-acento">Conectada</span>'
-            : esMio ? '<button type="button" class="boton-secundario boton-pequeno" data-accion="vincular-psn">Reconectar</button>'
-            : '<span class="etiqueta-gris">Caducada</span>'}
-        </div>
-      </div>`;
+  const filas = [];
+  const fila = (fuente, nombre, conectada, id, juegos, horas, sincronizado, caducada) => `
+    <div class="bibliotecas-cab">
+      <span class="bibliotecas-icono">${iconoFuente(fuente, 24)}</span>
+      <div class="bibliotecas-texto">
+        <strong>${esc(nombre)}${conectada ? ` · ${esc(id ?? '')}` : ''}</strong>
+        <span>${conectada
+          ? `${juegos ? `${juegos} ${juegos === 1 ? 'juego' : 'juegos'}${horas ? ` · ${horas} h jugadas` : ''}` : 'Aún sin juegos sincronizados'}${sincronizado ? ` · sincronizado ${esc(tiempoRelativo(sincronizado).toLowerCase())}` : ''}`
+          : esMio ? 'Sin conectar' : `${esc(u.nombre)} no la ha conectado`}</span>
+      </div>
+      ${!conectada
+        ? (esMio ? '<button type="button" class="boton-secundario boton-pequeno" data-accion="vincular-psn">Conectar</button>' : '<span class="etiqueta-gris">Sin conectar</span>')
+        : caducada
+          ? (esMio ? '<button type="button" class="boton-secundario boton-pequeno" data-accion="vincular-psn">Reconectar</button>' : '<span class="etiqueta-gris">Caducada</span>')
+          : '<span class="etiqueta-acento">Conectada</span>'}
+    </div>`;
+  const horasDe = (fuente) => Math.round(datos.bibliotecaDe(u.id).filter((f) => (f.fuente ?? 'psn') === fuente && !f.oculto).reduce((t, f) => t + Number(f.horas ?? 0), 0));
+  if ('psn_account_id' in u) {
+    filas.push(fila('psn', 'PlayStation', vinculado, u.psn_online_id, bib.porFuente?.psn ?? 0, horasDe('psn'), u.psn_sincronizado_en, !!u.psn_reconectar));
   }
-  const disponible = 'psn_account_id' in u; // con la migración de PSN ya puesta
+  if ('xbox_xuid' in u) {
+    filas.push(fila('xbox', 'Xbox', !!u.xbox_xuid, u.xbox_gamertag, bib.porFuente?.xbox ?? 0, horasDe('xbox'), u.xbox_sincronizado_en, !!u.xbox_reconectar));
+  }
+  if (!filas.length) {
+    return '<div class="bibliotecas"><div class="bibliotecas-fila"><span>Plataformas</span><span class="etiqueta-gris">Próximamente</span></div></div>';
+  }
   return `
-    <div class="bibliotecas">
-      <div class="bibliotecas-cab">
-        <span class="bibliotecas-icono">${icono('jugando', { tam: 24, color: 'var(--acento)', trazo: 'var(--acento-suave)' })}</span>
-        <div class="bibliotecas-texto">
-          <strong>Ninguna plataforma conectada</strong>
-          <span>${esMio
-            ? 'Conecta PlayStation y tu biblioteca, tus horas y tus trofeos se cargarán solos. Nunca se crean valoraciones automáticamente.'
-            : `${esc(u.nombre)} aún no ha conectado PlayStation. Mientras, su historial es lo que valore aquí.`}</span>
-        </div>
-      </div>
-      <div class="bibliotecas-fila">
-        <span>PlayStation</span>
-        ${esMio && disponible
-          ? '<button type="button" class="boton-secundario boton-pequeno" data-accion="vincular-psn">Conectar</button>'
-          : `<span class="etiqueta-gris">${disponible ? 'Sin conectar' : 'Próximamente'}</span>`}
-      </div>
+    <div class="bibliotecas bibliotecas-varias">
+      ${filas.join('')}
+      ${esMio && !vinculado && !u.xbox_xuid ? '<p class="ajustes-nota">Conecta tus plataformas y tu biblioteca, tus horas y tus logros se cargarán solos. Nunca se crean valoraciones automáticamente.</p>' : ''}
     </div>`;
 }
 
-/** Juego identificado de la biblioteca: portada, horas y su nota si lo ha valorado. */
 /** Juego dentro de una colección: su portada; si es mío y no lo he valorado, abre Valorar. */
 function itemDeColeccion(j, i, esMio, uid) {
   const v = datos.miValoracion(uid, j.igdb_id);
@@ -573,7 +568,7 @@ function itemBiblioteca(x, i, esMio, seleccionando = false, marcada = false) {
     ${esMio && !v ? '<span class="rejilla-sin-valorar">Sin valorar</span>' : ''}`;
   // Mío y sin valorar: abre la hoja de Valorar con la plataforma de PSN; si no, la ficha.
   const attrs = esMio && !v
-    ? `href="#juego/${x.igdbId}" data-valorar-psn="${x.igdbId}" data-plataforma="${esc(x.plataformaPrincipal ?? '')}"`
+    ? `href="#juego/${x.igdbId}" data-valorar-psn="${x.igdbId}" data-plataforma="${esc(plataformaParaValorar(x.plataformaPrincipal))}"`
     : `href="#juego/${x.igdbId}" data-precarga="${esc(x.juego.cover_id ?? '')}"`;
   return `
     <div class="bib-celda${marcada ? ' marcada' : ''}" data-bib-celda="${esc(x.clave)}">

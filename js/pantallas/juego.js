@@ -228,7 +228,7 @@ export function render(el, { params }) {
             <span class="grupo-nombre">${nombrePerfil(u)}${u.id === yo?.id ? ' <span class="grupo-tu">(tú)</span>' : ''}</span>
             <span class="grupo-estado">${icono('jugando', { tam: 14, color: 'var(--texto-2)', grosor: 2.6, trazo: 'var(--fondo)' })}${u.id === yo?.id ? 'En tu biblioteca' : 'En su biblioteca'}${b.plataformas.length ? ` · ${b.plataformas.join(', ')}` : ''}${extraPsn(uid)}</span>
           </div>
-          <span class="etiqueta-psn">PSN</span>
+          <span class="etiqueta-psn">${[...new Set(b.filas.map((f) => (f.fuente === 'xbox' ? 'Xbox' : 'PSN')))].join(' · ')}</span>
         </div>
       </div>`;
   }
@@ -247,7 +247,7 @@ export function render(el, { params }) {
     return `
       <p class="ficha-psn-nota">
         ${icono('jugando', { tam: 16, color: 'var(--texto-2)', trazo: 'var(--fondo)' })}
-        <span>Emparejado desde PlayStation con ${[...titulos].map(([t, n]) => `«${esc(n)}» <a href="#elegir/${encodeURIComponent(t)}" class="enlace-discreto">¿No es este juego?</a>`).join(', ')}</span>
+        <span>Emparejado desde tu biblioteca con ${[...titulos].map(([t, n]) => `«${esc(n)}» <a href="#elegir/${encodeURIComponent(t)}" class="enlace-discreto">¿No es este juego?</a>`).join(', ')}</span>
       </p>`;
   }
 

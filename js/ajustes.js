@@ -10,6 +10,7 @@ import { usuarioActual } from './sesion.js';
 import * as datos from './datos.js';
 import { VERSION_CORTA } from './version.js';
 import { montarPsn } from './ajustes-psn.js';
+import { montarXbox } from './ajustes-xbox.js';
 import { botonFoto } from './foto-perfil.js';
 import { avatar } from './ui.js';
 
@@ -75,7 +76,11 @@ export function abrirAjustes(alSalir, { psn = false } = {}) {
       <div class="ajustes">
         <div data-ref="foto"></div>
         <div data-ref="apariencia" class="ajustes-apariencia"></div>
-        <div data-ref="psn" class="ajustes-apariencia"></div>
+        <section class="ajustes-bloque ajustes-plataformas" id="ajustes-plataformas">
+          <span class="campo-titulo">Plataformas</span>
+          <div data-ref="psn"></div>
+          <div data-ref="xbox"></div>
+        </section>
         <div data-ref="instalar"></div>
         <button type="button" class="boton-secundario neutro ajustes-salir" data-accion="salir">Cerrar sesión en este móvil</button>
         <p class="ajustes-version">CVJ · versión ${esc(VERSION_CORTA)}</p>
@@ -98,6 +103,7 @@ export function abrirAjustes(alSalir, { psn = false } = {}) {
       const quitarFoto = datos.suscribir(pintarFoto);
       // PlayStation (se quita la suscripción al cerrar la hoja).
       const quitarPsn = montarPsn(cuerpo.querySelector('[data-ref="psn"]'));
+      const quitarXbox = montarXbox(cuerpo.querySelector('[data-ref="xbox"]'));
       // Abierta desde el aviso de "Reconectar": directamente al bloque de PlayStation.
       if (psn) {
         setTimeout(() => {
@@ -106,7 +112,7 @@ export function abrirAjustes(alSalir, { psn = false } = {}) {
           if (bloque && scroll) scroll.scrollTop += bloque.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 8;
         }, 450);
       }
-      const vigilar = new MutationObserver(() => { if (!cuerpo.isConnected) { quitarPsn(); quitarFoto(); vigilar.disconnect(); } });
+      const vigilar = new MutationObserver(() => { if (!cuerpo.isConnected) { quitarPsn(); quitarXbox(); quitarFoto(); vigilar.disconnect(); } });
       vigilar.observe(document.body, { childList: true });
 
       // --- Apariencia ---------------------------------------------------------

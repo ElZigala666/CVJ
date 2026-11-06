@@ -390,16 +390,26 @@ export function esNoJuego(nombre: string, categoria = ""): boolean {
  * gana el que ha valorado ese usuario; si no, el único que ha valorado alguien del
  * grupo; si no, queda como propuesta por revisar.
  */
+/** Familia de plataformas de IGDB (como las guarda la tabla juegos) para una plataforma de la biblioteca. */
+export function familiaPlataforma(plataforma: unknown): RegExp {
+  const p = String(plataforma ?? "");
+  if (/^PS[45]$/.test(p)) return /^PS[45]$/;
+  if (p === "Xbox 360") return /^Xbox( 360)?$/;
+  if (/^Xbox/.test(p)) return /^Xbox$/;
+  if (p === "PC") return /^PC$/;
+  return /^(PS[45]|Xbox|Xbox 360|PC)$/;
+}
+
 export function elegirLocales(
-  pendientes: { psn_title_id: unknown; nombre_psn: unknown }[],
+  pendientes: { psn_title_id: unknown; nombre_psn: unknown; plataforma?: unknown }[],
   juegos: { igdb_id: number | string; nombre: string; plataformas?: string[] | null }[],
   mios: Set<number>,
   delGrupo: Set<number>,
 ) {
   const porNombre = new Map<string, Set<number>>();
-  const enPs = new Set<number>();
+  const plataformasDe = new Map<number, string[]>();
   for (const j of juegos) {
-    if ((j.plataformas ?? []).some((x) => /PS4|PS5/.test(String(x)))) enPs.add(Number(j.igdb_id));
+    plataformasDe.set(Number(j.igdb_id), (j.plataformas ?? []).map(String));
     for (const k of [limpiarNombrePsn(j.nombre), sinArticulo(limpiarNombrePsn(j.nombre))]) {
       if (!porNombre.has(k)) porNombre.set(k, new Set());
       porNombre.get(k)!.add(Number(j.igdb_id));
@@ -416,7 +426,9 @@ export function elegirLocales(
       let r: { id: number; confianza: number };
       if (ids.length === 1) {
         const id = ids[0];
-        r = { id, confianza: mios.has(id) ? 95 : delGrupo.has(id) ? 85 : enPs.has(id) ? 75 : 60 };
+        const fam = familiaPlataforma(f.plataforma);
+        const enSuPlataforma = (plataformasDe.get(id) ?? []).some((x) => fam.test(x));
+        r = { id, confianza: mios.has(id) ? 95 : delGrupo.has(id) ? 85 : enSuPlataforma ? 75 : 60 };
       } else if (deMi.length === 1) r = { id: deMi[0], confianza: 90 };
       else if (deGrupo.length === 1) r = { id: deGrupo[0], confianza: 80 };
       else r = { id: ids[0], confianza: 55 }; // varios con el mismo nombre: que lo revise
@@ -586,7 +598,9 @@ async function conectar(usuarioId: string, textoNpsso: string) {
 async function desconectar(usuarioId: string) {
   await usuario(usuarioId);
   const { error: e1 } = await sb.from("psn_cuentas").delete().eq("usuario_id", usuarioId);
-  const { error: e2 } = await sb.from("biblioteca").delete().eq("usuario_id", usuarioId);
+  // Solo lo de PlayStation (con la migración 007 hay otras fuentes, como Xbox).
+  let { error: e2 } = await sb.from("biblioteca").delete().eq("usuario_id", usuarioId).eq("fuente", "psn");
+  if (e2 && /fuente/.test(e2.message)) ({ error: e2 } = await sb.from("biblioteca").delete().eq("usuario_id", usuarioId));
   const { error: e3 } = await sb.from("usuarios").update({
     psn_online_id: null, psn_account_id: null, psn_sincronizado_en: null, psn_reconectar: false,
   }).eq("id", usuarioId);

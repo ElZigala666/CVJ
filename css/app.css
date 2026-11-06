@@ -1364,3 +1364,28 @@ body.sin-barra #aviso-version { bottom: calc(96px + env(safe-area-inset-bottom))
 html, body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 img { -webkit-touch-callout: none; -webkit-user-drag: none; user-select: none; }
 input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+
+/* ---------------------------------------------------------------------------
+   Plataformas (PlayStation, Xbox): icono propio, tarjetas de Ajustes y perfil
+   --------------------------------------------------------------------------- */
+.icono-fuente { position: relative; display: inline-flex; width: var(--tam-fuente); height: var(--tam-fuente); flex: 0 0 auto; }
+.icono-fuente b {
+  position: absolute; right: -5px; bottom: -4px; min-width: calc(var(--tam-fuente) * 0.55); height: calc(var(--tam-fuente) * 0.55);
+  padding: 0 2px; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+  background: var(--acento); color: var(--sobre-acento); box-shadow: 0 0 0 2px var(--superficie);
+  font: 800 calc(var(--tam-fuente) * 0.36) / 1 var(--fuente-titulos);
+}
+.ajustes-plataformas { gap: 12px; }
+.tarjeta-plataforma { display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: 18px; background: var(--superficie); }
+.tarjeta-plataforma .psn-paso { background: var(--fondo); }
+.tarjeta-plataforma .psn-conectado { background: var(--fondo); }
+.plataforma-cab { display: flex; align-items: center; gap: 12px; }
+.plataforma-cab .icono-fuente { margin: 4px; }
+.plataforma-cab-texto { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.plataforma-cab-texto strong { font-size: 16px; }
+.plataforma-cab-texto span { font-size: 12px; color: var(--texto-2); }
+.tarjeta-plataforma .boton-principal { height: 48px; font-size: 15px; }
+.bibliotecas-varias { display: flex; flex-direction: column; gap: 14px; }
+.bibliotecas-varias .bibliotecas-cab .boton-pequeno, .bibliotecas-varias .bibliotecas-cab .etiqueta-acento, .bibliotecas-varias .bibliotecas-cab .etiqueta-gris { margin-left: auto; flex: 0 0 auto; }
+.conectar-xbox { min-height: 70vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; text-align: center; }
+.conectar-xbox .boton-principal { max-width: 320px; }

@@ -3,6 +3,7 @@ import { icono } from '../icons.js';
 import * as datos from '../datos.js';
 import { tirarParaRefrescar } from '../refrescar.js';
 import * as psn from '../psn.js';
+import * as xbox from '../xbox.js';
 import * as metricas from '../metricas.js';
 import { usuarioActual } from '../sesion.js';
 import { mediaGrupo, recomendacionGrupo, desviacionTipica } from '../notas.js';
@@ -170,7 +171,7 @@ function jugandoPsn(excluir) {
 
 function tarjetaJugando(x, i) {
   const { j, u } = x;
-  const etiqueta = x.psn ? '<span class="etiqueta-psn sobre-portada">PSN</span>' : '';
+  const etiqueta = x.psn ? `<span class="etiqueta-psn sobre-portada">${x.fila?.fuente === 'xbox' ? 'Xbox' : 'PSN'}</span>` : '';
   if (j) {
     return `
       <a class="tarjeta-jugando" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}">
@@ -211,8 +212,17 @@ function avisoRevisar() {
     </a>`;
 }
 
+function avisoXbox() {
+  if (!xbox.hayQueReconectar()) return '';
+  return `
+    <button type="button" class="aviso-psn" data-accion="reconectar-psn">
+      ${icono('jugando', { tam: 20, color: 'var(--peligro)', trazo: 'var(--fondo)' })}
+      <span>Tu conexión con Xbox ha caducado · <strong>Reconectar</strong></span>
+    </button>`;
+}
+
 function avisoPsn() {
-  if (!psn.hayQueReconectar()) return '';
+  if (!psn.hayQueReconectar()) return avisoXbox();
   return `
     <button type="button" class="aviso-psn" data-accion="reconectar-psn">
       ${icono('jugando', { tam: 20, color: 'var(--peligro)', trazo: 'var(--fondo)' })}

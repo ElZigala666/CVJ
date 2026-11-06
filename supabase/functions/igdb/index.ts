@@ -482,14 +482,29 @@ export function confianza(e: EntradaPsn, c: CandidatoEmparejar, idBundleTipo = T
   let p = nombre;
   const plats = (c.platforms ?? []).map((x) => `${x.abbreviation ?? ""}|${x.name ?? ""}`.toUpperCase().replace(/\s+/g, ""));
   if (plats.length) {
-    const ps5 = plats.some((x) => x.includes("PS5") || x.includes("PLAYSTATION5"));
-    const ps4 = plats.some((x) => x.includes("PS4") || x.includes("PLAYSTATION4"));
-    const algunaPs = plats.some((x) => /PS\d|PSVITA|PSP|PLAYSTATION/.test(x));
-    const misma = e.plataforma === "PS5" ? ps5 : ps4;
-    const otra = e.plataforma === "PS5" ? ps4 : ps5;
+    const tiene = (re: RegExp) => plats.some((x) => re.test(x));
+    const ps5 = tiene(/PS5|PLAYSTATION5/);
+    const ps4 = tiene(/PS4|PLAYSTATION4/);
+    const series = tiene(/SERIESX|XSX|XBOXSERIES/);
+    const one = tiene(/XONE|XBOXONE/);
+    const x360 = tiene(/X360|XBOX360/);
+    const pc = tiene(/^PC\||WIN|PC\(MICROSOFTWINDOWS\)|MICROSOFTWINDOWS/);
+    const pl = String(e.plataforma ?? "");
+    let misma = false, otra = false, familia = false;
+    if (pl === "PS5" || pl === "PS4") {
+      misma = pl === "PS5" ? ps5 : ps4; otra = pl === "PS5" ? ps4 : ps5;
+      familia = tiene(/PS\d|PSVITA|PSP|PLAYSTATION/);
+    } else if (pl === "Xbox Series" || pl === "Xbox One") {
+      misma = pl === "Xbox Series" ? series : one; otra = pl === "Xbox Series" ? one || pc : series || pc; // retrocompatibles y PC Game Pass
+      familia = tiene(/XBOX|XONE|XSX|X360/);
+    } else if (pl === "Xbox 360") {
+      misma = x360; otra = one || series; familia = tiene(/XBOX|XONE|XSX|X360/);
+    } else if (pl === "PC") {
+      misma = pc; otra = one || series; familia = pc;
+    }
     if (misma) p += 20;
     else if (otra) p += 10;
-    else if (!algunaPs) p -= 25;
+    else if (!familia) p -= 25;
   }
   const anio = c.first_release_date ? new Date(c.first_release_date * 1000).getUTCFullYear() : null;
   if (anio && e.primeraVez) {

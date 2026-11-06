@@ -8,6 +8,7 @@ import * as datos from './datos.js';
 import * as psn from './psn.js';
 import { usuarioActual } from './sesion.js';
 import * as metricas from './metricas.js';
+import { iconoFuente } from './plataformas-ui.js';
 
 const ES_IPHONE = /iPhone|iPad|iPod/.test(navigator.userAgent)
   || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -102,8 +103,11 @@ export function montarPsn(cont) {
     const bib = metricas.biblioteca(u.id);
 
     cont.innerHTML = `
-      <section class="ajustes-bloque ajustes-psn" id="ajustes-psn">
-        <span class="campo-titulo">PlayStation</span>
+      <section class="tarjeta-plataforma ajustes-psn" id="ajustes-psn">
+        <div class="plataforma-cab">
+          ${iconoFuente('psn', 22)}
+          <div class="plataforma-cab-texto"><strong>PlayStation</strong><span>${u.psn_account_id && !u.psn_reconectar ? 'Conectada' : u.psn_reconectar ? 'La conexión ha caducado' : 'Sin conectar'}</span></div>
+        </div>
         ${conectado && !reconectar ? `
           <div class="psn-conectado">
             <span class="psn-icono">${icono('jugando', { tam: 22, color: 'var(--acento)', trazo: 'var(--acento-suave)' })}</span>

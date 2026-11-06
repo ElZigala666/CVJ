@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>CVJ · Probar Xbox</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@700&display=swap">
+<link rel="stylesheet" href="../css/tokens.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fondo); color: var(--texto); font-family: var(--fuente-texto); }
+  main { max-width: 680px; margin: 0 auto; padding: 28px 20px 48px; display: flex; flex-direction: column; gap: 16px; }
+  h1 { margin: 0; font-family: var(--fuente-titulos); font-size: 26px; }
+  h2 { margin: 0; font-size: 16px; }
+  p { margin: 0; color: var(--texto-2); font-size: 14px; line-height: 1.5; }
+  label { font-size: 13px; font-weight: 600; }
+  input, select, textarea { width: 100%; min-height: 46px; border-radius: 12px; border: 2px solid var(--borde); background: var(--superficie); color: var(--texto); padding: 0 12px; font: 14px var(--fuente-texto); }
+  textarea { padding: 10px 12px; font: 13px/1.4 ui-monospace, Consolas, monospace; }
+  button { height: 44px; padding: 0 16px; border: 0; border-radius: 12px; background: var(--acento); color: var(--sobre-acento); font: 700 14px var(--fuente-texto); cursor: pointer; }
+  button:disabled { opacity: .5; }
+  .bloque { background: var(--superficie); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .bloque input, .bloque select, .bloque textarea { background: var(--fondo); }
+  .fila { display: flex; gap: 8px; flex-wrap: wrap; }
+  pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: 12px/1.5 ui-monospace, Consolas, monospace; background: var(--fondo); border-radius: 12px; padding: 12px; max-height: 60vh; overflow: auto; }
+  .ok { color: var(--acento-texto); font-weight: 700; }
+  .mal { color: var(--peligro); font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Probar Xbox</h1>
+  <p>Llama a la función <code>xbox</code> desplegada y enseña la respuesta en bruto. <strong>Conectar</strong>, <strong>Sincronizar</strong> y <strong>Desconectar</strong> escriben de verdad en la base (es lo que hace la app), pero nunca crean valoraciones ni actividad. OpenXBL gratis da unas 150 peticiones por hora: cada sincronización gasta una y solo se puede repetir cada 10 minutos.</p>
+
+  <div class="bloque">
+    <h2>1 · Usuario de CVJ</h2>
+    <select id="usuario"><option value="">Cargando usuarios…</option></select>
+    <p>«Comprobar estado» dice si está puesto el secreto OPENXBL_PUBLIC_KEY y si ese usuario tiene Xbox conectada (sin enseñar su clave).</p>
+    <div class="fila"><button data-accion="estado">Comprobar estado</button></div>
+  </div>
+
+  <div class="bloque">
+    <h2>2 · Iniciar sesión con Microsoft</h2>
+    <p>«Abrir el inicio de sesión» pide la URL a la función y la abre en esta pestaña. Al terminar, OpenXBL vuelve a la URL de vuelta de tu app (xbox.html), que conecta en la app al usuario que tenga la sesión abierta. Si prefieres conectarlo desde aquí, copia de la barra de direcciones el valor de <code>code=</code> antes de que la página te mande a la app y pégalo abajo (caduca enseguida).</p>
+    <div class="fila"><button data-accion="login">Abrir el inicio de sesión</button></div>
+    <textarea id="code" rows="2" placeholder="code de la vuelta (opcional)" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+    <div class="fila">
+      <button data-accion="conectar">Conectar con este código</button>
+      <button data-accion="sincronizar">Sincronizar</button>
+      <button data-accion="desconectar" style="background:var(--superficie-2);color:var(--texto)">Desconectar</button>
+    </div>
+  </div>
+
+  <div class="bloque">
+    <h2>Respuesta <span id="resumen"></span></h2>
+    <pre id="salida">(todavía nada)</pre>
+  </div>
+</main>
+<script type="module">
+  import { SUPABASE_BASE, SUPABASE_KEY } from '../js/config.js';
+  const URL_XBOX = `${SUPABASE_BASE}/functions/v1/xbox`;
+  const $ = (id) => document.getElementById(id);
+
+  try {
+    const r = await fetch(`${SUPABASE_BASE}/rest/v1/usuarios?select=*&order=nombre`, { headers: { apikey: SUPABASE_KEY } });
+    const us = await r.json();
+    $('usuario').innerHTML = us.map((u) => `<option value="${u.id}">${u.nombre}${u.xbox_gamertag ? ` (Xbox: ${u.xbox_gamertag}${u.xbox_reconectar ? ', caducada' : ''})` : ''}</option>`).join('');
+  } catch {
+    $('usuario').innerHTML = '<option value="">No se han podido cargar los usuarios</option>';
+  }
+
+  async function llamar(cuerpo) {
+    const t0 = performance.now();
+    $('salida').textContent = 'Llamando…';
+    $('resumen').textContent = '';
+    document.querySelectorAll('button').forEach((b) => (b.disabled = true));
+    try {
+      const r = await fetch(URL_XBOX, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY }, body: JSON.stringify(cuerpo) });
+      const texto = await r.text();
+      let datos = null;
+      try { datos = JSON.parse(texto); } catch { /* no es JSON */ }
+      $('salida').textContent = `HTTP ${r.status} · ${Math.round(performance.now() - t0)} ms
+
+${datos ? JSON.stringify(datos, null, 2) : texto}`;
+      const bien = r.ok && datos?.ok !== false;
+      $('resumen').innerHTML = bien ? '<span class="ok">· bien</span>' : `<span class="mal">· ${datos?.codigo ?? 'error'}</span>`;
+      return datos;
+    } catch (e) {
+      $('salida').textContent = `No se ha podido llamar a la función: ${e.message}
+(¿Está desplegada con el nombre "xbox" y sin verificación JWT?)`;
+      $('resumen').innerHTML = '<span class="mal">· sin respuesta</span>';
+      return null;
+    } finally {
+      document.querySelectorAll('button').forEach((b) => (b.disabled = false));
+    }
+  }
+
+  document.addEventListener('click', async (e) => {
+    const a = e.target.closest('[data-accion]')?.dataset.accion;
+    if (!a) return;
+    if (a === 'login') {
+      const d = await llamar({ accion: 'login' });
+      if (d?.url) location.href = d.url;
+      return;
+    }
+    const usuario_id = $('usuario').value;
+    if (!usuario_id) { $('salida').textContent = 'Elige un usuario.'; return; }
+    if (a === 'conectar') {
+      const code = $('code').value.trim().replace(/^.*code=/, '').replace(/[&#].*$/, '');
+      if (!code) { $('salida').textContent = 'Pega el code de la vuelta.'; return; }
+      return llamar({ accion: 'conectar', usuario_id, code });
+    }
+    return llamar({ accion: a, usuario_id });
+  });
+</script>
+</body>
+</html>

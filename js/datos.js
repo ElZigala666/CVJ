@@ -101,7 +101,8 @@ const COLUMNAS_USUARIO = 'id, nombre, inicial, color, acento, creado_en';
 const COLUMNAS_PSN = ', psn_online_id, psn_account_id, psn_sincronizado_en';
 /** Usuarios con sus datos de PSN y su foto; si faltan las migraciones 005, 004 o 003, con lo que haya. */
 async function leerUsuarios(sb) {
-  for (const extra of [COLUMNAS_PSN + ', psn_reconectar, foto_url, es_admin', COLUMNAS_PSN + ', psn_reconectar', COLUMNAS_PSN]) {
+  const xboxCols = ', xbox_gamertag, xbox_xuid, xbox_sincronizado_en, xbox_reconectar';
+  for (const extra of [COLUMNAS_PSN + ', psn_reconectar, foto_url, es_admin' + xboxCols, COLUMNAS_PSN + ', psn_reconectar, foto_url, es_admin', COLUMNAS_PSN + ', psn_reconectar', COLUMNAS_PSN]) {
     const r = await sb.from('usuarios').select(COLUMNAS_USUARIO + extra).order('creado_en');
     if (!r.error) return r;
   }

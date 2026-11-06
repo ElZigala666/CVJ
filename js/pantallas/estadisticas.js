@@ -118,23 +118,23 @@ export function render(el, { params }) {
   return desuscribir;
 }
 
-/** Horas totales (PSN y las puestas a mano), top 5 por horas y PS4 frente a PS5. */
+/** Horas totales (PSN y las puestas a mano), top 5 por horas y reparto por plataforma (todas las fuentes). */
 function tiempoDeJuego(u, bib, t) {
-  if (!t.total) {
+  if (!t.total && !bib.total) {
     return `
       <div class="caja-punteada">
         ${icono('pendiente', { tam: 18, color: 'var(--texto-2)', trazo: 'var(--fondo)' })}
-        <span>${u.psn_account_id
-          ? 'PlayStation está conectada, pero aún no hay juegos sincronizados.'
-          : 'Las horas aparecerán aquí cuando se conecte PlayStation o se escriban al valorar.'}</span>
+        <span>${u.psn_account_id || u.xbox_xuid
+          ? 'Hay una plataforma conectada, pero aún no hay juegos sincronizados.'
+          : 'Las horas aparecerán aquí cuando se conecte una plataforma o se escriban al valorar.'}</span>
       </div>`;
   }
   const max = Math.max(1, ...t.top.map((x) => x.horas));
-  const totalPlat = bib.porPlataforma.PS4 + bib.porPlataforma.PS5;
+  const maxJuegos = Math.max(1, ...bib.plataformas.map((x) => x.juegos));
   return `
     <div class="tarjeta-dato grande">
-      <span class="dato-num grande">${t.total}<span class="dato-de"> h</span></span>
-      <span class="dato-etq">jugadas${bib.total ? ` · ${bib.total} ${bib.total === 1 ? 'juego' : 'juegos'} en PlayStation` : ''}</span>
+      ${t.total ? `<span class="dato-num grande">${t.total}<span class="dato-de"> h</span></span>` : '<span class="dato-num grande apagado">—</span>'}
+      <span class="dato-etq">jugadas${bib.total ? ` · ${bib.total} ${bib.total === 1 ? 'juego' : 'juegos'} en su biblioteca` : ''}</span>
     </div>
     ${t.top.length ? `
       <span class="stats-nota">Los más jugados</span>
@@ -146,13 +146,15 @@ function tiempoDeJuego(u, bib, t) {
             <span class="barra-plataforma-n ancho">${textoHoras(x.horas)}</span>
           </div>`).join('')}
       </div>` : ''}
-    ${totalPlat > 0 && bib.porPlataforma.PS4 > 0 && bib.porPlataforma.PS5 > 0 ? `
-      <span class="stats-nota">PS5 frente a PS4</span>
-      <div class="reparto-plataformas" role="img" aria-label="PS5 ${bib.porPlataforma.PS5} horas, PS4 ${bib.porPlataforma.PS4} horas">
-        <div class="reparto-plataformas-barra">
-          <div style="width:${Math.round((bib.porPlataforma.PS5 / totalPlat) * 100)}%"></div>
-        </div>
-        <div class="reparto-plataformas-pie"><span><strong>PS5</strong> ${bib.porPlataforma.PS5} h</span><span><strong>PS4</strong> ${bib.porPlataforma.PS4} h</span></div>
+    ${bib.plataformas.length > 1 ? `
+      <span class="stats-nota">Por plataforma (juegos en su biblioteca)</span>
+      <div class="barras-plataforma">
+        ${bib.plataformas.map((x) => `
+          <div class="barra-plataforma">
+            <span class="barra-plataforma-nombre">${esc(x.nombre)}</span>
+            <div class="barra-plataforma-pista"><div style="width:${Math.max(4, Math.round((x.juegos / maxJuegos) * 100))}%"></div></div>
+            <span class="barra-plataforma-n ancho">${x.juegos}${x.horas ? ` · ${x.horas} h` : ''}</span>
+          </div>`).join('')}
       </div>` : ''}`;
 }
 

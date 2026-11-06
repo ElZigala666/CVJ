@@ -2,6 +2,8 @@
 import { icono } from './icons.js';
 import { notaALetra, formatearNota } from './notas.js';
 
+export { portada, urlPortada, colorBloque, colorFondo, precargar, mejorCargada } from './portadas.js';
+
 /** Escapa texto para meterlo en HTML. */
 export function esc(v) {
   return String(v ?? '').replace(/[&<>"']/g, (c) => (
@@ -10,43 +12,9 @@ export function esc(v) {
 }
 
 // ---------------------------------------------------------------------------
-// Portadas de IGDB
+// Notas, letras y recomendación
 // ---------------------------------------------------------------------------
-const BASE_IMG = 'https://images.igdb.com/igdb/image/upload';
-
-/** URL de portada: tam = 'cover_small' (listas) o 'cover_big' (ficha). */
-export function urlPortada(coverId, tam = 'cover_small') {
-  return coverId ? `${BASE_IMG}/t_${tam}/${coverId}.jpg` : null;
-}
-
-/** Color del bloque que se ve mientras no hay portada (oscuro y estable por juego). */
-export function colorBloque(id) {
-  const n = Number(id) || 0;
-  const tono = (n * 47) % 360;
-  return `hsl(${tono} 38% 24%)`;
-}
-
-/**
- * Portada con su bloque de color detrás. La imagen aparece con un fundido.
- * @param {{igdb_id:number, cover_id?:string|null, nombre?:string}} juego
- * @param {'lista'|'grande'} variante
- */
-export function portada(juego, variante = 'lista') {
-  const grande = variante === 'grande';
-  const tam = grande ? 'cover_big' : 'cover_small';
-  const url = urlPortada(juego.cover_id, tam);
-  // En listas: cover_small (90×128) y su versión 2x para pantallas retina (180×256).
-  const srcset = url && !grande ? ` srcset="${url} 1x, ${urlPortada(juego.cover_id, 'cover_small_2x')} 2x"` : '';
-  const img = url
-    ? `<img src="${url}"${srcset} alt="" loading="${grande ? 'eager' : 'lazy'}" decoding="async" onload="this.classList.add('ok')" onerror="this.remove()">`
-    : '';
-  return `<div class="portada portada-${variante}" style="--bloque:${colorBloque(juego.igdb_id)}">${img}</div>`;
-}
-
-// ---------------------------------------------------------------------------
-// Notas y letras
-// ---------------------------------------------------------------------------
-/** Chip de letra de tier. tam: 'sm' (listas), 'md' (métricas), 'lg' (tabla). */
+/** Chip de letra de tier. tam: 'sm' | 'md' | 'lg' | 'xl'. */
 export function chipLetra(letra, tam = 'sm') {
   if (!letra) return '';
   return `<span class="letra letra-${tam}" data-tier="${letra}">${letra}</span>`;
@@ -58,6 +26,24 @@ export function notaConLetra(nota, tam = 'sm') {
   return `<span class="nota-num nota-${tam}">${formatearNota(nota)}</span>${chipLetra(l, tam)}`;
 }
 
+/** Icono de recomendado / no recomendado (nada si no ha opinado). */
+export function iconoRecomendacion(recomendado, tam = 16) {
+  if (recomendado === true) return icono('recomendado', { tam, color: 'var(--acento)', grosor: 2.6, etiqueta: 'Recomendado' });
+  if (recomendado === false) return icono('no-recomendado', { tam, color: 'var(--texto-2)', grosor: 2.6, etiqueta: 'No recomendado' });
+  return '';
+}
+
+// ---------------------------------------------------------------------------
+// Estados de una valoración
+// ---------------------------------------------------------------------------
+export const ESTADOS = [
+  { id: 'jugando', nombre: 'Jugando', icono: 'jugando' },
+  { id: 'completado', nombre: 'Completado', icono: 'completado' },
+  { id: 'abandonado', nombre: 'Abandonado', icono: 'abandonado' },
+  { id: 'pendiente', nombre: 'Pendiente', icono: 'pendiente' },
+];
+export const nombreEstado = (id) => ESTADOS.find((e) => e.id === id)?.nombre ?? id;
+
 // ---------------------------------------------------------------------------
 // Avatares
 // ---------------------------------------------------------------------------
@@ -68,6 +54,18 @@ export function avatar(usuario, tam = 40, enlace = null) {
     return `<a class="avatar" href="${enlace}" style="${estilo}" aria-label="Tu perfil">${ini}</a>`;
   }
   return `<span class="avatar" style="${estilo}" aria-hidden="true">${ini}</span>`;
+}
+
+/**
+ * Avatar con insignia de recomendado (acento) o no recomendado (atenuado).
+ * @param {string} fondo color de lo que hay detrás (para el contorno de la insignia)
+ */
+export function avatarInsignia(usuario, recomienda, tam = 32, fondo = 'var(--fondo)') {
+  const tamIns = Math.round(tam * 0.47);
+  const ins = recomienda
+    ? icono('recomendado', { tam: tamIns, color: 'var(--acento)', trazo: fondo, contorno: fondo, grosor: 3.4 })
+    : icono('no-recomendado', { tam: tamIns, color: 'var(--texto-2)', trazo: fondo, contorno: fondo, grosor: 3.4 });
+  return `<span class="avatar-ins${recomienda ? '' : ' atenuado'}" style="--tam:${tam}px">${avatar(usuario, tam)}${ins}</span>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,12 +82,12 @@ export function cabecera(usuario) {
     </header>`;
 }
 
-export function estadoVacio({ icono: nombreIcono, titulo, texto, extra = '' }) {
+export function estadoVacio({ icono: nombreIcono, titulo, texto, extra = '', clase = '' }) {
   return `
-    <div class="vacio">
+    <div class="vacio ${clase}">
       <span class="vacio-icono">${icono(nombreIcono, { tam: 30, color: 'var(--acento)' })}</span>
       <h2 class="vacio-titulo">${esc(titulo)}</h2>
-      <p class="vacio-texto">${esc(texto)}</p>
+      ${texto ? `<p class="vacio-texto">${esc(texto)}</p>` : ''}
       ${extra}
     </div>`;
 }
@@ -107,10 +105,29 @@ export function skeletonFila(anchoTitulo = 65, anchoMeta = 40) {
 }
 
 // ---------------------------------------------------------------------------
+// Tiempo relativo: "Ahora", "Hace 5 min", "Hace 2 h", "Ayer", "Hace 3 días", "12 oct"
+// ---------------------------------------------------------------------------
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic'];
+export function tiempoRelativo(fecha, ahora = new Date()) {
+  const d = new Date(fecha);
+  if (Number.isNaN(d.getTime())) return '';
+  const seg = Math.max(0, (ahora - d) / 1000);
+  if (seg < 60) return 'Ahora';
+  if (seg < 3600) return `Hace ${Math.floor(seg / 60)} min`;
+  const inicioHoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+  if (d >= inicioHoy) return `Hace ${Math.floor(seg / 3600)} h`;
+  const dias = Math.round((inicioHoy - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+  if (dias <= 1) return 'Ayer';
+  if (dias < 7) return `Hace ${dias} días`;
+  const mismoAnio = d.getFullYear() === ahora.getFullYear();
+  return `${d.getDate()} ${MESES[d.getMonth()]}${mismoAnio ? '' : ` ${d.getFullYear()}`}`;
+}
+
+// ---------------------------------------------------------------------------
 // Aviso discreto (abajo, encima de la barra)
 // ---------------------------------------------------------------------------
 let temporizadorAviso = null;
-export function aviso(mensaje, ms = 3200) {
+export function aviso(mensaje, ms = 2600) {
   const el = document.getElementById('aviso');
   if (!el) return;
   el.textContent = mensaje;
@@ -126,4 +143,14 @@ export function aplicarAcento(hex) {
   const raiz = document.documentElement;
   if (hex && /^#[0-9a-f]{6}$/i.test(hex)) raiz.style.setProperty('--acento-base', hex);
   else raiz.style.removeProperty('--acento-base');
+}
+
+/** Guarda y restaura el scroll horizontal de los carruseles al repintar. */
+export function conservarScroll(raiz, pintar) {
+  const pos = {};
+  for (const el of raiz.querySelectorAll('[data-scroll]')) pos[el.dataset.scroll] = el.scrollLeft;
+  pintar();
+  for (const el of raiz.querySelectorAll('[data-scroll]')) {
+    if (pos[el.dataset.scroll]) el.scrollLeft = pos[el.dataset.scroll];
+  }
 }

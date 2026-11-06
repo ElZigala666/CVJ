@@ -30,7 +30,7 @@ const ICONOS = {
 /**
  * Devuelve el SVG de un icono.
  * @param {string} nombre
- * @param {{tam?:number, color?:string, trazo?:string, grosor?:number, clase?:string, etiqueta?:string}} [op]
+ * @param {{tam?:number, color?:string, trazo?:string, grosor?:number, clase?:string, etiqueta?:string, contorno?:string}} [op]
  */
 export function icono(nombre, op = {}) {
   const ic = ICONOS[nombre];
@@ -43,7 +43,9 @@ export function icono(nombre, op = {}) {
     : 'aria-hidden="true" focusable="false"';
   const clase = op.clase ? ` class="${op.clase}"` : '';
   let dentro = '';
-  if (ic.d) dentro += `<path d="${ic.d}" fill="${color}" fill-rule="evenodd"/>`;
+  // contorno: borde del color del fondo alrededor de la forma (insignias sobre avatares)
+  const contorno = op.contorno ? ` stroke="${op.contorno}" stroke-width="3"` : '';
+  if (ic.d) dentro += `<path d="${ic.d}" fill="${color}" fill-rule="evenodd"${contorno}/>`;
   if (ic.t) dentro += `<path d="${ic.t}" stroke="${trazo}" stroke-width="${op.grosor ?? ic.grosor ?? 2.2}" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`;
   if (ic.s) dentro += `<path d="${ic.s}" stroke="${color}" stroke-width="${op.grosor ?? 2.6}" stroke-linecap="round" fill="none"/>`;
   return `<svg${clase} width="${tam}" height="${tam}" viewBox="0 0 24 24" ${accesible}>${dentro}</svg>`;

@@ -1,10 +1,15 @@
-// Ficha de juego PROVISIONAL (la ficha completa es de la fase 2).
-// Muestra nombre y portada. Pide la ficha a la Edge Function, que además la
-// guarda en la tabla juegos.
+// Pantallas 04 / 11 · Ficha de juego.
 import { icono } from '../icons.js';
 import { fichaJuego } from '../igdb.js';
 import * as datos from '../datos.js';
-import { esc, portada } from '../ui.js';
+import { usuarioActual } from '../sesion.js';
+import { LETRAS } from '../notas.js';
+import {
+  esc, urlPortada, colorBloque, colorFondo, mejorCargada, notaConLetra,
+  iconoRecomendacion, avatar, avatarInsignia, nombreEstado, ESTADOS, aviso,
+} from '../ui.js';
+import { yaCargada } from '../portadas.js';
+import { abrirValorar } from '../hoja-valorar.js';
 
 export function render(el, { params }) {
   const id = Number(params[0]);
@@ -12,51 +17,260 @@ export function render(el, { params }) {
     location.hash = '#buscar';
     return;
   }
-
+  const yo = usuarioActual();
   const controlador = new AbortController();
+  let pidiendo = false;
+  let fallo = false;
+  let coverPintado;
 
-  const pintar = (j, cargando) => {
-    const meta = j ? [j.anio, (j.plataformas || []).join(', ')].filter(Boolean).join(' · ') : '';
-    el.innerHTML = `
-      <section class="juego">
-        <div class="juego-barra">
-          <button type="button" class="boton-redondo" data-accion="atras" aria-label="Volver">
-            ${icono('atras', { tam: 22, color: 'var(--texto)' })}
-          </button>
+  el.innerHTML = `
+    <section class="ficha">
+      <div class="ficha-hero" data-ref="hero"></div>
+      <div class="ficha-info" data-ref="info"></div>
+      <div class="ficha-cuerpo" data-ref="cuerpo"></div>
+    </section>
+    <div class="ficha-barra" data-ref="barra"></div>`;
+  const $ = (r) => el.querySelector(`[data-ref="${r}"]`);
+
+  // -------------------------------------------------------------------------
+  // Cabecera: portada pequeña (ya en caché) al instante y la grande encima.
+  // -------------------------------------------------------------------------
+  function pintarHero(j) {
+    const cover = j?.cover_id ?? null;
+    if (coverPintado === cover && $('hero').childElementCount) return;
+    coverPintado = cover;
+    const grande = urlPortada(cover, 'cover_big');
+    const previa = mejorCargada(cover) || urlPortada(cover, 'cover_small');
+    const capas = [];
+    if (previa && previa !== grande) capas.push(`<img class="ficha-previa${yaCargada(previa) ? ' ok' : ''}" data-portada src="${previa}" alt="" decoding="sync">`);
+    if (grande) capas.push(`<img data-portada src="${grande}" alt="" loading="eager" fetchpriority="high" decoding="async"${yaCargada(grande) ? ' class="ok"' : ''}>`);
+    $('hero').style.setProperty('--fondo-hero', colorFondo(id));
+    $('hero').innerHTML = `
+      <button type="button" class="ficha-volver" data-accion="atras" aria-label="Volver">
+        ${icono('atras', { tam: 22, color: '#FFFFFF' })}
+      </button>
+      <div class="portada portada-ficha" style="--bloque:${colorBloque(id)}">
+        <span class="portada-deco"></span>
+        <span class="portada-titulo portada-titulo-abajo">${esc(j?.nombre ?? '')}</span>
+        ${capas.join('')}
+      </div>`;
+  }
+
+  function pintarInfo(j) {
+    if (!j) {
+      $('info').innerHTML = fallo
+        ? `<h1 class="ficha-titulo">Juego no disponible</h1><p class="ficha-meta">No se ha podido cargar. Revisa la conexión.</p>`
+        : `<div class="sk sk-linea" style="width:75%;height:26px;border-radius:8px"></div>
+           <div class="sk sk-linea" style="width:55%;height:14px"></div>
+           <div class="ficha-chips"><span class="sk" style="width:44px;height:26px;border-radius:8px"></span><span class="sk" style="width:36px;height:26px;border-radius:8px"></span></div>`;
+      return;
+    }
+    const meta = [j.anio, j.desarrolladora, j.generos?.[0]].filter(Boolean).join(' · ');
+    $('info').innerHTML = `
+      <h1 class="ficha-titulo">${esc(j.nombre)}</h1>
+      ${meta ? `<span class="ficha-meta">${esc(meta)}</span>` : (pidiendo ? '<div class="sk sk-linea" style="width:55%;height:14px"></div>' : '')}
+      ${j.plataformas?.length ? `<div class="ficha-chips">${j.plataformas.map((p) => `<span class="ficha-chip">${esc(p)}</span>`).join('')}</div>` : ''}`;
+  }
+
+  // -------------------------------------------------------------------------
+  // Métricas del grupo y lista de valoraciones
+  // -------------------------------------------------------------------------
+  function bloqueMetricas(st) {
+    if (st.votos === 0) {
+      return `
+        <section class="ficha-metricas metricas-vacio">
+          <span class="vacio-icono">${icono('valorar', { tam: 30, color: 'var(--acento)', trazo: 'var(--acento-suave)' })}</span>
+          <h2 class="vacio-titulo">Nadie del grupo le ha puesto nota</h2>
+          <p class="vacio-texto">Sé el primero en valorarlo y abre el debate.</p>
+          <button type="button" class="boton-secundario" data-accion="valorar">Valorarlo ahora</button>
+        </section>`;
+    }
+
+    const conNota = st.valoraciones.filter((v) => v.nota != null);
+    let notaHtml;
+    if (st.votos === 1) {
+      const quien = datos.usuario(conNota[0].usuario_id);
+      notaHtml = `
+        <div class="metrica">
+          <span class="metrica-etiqueta">Nota</span>
+          <div class="metrica-nota">${notaConLetra(st.media, 'xl')}</div>
+          <span class="metrica-sub">Solo lo ha valorado ${esc(quien?.id === yo?.id ? 'tú' : quien?.nombre ?? 'alguien')}</span>
+        </div>`;
+    } else {
+      notaHtml = `
+        <div class="metrica">
+          <span class="metrica-etiqueta">Nota del grupo</span>
+          <div class="metrica-nota">${notaConLetra(st.media, 'xl')}</div>
+          <span class="metrica-sub">Media de ${st.votos} notas</span>
+        </div>`;
+    }
+
+    const opinan = st.valoraciones
+      .filter((v) => v.recomendado === true || v.recomendado === false)
+      .sort((a, b) => Number(b.recomendado) - Number(a.recomendado));
+    const r = st.recomendacion;
+    const nombresSi = opinan.filter((v) => v.recomendado).map((v) => datos.usuario(v.usuario_id)?.nombre).filter(Boolean);
+    const nombresNo = opinan.filter((v) => !v.recomendado).map((v) => datos.usuario(v.usuario_id)?.nombre).filter(Boolean);
+    const recHtml = r.total
+      ? `
+        <div class="metrica">
+          <span class="metrica-etiqueta">Lo recomiendan</span>
+          <div class="pila-avatares" role="img" aria-label="${esc(`Lo recomiendan ${nombresSi.join(', ') || 'nadie'}${nombresNo.length ? `; ${nombresNo.join(', ')} no` : ''}`)}">
+            ${opinan.map((v) => avatarInsignia(datos.usuario(v.usuario_id), v.recomendado, 32, 'var(--superficie)')).join('')}
+          </div>
+          <span class="metrica-sub"><strong>${r.si} de ${r.total}</strong> · ${r.porcentaje}%</span>
+        </div>`
+      : `
+        <div class="metrica">
+          <span class="metrica-etiqueta">Lo recomiendan</span>
+          <span class="metrica-sub metrica-nadie">Nadie ha dicho aún si lo recomienda.</span>
+        </div>`;
+
+    let repartoHtml = '';
+    if (st.votos >= 2) {
+      const max = Math.max(...Object.values(st.reparto));
+      repartoHtml = `
+        <div class="reparto">
+          <span class="metrica-etiqueta">Reparto de notas</span>
+          <div class="reparto-barras">
+            ${LETRAS.map((l) => {
+              const k = st.reparto[l];
+              const alto = k ? Math.max(8, Math.round((k / max) * 42)) : 3;
+              return `<div class="reparto-col" title="${l}: ${k}">
+                <div class="reparto-barra${k ? '' : ' vacia'}" data-tier="${l}" style="height:${alto}px"></div>
+                <span class="reparto-letra">${l}</span>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+    }
+
+    return `<section class="ficha-metricas">${notaHtml}${recHtml}${repartoHtml}</section>`;
+  }
+
+  function filaGrupo(v) {
+    const u = datos.usuario(v.usuario_id);
+    if (!u) return '';
+    const est = ESTADOS.find((e) => e.id === v.estado);
+    const sub = [nombreEstado(v.estado), v.plataforma].filter(Boolean).join(' · ');
+    const derecha = v.nota != null
+      ? `<div class="grupo-nota">${notaConLetra(v.nota, 'lg')}${iconoRecomendacion(v.recomendado, 20)}</div>`
+      : `<span class="grupo-sin-nota">Sin nota aún</span>`;
+    return `
+      <div class="grupo-fila">
+        <div class="grupo-cab">
+          ${avatar(u, 40)}
+          <div class="grupo-quien">
+            <span class="grupo-nombre">${esc(u.nombre)}${u.id === yo?.id ? ' <span class="grupo-tu">(tú)</span>' : ''}</span>
+            <span class="grupo-estado">${icono(est?.icono ?? 'pendiente', { tam: 14, color: 'var(--acento)', grosor: 2.6 })}${esc(sub)}</span>
+          </div>
+          ${derecha}
         </div>
-        <div class="juego-cuerpo">
-          ${portada(j || { igdb_id: id }, 'grande')}
-          ${j
-            ? `<h1 class="juego-titulo">${esc(j.nombre)}</h1>${meta ? `<p class="juego-meta">${esc(meta)}</p>` : ''}`
-            : cargando
-              ? `<div class="sk sk-linea" style="width:70%;height:28px;border-radius:8px"></div><div class="sk sk-linea" style="width:45%;height:14px"></div>`
-              : `<h1 class="juego-titulo">Juego no disponible</h1><p class="juego-meta">No se ha podido cargar. Revisa la conexión.</p>`}
-          <p class="juego-nota">La ficha completa, con las notas y reseñas del grupo, llega en la fase 2.</p>
-        </div>
-      </section>`;
-  };
+        ${v.resena ? `<p class="grupo-resena">${esc(v.resena)}</p>` : ''}
+      </div>`;
+  }
+
+  function pintarCuerpo() {
+    const st = datos.statsJuego(id);
+    const filas = [...st.valoraciones].sort((a, b) => {
+      if (a.nota != null && b.nota != null) return Number(b.nota) - Number(a.nota);
+      if (a.nota != null) return -1;
+      if (b.nota != null) return 1;
+      return new Date(b.actualizado_en) - new Date(a.actualizado_en);
+    });
+    $('cuerpo').innerHTML = `
+      ${bloqueMetricas(st)}
+      ${filas.length ? `
+        <section class="ficha-grupo">
+          <div class="seccion-cab">
+            <h2 class="seccion-titulo">El grupo</h2>
+            <span class="seccion-extra">${st.jugadores === 1 ? '1 lo ha jugado' : `${st.jugadores} lo han jugado`}</span>
+          </div>
+          ${filas.map(filaGrupo).join('')}
+        </section>` : ''}`;
+  }
+
+  function pintarBarra(j) {
+    const mia = yo ? datos.miValoracion(yo.id, id) : null;
+    const enPendientes = mia?.estado === 'pendiente';
+    $('barra').innerHTML = `
+      <button type="button" class="boton-principal con-icono" data-accion="valorar"${j ? '' : ' disabled'}>
+        ${mia && !enPendientes ? '' : icono('mas', { tam: 20, color: 'currentColor' })}
+        <span>${mia && !enPendientes ? 'Editar mi valoración' : 'Valorar'}</span>
+      </button>
+      <button type="button" class="boton-pendiente${enPendientes ? ' activo' : ''}" data-accion="pendiente"
+        aria-pressed="${enPendientes}" aria-label="${enPendientes ? 'Quitar de pendientes' : 'Añadir a pendientes'}"${j ? '' : ' disabled'}>
+        ${icono('pendiente', { tam: 24, color: 'currentColor', trazo: 'var(--fondo-btn)' })}
+      </button>`;
+  }
+
+  function pintarTodo() {
+    const j = datos.juegoConocido(id);
+    pintarHero(j);
+    pintarInfo(j);
+    pintarCuerpo();
+    pintarBarra(j);
+    document.title = j ? `CVJ · ${j.nombre}` : 'CVJ · Juego';
+  }
+
+  // -------------------------------------------------------------------------
+  // Acciones
+  // -------------------------------------------------------------------------
+  function alternarPendiente() {
+    if (!yo) return;
+    const mia = datos.miValoracion(yo.id, id);
+    if (mia && mia.estado !== 'pendiente') {
+      aviso(`Ya lo tienes como ${nombreEstado(mia.estado).toLowerCase()}`);
+      return;
+    }
+    if (mia) {
+      datos.quitarValoracion(yo.id, id, aviso);
+      aviso('Quitado de pendientes');
+    } else {
+      datos.guardarValoracion({
+        usuarioId: yo.id, igdbId: id, estado: 'pendiente', nota: null, recomendado: null,
+        plataforma: null, resena: null,
+      }, aviso);
+      aviso('Añadido a pendientes');
+    }
+  }
 
   el.addEventListener('click', (e) => {
-    if (e.target.closest('[data-accion="atras"]')) {
+    const b = e.target.closest('[data-accion]');
+    if (!b) return;
+    if (b.dataset.accion === 'atras') {
       if (history.length > 1) history.back();
-      else location.hash = '#buscar';
+      else location.hash = '#inicio';
+    } else if (b.dataset.accion === 'valorar') {
+      abrirValorar(id);
+    } else if (b.dataset.accion === 'pendiente') {
+      alternarPendiente();
     }
   });
 
-  const enCache = datos.juego(id);
-  pintar(enCache, true);
+  const desuscribir = datos.suscribir(pintarTodo);
+  pintarTodo();
 
-  fichaJuego(id, controlador.signal)
-    .then((j) => {
-      if (!j || controlador.signal.aborted) return;
-      datos.recordarJuego(j);
-      pintar(j, false);
-    })
-    .catch((e) => {
-      if (controlador.signal.aborted || e.name === 'AbortError') return;
-      console.warn('[juego]', e.message);
-      if (!enCache) pintar(null, false);
-    });
+  // Si el juego no está en la tabla, pedir la ficha (la función también la guarda).
+  if (!datos.juego(id)) {
+    pidiendo = true;
+    pintarInfo(datos.juegoConocido(id));
+    fichaJuego(id, controlador.signal)
+      .then((j) => {
+        pidiendo = false;
+        if (j && !controlador.signal.aborted) datos.recordarJuego(j);
+      })
+      .catch((e) => {
+        pidiendo = false;
+        if (controlador.signal.aborted || e.name === 'AbortError') return;
+        console.warn('[ficha]', e.message);
+        fallo = true;
+        pintarTodo();
+      });
+  }
 
-  return () => controlador.abort();
+  return () => {
+    controlador.abort();
+    desuscribir();
+  };
 }

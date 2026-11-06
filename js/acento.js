@@ -6,17 +6,24 @@
 
 export const ACENTO_DEFECTO = '#6D28D9';
 
-// 8 tonos: el morado del diseño, variaciones de morado y algunos colores que encajan.
+// 10 colores claramente distintos, ajustados para leerse bien en claro (texto blanco
+// encima) y en oscuro (tokens.css los aclara y les pone texto oscuro encima).
+// El amarillo y la lima van en su tono profundo: un amarillo chillón no admite texto.
 export const PALETA = [
   { hex: '#6D28D9', nombre: 'Morado' },
-  { hex: '#7C3AED', nombre: 'Violeta' },
-  { hex: '#5B21B6', nombre: 'Uva' },
-  { hex: '#A21CAF', nombre: 'Fucsia' },
-  { hex: '#4338CA', nombre: 'Índigo' },
-  { hex: '#BE185D', nombre: 'Frambuesa' },
-  { hex: '#0E7490', nombre: 'Petróleo' },
+  { hex: '#1D4ED8', nombre: 'Azul' },
+  { hex: '#0E7490', nombre: 'Cian' },
   { hex: '#15803D', nombre: 'Verde' },
+  { hex: '#4D7C0F', nombre: 'Lima' },
+  { hex: '#A16207', nombre: 'Amarillo' },
+  { hex: '#C2410C', nombre: 'Naranja' },
+  { hex: '#B91C1C', nombre: 'Rojo' },
+  { hex: '#BE185D', nombre: 'Rosa' },
+  { hex: '#3F3F46', nombre: 'Grafito' },
 ];
+
+/** ¿Es uno de la paleta? (los demás son "color libre" y se usan tal cual) */
+export const esDePaleta = (hex) => PALETA.some((p) => p.hex.toUpperCase() === String(hex || '').toUpperCase());
 
 const BLANCO = [255, 255, 255];
 const FONDO_OSCURO = [15, 14, 19]; // #0F0E13
@@ -70,6 +77,18 @@ function hslARgb([h, s, l]) {
     return p;
   };
   return [canal(h + 1 / 3) * 255, canal(h) * 255, canal(h - 1 / 3) * 255];
+}
+
+const NEGRO = [15, 14, 19];
+/** Texto que se lee mejor encima de un color: casi negro o blanco. */
+export function textoSobre(rgb) {
+  return contraste(NEGRO, rgb) > contraste(BLANCO, rgb) ? '#0F0E13' : '#FFFFFF';
+}
+
+/** Color libre: ¿se verá mal como texto sobre el fondo claro o el oscuro? (solo para avisar) */
+export function seLeeMal(hex) {
+  const rgb = hexARgb(hex);
+  return !!rgb && (contraste(rgb, BLANCO) < 3 || contraste(rgb, FONDO_OSCURO) < 3);
 }
 
 /** ¿Este acento se lee bien en todos sus usos? */

@@ -128,7 +128,7 @@ function renderPerfil(el, id, alSalir) {
           ${esMio ? `<button type="button" class="boton-cuadrado" data-accion="ajustes" aria-label="Ajustes">${icono('ajustes', { tam: 22, color: 'var(--texto)' })}</button>` : '<span></span>'}
         </div>
         <div class="perfil-cab">
-          ${avatar(u, 88)}
+          ${avatar(u, 128)}
           <h1 class="perfil-nombre-grande">${esc(u.nombre)}</h1>
           <span class="perfil-sub">${esc(sub)}</span>
           ${!esMio && soyAdmin && 'foto_url' in u ? botonFoto(u, u.foto_url ? 'Cambiar su foto' : 'Ponerle foto') : ''}

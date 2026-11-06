@@ -5,7 +5,7 @@ import { abrirHoja } from './hoja.js';
 import { aviso, aplicarAcento, esc } from './ui.js';
 import { modoInstalacion, instalar } from './instalar.js';
 import { TEMAS, preferenciaTema, guardarTema } from './tema.js';
-import { PALETA, ACENTO_DEFECTO, acentoSeguro } from './acento.js';
+import { PALETA, ACENTO_DEFECTO, seLeeMal, esDePaleta } from './acento.js';
 import { usuarioActual } from './sesion.js';
 import * as datos from './datos.js';
 import { VERSION_CORTA } from './version.js';
@@ -111,37 +111,47 @@ export function abrirAjustes(alSalir, { psn = false } = {}) {
 
       // --- Apariencia ---------------------------------------------------------
       const yo = usuarioActual();
-      const acentoGuardado = () => acentoSeguro(datos.usuario(yo?.id)?.acento ?? yo?.acento ?? ACENTO_DEFECTO);
+      const acentoGuardado = () => String(datos.usuario(yo?.id)?.acento ?? yo?.acento ?? ACENTO_DEFECTO).toUpperCase();
       const pintarApariencia = () => {
         cuerpo.querySelector('[data-ref="apariencia"]').innerHTML = bloqueApariencia(acentoGuardado());
+        pintarNota(acentoGuardado());
+      };
+      const pintarNota = (hex) => {
+        const nota = cuerpo.querySelector('[data-ref="nota-acento"]');
+        if (nota) nota.textContent = !esDePaleta(hex) && seLeeMal(hex) ? 'Este color puede leerse mal.' : '';
+      };
+      /** Marca en la paleta el color que se está usando (siempre, en cualquier orden). */
+      const marcar = (hex) => {
+        for (const m of cuerpo.querySelectorAll('[data-acento]')) {
+          const on = m.dataset.acento.toUpperCase() === hex;
+          m.classList.toggle('activa', on);
+          m.setAttribute('aria-checked', String(on));
+        }
+        cuerpo.querySelector('.muestra-libre')?.classList.toggle('activa', !esDePaleta(hex));
       };
       pintarApariencia();
 
-      const elegirAcento = (hex, guardar) => {
-        const seguro = acentoSeguro(hex);
-        aplicarAcento(seguro);
-        const nota = cuerpo.querySelector('[data-ref="nota-acento"]');
-        if (nota) nota.textContent = seguro !== hex.toUpperCase() ? 'Lo hemos ajustado un poco para que se lea bien en claro y en oscuro.' : '';
-        if (!guardar || !yo) return;
-        // El selector libre enseña el color que se usa de verdad (ya ajustado).
-        const libre = cuerpo.querySelector('[data-libre]');
-        if (libre) libre.value = seguro.toLowerCase();
-        if (seguro === acentoGuardado()) return;
-        datos.actualizarUsuario(yo.id, { acento: seguro }, (msg) => {
+      const elegirAcento = (valor, guardar) => {
+        const hex = String(valor).toUpperCase();
+        aplicarAcento(hex);
+        marcar(hex);
+        pintarNota(hex);
+        if (!guardar || !yo || hex === acentoGuardado()) return;
+        datos.actualizarUsuario(yo.id, { acento: hex }, (msg) => {
           aviso(msg);
           aplicarAcento(acentoGuardado());
           pintarApariencia();
         });
-        for (const m of cuerpo.querySelectorAll('[data-acento]')) {
-          const on = m.dataset.acento.toUpperCase() === seguro;
-          m.classList.toggle('activa', on);
-          m.setAttribute('aria-checked', String(on));
-        }
-        cuerpo.querySelector('.muestra-libre')?.classList.toggle('activa', !PALETA.some((p) => p.hex.toUpperCase() === seguro));
       };
-      // Color libre: se ve en vivo al mover el selector y se guarda al soltar.
-      cuerpo.addEventListener('input', (e) => { if (e.target.matches('[data-libre]')) elegirAcento(e.target.value, false); });
-      cuerpo.addEventListener('change', (e) => { if (e.target.matches('[data-libre]')) elegirAcento(e.target.value, true); });
+      // Color libre: se ve en vivo al mover el selector y se guarda al soltar, tal cual.
+      cuerpo.addEventListener('input', (e) => {
+        if (!e.target.matches('[data-libre]')) return;
+        elegirAcento(e.target.value, false);
+      });
+      cuerpo.addEventListener('change', (e) => {
+        // Si después se tocó la paleta, el selector ya tiene ese color: no pisa nada.
+        if (e.target.matches('[data-libre]')) elegirAcento(e.target.value, true);
+      });
 
       cuerpo.addEventListener('click', async (e) => {
         const t = e.target.closest('[data-tema]');
@@ -155,7 +165,12 @@ export function abrirAjustes(alSalir, { psn = false } = {}) {
           return;
         }
         const m = e.target.closest('[data-acento]');
-        if (m) { elegirAcento(m.dataset.acento, true); return; }
+        if (m) {
+          const libre = cuerpo.querySelector('[data-libre]');
+          if (libre) libre.value = m.dataset.acento.toLowerCase();
+          elegirAcento(m.dataset.acento, true);
+          return;
+        }
         const b = e.target.closest('[data-accion]');
         if (!b) return;
         if (b.dataset.accion === 'salir') {

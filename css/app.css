@@ -760,7 +760,7 @@ button.boton-mas { border: 0; padding: 0; }
 .perfil > .tarjetas-3, .perfil > .enlaces-perfil, .perfil > .perfil-comparar { margin: 0 20px; }
 .perfil-barra { display: flex; justify-content: space-between; padding: 0 16px; min-height: 44px; }
 .perfil-cab { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: -28px; text-align: center; padding: 0 20px; }
-.perfil-cab .avatar { font-family: var(--fuente-titulos); font-size: 36px; }
+.perfil-cab .avatar { font-family: var(--fuente-titulos); font-size: 52px; }
 .perfil-nombre-grande { margin: 0; font-family: var(--fuente-titulos); font-size: 26px; line-height: 1.15; }
 .perfil-sub { font-size: 14px; color: var(--texto-2); }
 .perfil-comparar { width: auto; }
@@ -1353,3 +1353,14 @@ body.sin-barra #aviso-version { bottom: calc(96px + env(safe-area-inset-bottom))
 .ficha-relaciones { margin: 0; font-size: 13px; color: var(--texto-2); line-height: 1.5; }
 .ficha-fusionadas { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 14px; background: var(--superficie); }
 .ficha-fusionada { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; }
+
+/* PlayStation: resaltar "Pegar y conectar" al volver si el navegador pide un toque */
+@keyframes resaltar { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 40% { box-shadow: 0 0 0 6px var(--acento-suave); } }
+.psn-pegar-conectar { height: 54px; }
+.psn-pegar-conectar.resaltado { animation: resaltar 0.9s ease-in-out 2; }
+
+/* Sensación de app nativa: sin seleccionar texto ni menús de pulsación larga
+   (copiar, buscar, guardar imagen...), salvo en los campos de texto. */
+html, body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+img { -webkit-touch-callout: none; -webkit-user-drag: none; user-select: none; }
+input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }

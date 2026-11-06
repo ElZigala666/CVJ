@@ -166,6 +166,12 @@ pintarBarra();
 aplicarAcento(usuarioActual()?.acento);
 window.addEventListener('hashchange', navegar);
 // "Reconectar" PlayStation (aviso de Inicio): Ajustes abierta en el asistente.
+// Sin el menú de pulsación larga del navegador (guardar imagen, abrir enlace...) salvo en
+// campos de texto. Las pulsaciones largas propias (menú de la biblioteca) siguen: escuchan
+// el mismo evento antes de que llegue aquí.
+document.addEventListener('contextmenu', (e) => {
+  if (!e.target.closest?.('input, textarea, select, [contenteditable="true"]')) e.preventDefault();
+});
 // "Poner / cambiar foto" (Ajustes, o el perfil de otro si soy admin).
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-foto]');

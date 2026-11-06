@@ -94,3 +94,13 @@
 
   color-scheme: dark;
 }
+
+/* Color libre (fuera de la paleta): exactamente el elegido en claro y en oscuro.
+   Lo único automático: el texto encima (lo calcula js/ui.js aplicarAcento). */
+:root[data-acento-libre][data-acento-libre] {
+  --acento: var(--acento-base);
+  --acento-texto: var(--acento-base);
+  --sobre-acento: var(--sobre-libre, #FFFFFF);
+  --tier-s-texto: var(--sobre-libre, #FFFFFF);
+  --tier-a-texto: var(--sobre-libre-a, #FFFFFF);
+}

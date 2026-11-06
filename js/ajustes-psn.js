@@ -170,14 +170,33 @@ export function montarPsn(cont) {
 
   // Al volver a la app después del paso 2: si lo copiado es un código válido, conecta solo.
   // (Si el navegador pide un toque, queda el botón "Pegar y conectar".)
-  const alVolver = async () => {
-    if (document.visibilityState !== 'visible' || !s.paso2 || s.ocupado || !HAY_PORTAPAPELES || !cont.isConnected) return;
+  let leyendo = false;
+  const alVolver = () => {
+    if (document.visibilityState !== 'visible' || !s.paso2 || s.ocupado || leyendo || !HAY_PORTAPAPELES || !cont.isConnected) return;
     const u = yo && datos.usuario(yo.id);
     if (!u || (u.psn_account_id && !u.psn_reconectar)) return;
-    try {
-      const texto = await navigator.clipboard.readText();
-      await intentarConectar(texto, true);
-    } catch { /* hace falta el toque en el botón */ }
+    leyendo = true;
+    // Un momento después de volver: Chrome no deja leer el portapapeles hasta que la página tiene el foco.
+    setTimeout(async () => {
+      try {
+        const texto = await navigator.clipboard.readText();
+        await intentarConectar(texto, true);
+        if (!s.ocupado && !s.mensaje) avisarBoton();
+      } catch {
+        avisarBoton(); // el navegador pide un toque: que se vea el botón
+      } finally {
+        leyendo = false;
+      }
+    }, 350);
+  };
+  /** Lleva la vista al botón "Pegar y conectar" y lo resalta. */
+  const avisarBoton = () => {
+    const b = cont.querySelector('[data-psn="pegar-conectar"]');
+    if (!b) return;
+    b.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    b.classList.remove('resaltado');
+    void b.offsetWidth;
+    b.classList.add('resaltado');
   };
   document.addEventListener('visibilitychange', alVolver);
   window.addEventListener('focus', alVolver);

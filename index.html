@@ -22,7 +22,23 @@
       document.getElementById('color-tema').setAttribute('content', oscuro ? '#0F0E13' : '#FFFFFF');
       var s = JSON.parse(localStorage.getItem('cvj.sesion') || 'null');
       var a = s && s.usuario && s.usuario.acento;
-      if (a && /^#[0-9a-f]{6}$/i.test(a)) raiz.style.setProperty('--acento-base', a);
+      if (a && /^#[0-9a-f]{6}$/i.test(a)) {
+        raiz.style.setProperty('--acento-base', a);
+        // Color libre (fuera de la paleta de js/acento.js): tal cual, con texto negro o blanco encima.
+        var paleta = '6D28D9 1D4ED8 0E7490 15803D 4D7C0F A16207 C2410C B91C1C BE185D 3F3F46';
+        if (paleta.indexOf(a.slice(1).toUpperCase()) < 0) {
+          var lum = function (h, t) {
+            return [1, 3, 5].map(function (i, k) {
+              var c = parseInt(h.substr(i, 2), 16); c = c + (255 - c) * t; c /= 255;
+              return (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)) * [0.2126, 0.7152, 0.0722][k];
+            }).reduce(function (x, y) { return x + y; });
+          };
+          var sobre = function (t) { var l = lum(a, t); return (l + 0.05) / 0.0546 > 1.05 / (l + 0.05) ? '#0F0E13' : '#FFFFFF'; };
+          raiz.setAttribute('data-acento-libre', '');
+          raiz.style.setProperty('--sobre-libre', sobre(0));
+          raiz.style.setProperty('--sobre-libre-a', sobre(0.25));
+        }
+      }
     } catch (e) {}
   })();
 </script>

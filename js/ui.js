@@ -1,7 +1,7 @@
 // Piezas de interfaz reutilizables (devuelven HTML como texto).
 import { icono } from './icons.js';
 import { notaALetra, formatearNota } from './notas.js';
-import { acentoSeguro } from './acento.js';
+import { esDePaleta, hexARgb, mezclar, textoSobre } from './acento.js';
 import * as datos from './datos.js';
 
 export { portada, urlPortada, colorBloque, colorFondo, precargar, mejorCargada } from './portadas.js';
@@ -191,11 +191,25 @@ export function aviso(mensaje, ms = 2600) {
 // ---------------------------------------------------------------------------
 // Acento del usuario (se aplica en <html>)
 // ---------------------------------------------------------------------------
+/**
+ * Aplica el acento. Los de la paleta usan sus ajustes de tokens.css; un color libre
+ * se usa EXACTAMENTE como es, en claro y en oscuro, y solo el texto que va encima
+ * (botones, letras de tier S y A) pasa a negro o blanco según lo que se lea mejor.
+ */
 export function aplicarAcento(hex) {
   const raiz = document.documentElement;
-  // Siempre la versión legible (por si en la base hay un color que no se lee bien).
-  if (hex && /^#[0-9a-f]{6}$/i.test(hex)) raiz.style.setProperty('--acento-base', acentoSeguro(hex));
-  else raiz.style.removeProperty('--acento-base');
+  for (const v of ['--sobre-libre', '--sobre-libre-a']) raiz.style.removeProperty(v);
+  if (!hex || !/^#[0-9a-f]{6}$/i.test(hex)) {
+    raiz.style.removeProperty('--acento-base');
+    raiz.removeAttribute('data-acento-libre');
+    return;
+  }
+  raiz.style.setProperty('--acento-base', hex.toUpperCase());
+  if (esDePaleta(hex)) { raiz.removeAttribute('data-acento-libre'); return; }
+  const rgb = hexARgb(hex);
+  raiz.setAttribute('data-acento-libre', '');
+  raiz.style.setProperty('--sobre-libre', textoSobre(rgb));
+  raiz.style.setProperty('--sobre-libre-a', textoSobre(mezclar(rgb, [255, 255, 255], 0.25)));
 }
 
 /** Guarda y restaura el scroll horizontal de los carruseles al repintar. */

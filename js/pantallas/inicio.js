@@ -1,0 +1,227 @@
+// Pantallas 02 / 10 · Inicio: jugando ahora, destacados del grupo y actividad reciente.
+import { icono } from '../icons.js';
+import * as datos from '../datos.js';
+import { usuarioActual } from '../sesion.js';
+import { mediaGrupo, recomendacionGrupo, desviacionTipica } from '../notas.js';
+import {
+  esc, cabecera, portada, notaConLetra, iconoRecomendacion, avatar, avatarInsignia,
+  tiempoRelativo, conservarScroll,
+} from '../ui.js';
+
+const PESTANAS = [
+  { id: 'mejor', nombre: 'Mejor valorados' },
+  { id: 'jugados', nombre: 'Más jugados' },
+  { id: 'polemicos', nombre: 'Más polémicos' },
+];
+const MAX_DESTACADOS = 10;
+const MAX_ACTIVIDAD = 30;
+const VERBOS = {
+  valoro: 'valoró',
+  empezo: 'empezó a jugar',
+  completo: 'completó',
+  abandono: 'abandonó',
+  pendiente: 'añadió a pendientes',
+};
+
+let pestana = 'mejor'; // se recuerda mientras la app está abierta
+
+export function render(el) {
+  const pintar = () => conservarScroll(el, () => { el.innerHTML = html(); });
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-pestana]');
+    if (!b || b.dataset.pestana === pestana) return;
+    pestana = b.dataset.pestana;
+    const cont = el.querySelector('[data-ref="destacados"]');
+    if (cont) {
+      cont.outerHTML = destacados();
+      for (const x of el.querySelectorAll('[data-pestana]')) {
+        const on = x.dataset.pestana === pestana;
+        x.classList.toggle('activa', on);
+        x.setAttribute('aria-selected', String(on));
+      }
+    }
+  });
+  const desuscribir = datos.suscribir(pintar);
+  pintar();
+  // Los "Hace 5 min" se actualizan solos sin repintar la pantalla.
+  const reloj = setInterval(() => {
+    const ahora = new Date();
+    for (const t of el.querySelectorAll('[data-fecha]')) t.textContent = tiempoRelativo(t.dataset.fecha, ahora);
+  }, 60_000);
+  return () => {
+    desuscribir();
+    clearInterval(reloj);
+  };
+}
+
+function html() {
+  const yo = usuarioActual();
+  const hayAlgo = datos.estado.valoraciones.length > 0;
+  if (!hayAlgo) {
+    return `
+      ${cabecera(yo)}
+      <div class="inicio-vacio">
+        <span class="vacio-icono grande">${icono('valorar', { tam: 36, color: 'var(--acento)', trazo: 'var(--acento-suave)' })}</span>
+        <h1 class="inicio-vacio-titulo">Aún no hay nada por aquí</h1>
+        <p class="vacio-texto">Cuando el grupo empiece a valorar, aquí verás qué está jugando cada uno, los juegos mejor valorados y lo último que ha pasado.</p>
+        <a class="boton-principal enlace" href="#valorar">${icono('mas', { tam: 20, color: 'currentColor' })}<span>Valorar mi primer juego</span></a>
+      </div>`;
+  }
+  return `
+    ${cabecera(yo)}
+    <div class="inicio">
+      ${jugandoAhora()}
+      <section class="inicio-seccion">
+        <h2 class="seccion-titulo con-margen">Destacados del grupo</h2>
+        <div class="pestanas" role="tablist" aria-label="Destacados">
+          ${PESTANAS.map((p) => `<button type="button" role="tab" class="pestana${p.id === pestana ? ' activa' : ''}" aria-selected="${p.id === pestana}" data-pestana="${p.id}">${p.nombre}</button>`).join('')}
+        </div>
+        ${destacados()}
+      </section>
+      ${actividad()}
+    </div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Jugando ahora: un juego por usuario (el más reciente en estado Jugando)
+// ---------------------------------------------------------------------------
+function jugandoAhora() {
+  const porUsuario = new Map();
+  for (const v of datos.estado.valoraciones) {
+    if (v.estado !== 'jugando' || !datos.usuario(v.usuario_id)) continue;
+    const prev = porUsuario.get(v.usuario_id);
+    if (!prev || new Date(v.actualizado_en) > new Date(prev.actualizado_en)) porUsuario.set(v.usuario_id, v);
+  }
+  const lista = [...porUsuario.values()]
+    .sort((a, b) => new Date(b.actualizado_en) - new Date(a.actualizado_en))
+    .map((v) => ({ v, j: datos.juegoConocido(v.juego_id), u: datos.usuario(v.usuario_id) }))
+    .filter((x) => x.j);
+
+  const contenido = lista.length
+    ? `<div class="carrusel" data-scroll="jugando">
+        ${lista.map(({ j, u }, i) => `
+          <a class="tarjeta-jugando" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}">
+            <div class="tarjeta-jugando-portada">
+              ${portada(j, { clase: 'portada-jugando', tam: 'cover_small_2x', titulo: 'arriba', deco: true, prioridad: i < 4 })}
+              <span class="tarjeta-avatar">${avatar(u, 30)}</span>
+            </div>
+            <span class="tarjeta-nombre">${esc(u.nombre)}</span>
+          </a>`).join('')}
+      </div>`
+    : `<p class="seccion-vacia">${icono('jugando', { tam: 20, color: 'var(--texto-2)', trazo: 'var(--fondo)' })}<span>Nadie está jugando nada ahora mismo.</span></p>`;
+
+  return `
+    <section class="inicio-seccion">
+      <h2 class="seccion-titulo con-margen">Jugando ahora</h2>
+      ${contenido}
+    </section>`;
+}
+
+// ---------------------------------------------------------------------------
+// Destacados
+// ---------------------------------------------------------------------------
+function candidatos() {
+  const porJuego = new Map();
+  for (const v of datos.estado.valoraciones) {
+    if (!datos.usuario(v.usuario_id)) continue;
+    const id = Number(v.juego_id);
+    if (!porJuego.has(id)) porJuego.set(id, []);
+    porJuego.get(id).push(v);
+  }
+  return [...porJuego.entries()].map(([id, vals]) => {
+    const m = mediaGrupo(vals);
+    return {
+      j: datos.juegoConocido(id),
+      vals,
+      media: m.media,
+      letra: m.letra,
+      votos: m.votos,
+      rec: recomendacionGrupo(vals),
+      jugadores: vals.filter((v) => v.estado !== 'pendiente').length,
+      desviacion: desviacionTipica(vals),
+    };
+  }).filter((x) => x.j);
+}
+
+function destacados() {
+  let lista = candidatos();
+  let vacio = '';
+  if (pestana === 'mejor') {
+    lista = lista.filter((x) => x.votos >= 2).sort((a, b) => b.media - a.media || b.votos - a.votos);
+    vacio = 'Aquí saldrán los juegos con al menos 2 notas del grupo.';
+  } else if (pestana === 'jugados') {
+    lista = lista.filter((x) => x.jugadores > 0).sort((a, b) => b.jugadores - a.jugadores || (b.media ?? -1) - (a.media ?? -1));
+    vacio = 'Aquí saldrán los juegos que más gente del grupo ha jugado.';
+  } else {
+    lista = lista.filter((x) => x.desviacion !== null).sort((a, b) => b.desviacion - a.desviacion || b.votos - a.votos);
+    vacio = 'Cuando dos o más personas puntúen el mismo juego, aquí saldrán los que más dividen al grupo.';
+  }
+  lista = lista.slice(0, MAX_DESTACADOS);
+
+  if (!lista.length) {
+    return `<div data-ref="destacados"><p class="seccion-vacia">${icono('rankings', { tam: 20, color: 'var(--texto-2)' })}<span>${vacio}</span></p></div>`;
+  }
+
+  return `
+    <div class="carrusel" data-ref="destacados" data-scroll="destacados-${pestana}">
+      ${lista.map((x, i) => tarjetaDestacado(x, i)).join('')}
+    </div>`;
+}
+
+function tarjetaDestacado(x, i) {
+  const opinan = x.vals
+    .filter((v) => v.recomendado === true || v.recomendado === false)
+    .sort((a, b) => Number(b.recomendado) - Number(a.recomendado));
+  const extra = pestana === 'jugados'
+    ? `${x.jugadores} ${x.jugadores === 1 ? 'jugador' : 'jugadores'}`
+    : x.rec.total ? `${x.rec.si} de ${x.rec.total}` : '';
+  return `
+    <a class="tarjeta-destacado" href="#juego/${x.j.igdb_id}" data-precarga="${esc(x.j.cover_id ?? '')}">
+      ${portada(x.j, { clase: 'portada-destacado', tam: 'cover_small_2x', titulo: 'abajo', deco: true, prioridad: i < 3 })}
+      <div class="destacado-nota">
+        ${x.media !== null ? notaConLetra(x.media, 'md2') : '<span class="destacado-sin-nota">Sin nota</span>'}
+        ${extra ? `<span class="destacado-extra">${extra}</span>` : ''}
+      </div>
+      ${opinan.length ? `
+        <div class="pila-avatares mini" role="img" aria-label="Lo recomiendan ${x.rec.si} de ${x.rec.total}">
+          ${opinan.map((v) => avatarInsignia(datos.usuario(v.usuario_id), v.recomendado, 18)).join('')}
+        </div>` : ''}
+    </a>`;
+}
+
+// ---------------------------------------------------------------------------
+// Actividad reciente
+// ---------------------------------------------------------------------------
+function actividad() {
+  const ahora = new Date();
+  const filas = datos.estado.actividad
+    .slice()
+    .sort((a, b) => new Date(b.creado_en) - new Date(a.creado_en))
+    .map((a) => ({ a, u: datos.usuario(a.usuario_id), j: datos.juegoConocido(a.juego_id) }))
+    .filter((x) => x.u && x.j)
+    .slice(0, MAX_ACTIVIDAD);
+
+  const contenido = filas.length
+    ? filas.map(({ a, u, j }) => `
+        <a class="actividad-fila" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}">
+          ${avatar(u, 36)}
+          <div class="actividad-texto">
+            <span class="actividad-frase"><strong>${esc(u.nombre)}</strong> ${VERBOS[a.tipo] ?? 'actualizó'} <strong>${esc(j.nombre)}</strong></span>
+            ${a.nota != null || a.recomendado != null ? `
+              <div class="actividad-nota">
+                ${a.nota != null ? notaConLetra(a.nota, 'act') : ''}
+                ${iconoRecomendacion(a.recomendado, 16)}
+              </div>` : ''}
+            ${a.texto ? `<p class="actividad-resena">«${esc(a.texto)}»</p>` : ''}
+            <span class="actividad-tiempo" data-fecha="${esc(a.creado_en)}">${tiempoRelativo(a.creado_en, ahora)}</span>
+          </div>
+          ${portada(j, { clase: 'portada-actividad', tam: 'cover_small' })}
+        </a>`).join('')
+    : `<p class="seccion-vacia">${icono('pendiente', { tam: 20, color: 'var(--texto-2)', trazo: 'var(--fondo)' })}<span>Todavía no hay actividad.</span></p>`;
+
+  return `
+    <section class="inicio-seccion actividad">
+      <h2 class="seccion-titulo">Actividad reciente</h2>
+      ${contenido}
+    </section>`;
+}

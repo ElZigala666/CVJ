@@ -3,6 +3,7 @@ import { icono } from '../icons.js';
 import { buscarJuegos } from '../igdb.js';
 import * as datos from '../datos.js';
 import { esc, portada, notaConLetra, skeletonFila } from '../ui.js';
+import { abrirValorar } from '../hoja-valorar.js';
 
 const PLATAFORMAS = ['Todas', 'PS5', 'PS4', 'PC', 'Xbox', 'Switch'];
 const ESPERA_MS = 300;
@@ -15,7 +16,6 @@ const memoria = {
   resultados: null,   // array o null (sin búsqueda)
   cargando: false,
   error: null,
-  scroll: 0,
 };
 const cache = new Map(); // texto normalizado → resultados
 
@@ -29,11 +29,13 @@ function tienePlataforma(juego, p) {
   return p === 'Todas' || (juego.plataformas || []).some((x) => x === p || x.startsWith(`${p} `));
 }
 
-export function render(el) {
+export function render(el, { ruta } = {}) {
+  // Modo valorar (botón central): mismo buscador, pero tocar un resultado abre la hoja.
+  const modoValorar = ruta === 'valorar';
   el.innerHTML = `
     <section class="buscar">
       <div class="buscar-cab">
-        <h1 class="titulo-pantalla">Buscar</h1>
+        <h1 class="titulo-pantalla">${modoValorar ? '¿Qué juego quieres valorar?' : 'Buscar'}</h1>
         <div class="campo-busqueda">
           ${icono('buscar', { tam: 20, color: 'var(--texto-2)' })}
           <label for="q" class="sr">Buscar juego</label>
@@ -86,7 +88,7 @@ export function render(el) {
       return;
     }
     const n = filtrados.length;
-    lista.innerHTML = `<span class="lista-cuenta">${n} ${n === 1 ? 'resultado' : 'resultados'}</span>${filtrados.map(fila).join('')}`;
+    lista.innerHTML = `<span class="lista-cuenta">${n} ${n === 1 ? 'resultado' : 'resultados'}</span>${filtrados.map((j, i) => fila(j, i, modoValorar)).join('')}`;
   };
 
   const lanzarBusqueda = async () => {
@@ -104,6 +106,7 @@ export function render(el) {
       const res = await buscarJuegos(texto, propio.signal);
       if (propio.signal.aborted) return;
       cache.set(k, res);
+      datos.recordarParciales(res);
       Object.assign(memoria, { resultados: res, cargando: false, error: null });
     } catch (e) {
       if (propio.signal.aborted || e.name === 'AbortError') return;
@@ -148,6 +151,12 @@ export function render(el) {
   });
 
   lista.addEventListener('click', (e) => {
+    const valorar = e.target.closest('[data-valorar]');
+    if (valorar) {
+      e.preventDefault();
+      abrirValorar(valorar.dataset.valorar);
+      return;
+    }
     if (e.target.closest('[data-accion="reintentar"]')) {
       memoria.cargando = true;
       memoria.error = null;
@@ -168,7 +177,7 @@ export function render(el) {
     lanzarBusqueda();
   }
   pintar();
-  if (!memoria.texto) requestAnimationFrame(() => input.focus({ preventScroll: true }));
+  if (!memoria.texto || modoValorar) requestAnimationFrame(() => input.focus({ preventScroll: true }));
 
   return () => {
     desuscribir();
@@ -182,23 +191,28 @@ export function render(el) {
   };
 }
 
-function fila(j) {
+function fila(j, i, modoValorar) {
   const s = datos.statsJuego(j.igdb_id);
   const meta = [j.anio, (j.plataformas || []).join(', ')].filter(Boolean).join(' · ');
   const grupo = s.votos
     ? `<div class="fila-grupo">${notaConLetra(s.media, 'sm')}<span class="fila-sub">${s.votos} del grupo</span></div>`
     : `<span class="fila-sub">${s.jugadores ? `${s.jugadores} del grupo, sin nota todavía` : 'Nadie del grupo lo ha jugado'}</span>`;
   const href = `#juego/${j.igdb_id}`;
+  const cover = esc(j.cover_id ?? '');
+  // En modo valorar, toda la fila abre la hoja; si no, abre la ficha (precargando la portada grande).
+  const enlaceFila = modoValorar
+    ? `<a class="fila-enlace" href="${href}" data-valorar="${j.igdb_id}">`
+    : `<a class="fila-enlace" href="${href}" data-precarga="${cover}">`;
   return `
     <div class="fila-juego">
-      <a class="fila-enlace" href="${href}">
-        ${portada(j, 'lista')}
+      ${enlaceFila}
+        ${portada(j, { clase: 'portada-lista', tam: 'cover_small', prioridad: i < 6 })}
         <div class="fila-info">
           <span class="fila-titulo">${esc(j.nombre)}</span>
           ${meta ? `<span class="fila-meta">${esc(meta)}</span>` : ''}
           ${grupo}
         </div>
       </a>
-      <a class="boton-mas" href="${href}" aria-label="Valorar ${esc(j.nombre)}">${icono('mas', { tam: 20, color: 'var(--acento-texto)' })}</a>
+      <button type="button" class="boton-mas" data-valorar="${j.igdb_id}" aria-label="Valorar ${esc(j.nombre)}">${icono('mas', { tam: 20, color: 'var(--acento-texto)' })}</button>
     </div>`;
 }

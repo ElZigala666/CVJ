@@ -4,6 +4,7 @@ import { usuarioActual, salir, refrescarUsuario } from './sesion.js';
 import * as datos from './datos.js';
 import { aplicarAcento } from './ui.js';
 import * as entrada from './pantallas/entrada.js';
+import * as inicio from './pantallas/inicio.js';
 import * as buscar from './pantallas/buscar.js';
 import * as juego from './pantallas/juego.js';
 import * as provisional from './pantallas/provisional.js';
@@ -12,9 +13,9 @@ const vista = document.getElementById('vista');
 const barra = document.getElementById('barra');
 
 const RUTAS = {
-  inicio: provisional,
+  inicio,
   buscar,
-  valorar: provisional,
+  valorar: buscar, // el botón central abre Buscar en modo valorar
   rankings: provisional,
   perfil: provisional,
   juego,
@@ -26,8 +27,9 @@ const PESTANAS = [
   ['rankings', 'Rankings'],
   ['perfil', 'Perfil'],
 ];
-// La ficha de juego se abre desde Buscar: la pestaña Buscar sigue marcada.
-const PESTANA_DE = { juego: 'buscar' };
+// Rutas que se ven a pantalla completa, sin la barra inferior (la ficha tiene la suya).
+const SIN_BARRA = new Set(['juego']);
+const REFRESCO_MS = 60_000;
 
 let limpiar = null;
 let datosIniciados = false;
@@ -45,7 +47,7 @@ function pintarBarra() {
 }
 
 function marcarBarra(ruta) {
-  const activa = PESTANA_DE[ruta] || ruta;
+  const activa = ruta;
   for (const a of barra.querySelectorAll('[data-ruta]')) {
     const on = a.dataset.ruta === activa;
     a.classList.toggle('activa', on);
@@ -91,9 +93,9 @@ function navegar() {
   const { ruta, params } = leerRuta();
   const pedida = location.hash.replace(/^#\/?/, '').split('/')[0];
   if (pedida !== ruta) history.replaceState(null, '', `#${ruta}`);
-  montar(RUTAS[ruta], { ruta, params, alSalir }, true);
+  montar(RUTAS[ruta], { ruta, params, alSalir }, !SIN_BARRA.has(ruta));
   marcarBarra(ruta);
-  document.title = `CVJ · ${ruta === 'juego' ? 'Juego' : ruta[0].toUpperCase() + ruta.slice(1)}`;
+  if (ruta !== 'juego') document.title = `CVJ · ${ruta[0].toUpperCase() + ruta.slice(1)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -135,8 +137,12 @@ function iniciarDatos() {
 pintarBarra();
 aplicarAcento(usuarioActual()?.acento);
 window.addEventListener('hashchange', navegar);
-// Al volver a la app tras un rato, refrescar en segundo plano.
+// Refresco en segundo plano: al volver a la app y cada minuto mientras se ve.
+// Si no ha cambiado nada, datos.js no repinta.
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && usuarioActual()) datos.refrescar();
 });
+setInterval(() => {
+  if (document.visibilityState === 'visible' && usuarioActual() && datosIniciados) datos.refrescar();
+}, REFRESCO_MS);
 navegar();

@@ -3,18 +3,6 @@ import { cabecera, estadoVacio, avatar, esc } from '../ui.js';
 import { usuarioActual } from '../sesion.js';
 
 const TEXTOS = {
-  inicio: {
-    icono: 'inicio',
-    titulo: 'Aquí verás qué juega el grupo',
-    texto: 'Lo que está jugando cada uno, los destacados y la actividad reciente llegan en la próxima fase. De momento, busca un juego.',
-    boton: { href: '#buscar', texto: 'Buscar un juego' },
-  },
-  valorar: {
-    icono: 'valorar',
-    titulo: 'Valorar llega muy pronto',
-    texto: 'Podrás puntuar con nota o con letra, recomendar y escribir una reseña. Mientras tanto, busca el juego que quieres valorar.',
-    boton: { href: '#buscar', texto: 'Buscar un juego' },
-  },
   rankings: {
     icono: 'rankings',
     titulo: 'Rankings del grupo',
@@ -28,7 +16,7 @@ const TEXTOS = {
 };
 
 export function render(el, { ruta, alSalir }) {
-  const t = TEXTOS[ruta] || TEXTOS.inicio;
+  const t = TEXTOS[ruta] || TEXTOS.perfil;
   const u = usuarioActual();
   const boton = t.boton
     ? `<a class="boton-secundario" href="${t.boton.href}">${esc(t.boton.texto)}</a>`

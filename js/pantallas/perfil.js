@@ -159,7 +159,7 @@ function renderPerfil(el, id, alSalir) {
       abrirValorar(b.dataset.valorarPsn, { plataforma: b.dataset.plataforma || undefined });
       return;
     }
-    if (b.dataset.accion === 'vincular-psn') { abrirAjustes(alSalir); return; }
+    if (b.dataset.accion === 'vincular-psn') { abrirAjustes(alSalir, { psn: true }); return; }
     if (b.dataset.pestana) {
       pestanaRecordada.set(id, b.dataset.pestana);
       const u = datos.usuario(id) ?? yo;
@@ -194,7 +194,9 @@ function bloqueBibliotecas(u, esMio, vinculado, bib) {
         </div>
         <div class="bibliotecas-fila">
           <span>PlayStation</span>
-          <span class="etiqueta-acento">Conectada</span>
+          ${!u.psn_reconectar ? '<span class="etiqueta-acento">Conectada</span>'
+            : esMio ? '<button type="button" class="boton-secundario boton-pequeno" data-accion="vincular-psn">Reconectar</button>'
+            : '<span class="etiqueta-gris">Caducada</span>'}
         </div>
       </div>`;
   }
@@ -213,7 +215,7 @@ function bloqueBibliotecas(u, esMio, vinculado, bib) {
       <div class="bibliotecas-fila">
         <span>PlayStation</span>
         ${esMio && disponible
-          ? '<button type="button" class="boton-secundario boton-pequeno" data-accion="vincular-psn">Vincular</button>'
+          ? '<button type="button" class="boton-secundario boton-pequeno" data-accion="vincular-psn">Conectar</button>'
           : `<span class="etiqueta-gris">${disponible ? 'Sin conectar' : 'Próximamente'}</span>`}
       </div>
     </div>`;

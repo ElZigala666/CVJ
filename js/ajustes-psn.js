@@ -1,55 +1,106 @@
-// Bloque "PlayStation" de la hoja de Ajustes: vincular / cambiar / desvincular,
-// sincronizar ahora, guía de privacidad y (solo admin) estado del token.
+// Bloque "PlayStation" de la hoja de Ajustes.
+// Sin conectar (o con la conexión caducada): asistente de 3 pasos para que cada
+// usuario conecte SU PROPIA cuenta pegando su código (NPSSO).
+// Conectado: ID online, última sincronización, "Sincronizar ahora" y "Desconectar".
 import { icono } from './icons.js';
 import { esc, tiempoRelativo, aviso } from './ui.js';
 import * as datos from './datos.js';
 import * as psn from './psn.js';
 import { usuarioActual } from './sesion.js';
-import { textoHoras } from './metricas.js';
 import * as metricas from './metricas.js';
 
-/** Pasos para renovar el NPSSO (los usan Ajustes y el aviso de Inicio). */
-export function pasosRenovarHtml() {
-  return `
-    <ol class="pasos-lista">
-      <li>En el ordenador, entra en <strong>playstation.com</strong> con la cuenta de PlayStation del token (arriba a la derecha, <em>Iniciar sesión</em>).</li>
-      <li>En el <strong>mismo navegador</strong>, abre <strong>ca.account.sony.com/api/v1/ssocookie</strong>. Sale un texto como <code>{"npsso":"…"}</code>.</li>
-      <li>Copia solo lo que va entre las comillas después de <code>npsso</code> (unos 64 caracteres).</li>
-      <li>En <strong>supabase.com</strong> → tu proyecto → <strong>Edge Functions</strong> → <strong>Secrets</strong>, edita <strong>PSN_NPSSO</strong>, pega el valor nuevo y guarda.</li>
-      <li>Vuelve aquí y pulsa <strong>Comprobar</strong>: debe decir que funciona.</li>
-    </ol>`;
-}
-
-const GUIA_PRIVACIDAD = `
-  <div class="guia-psn">
-    <p>Para que CVJ vea tus juegos, horas y trofeos, en la privacidad de PlayStation tienen que poder verlos <strong>Cualquiera</strong>. Los nombres de los menús cambian un poco según la versión; busca algo así:</p>
-    <p><strong>En la PS5:</strong> Ajustes → Usuarios y cuentas → Privacidad → Ver y personalizar tus ajustes de privacidad. Ahí, en el apartado de tu actividad de juego, pon en <strong>Cualquiera</strong> los <strong>trofeos</strong> y los <strong>juegos a los que juegas</strong>.</p>
-    <p><strong>En la app de PlayStation:</strong> toca tu perfil → el engranaje (Ajustes) → Ajustes de privacidad, y cambia lo mismo.</p>
-    <p>Si prefieres dejarlo en <strong>Solo amigos</strong>, tendrás que ser amigo en PSN de la cuenta que usa CVJ (pregunta al admin cuál es).</p>
-    <p>Después, vuelve aquí y pulsa <strong>Sincronizar ahora</strong>. A veces Sony tarda unos minutos en aplicar el cambio.</p>
-  </div>`;
+const ES_IPHONE = /iPhone|iPad|iPod/.test(navigator.userAgent)
+  || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 function hace(iso) {
   return iso ? tiempoRelativo(iso).replace(/^Ahora$/, 'ahora mismo').toLowerCase() : 'nunca';
 }
 
-/** Monta el bloque en un contenedor de la hoja de Ajustes. */
+const AYUDA_ERROR = `
+  <p>Si en vez de <code>{"npsso":"…"}</code> sale un error, es que <strong>en ese navegador</strong> no hay una sesión de PlayStation iniciada. Repite el paso 1 y luego el 2 en el mismo navegador, sin cerrarlo.</p>
+  <p>Si playstation.com te ofrece abrir la app de PlayStation, di que no y sigue en el navegador: iniciar sesión en la app no sirve.</p>
+  <p class="psn-ayuda-iphone"><strong>En iPhone:</strong> hazlo todo en <strong>Safari</strong>, no en la app de PlayStation. Si al tocar los botones se abre una ventana dentro de CVJ y el paso 2 da error, abre Safari a mano y escribe tú las dos direcciones: <code>playstation.com</code> (inicia sesión) y después <code>ca.account.sony.com/api/v1/ssocookie</code>.</p>`;
+
+/**
+ * Monta el bloque en un contenedor de la hoja de Ajustes.
+ * Devuelve la función para desmontarlo.
+ */
 export function montarPsn(cont) {
   const yo = usuarioActual();
-  const s = { cambiando: false, confirmarQuitar: false, ocupado: null, mensaje: null, error: false, guia: false, estadoAdmin: psn.estadoGuardado() };
+  const s = {
+    paso1: false, paso2: false, ayuda: false,
+    confirmarQuitar: false, ocupado: null, mensaje: null, error: false, borrador: '',
+  };
+
+  const asistente = (reconectar) => `
+    ${reconectar
+      ? '<p class="psn-mensaje error">Tu conexión con PlayStation ha caducado. Repite los tres pasos para reconectar; tu biblioteca se queda como estaba.</p>'
+      : '<p class="ajustes-nota">Conecta tu cuenta para traer tus juegos, horas y trofeos. Nunca se crean valoraciones solas.</p>'}
+    <ol class="psn-pasos">
+      <li class="psn-paso${s.paso1 ? ' hecho' : ''}">
+        <span class="psn-paso-num" aria-hidden="true">${s.paso1 ? icono('completado', { tam: 28, color: 'var(--acento)', trazo: 'var(--sobre-acento)' }) : '1'}</span>
+        <div class="psn-paso-cuerpo">
+          <strong>Inicia sesión</strong>
+          <span>Inicia sesión con tu cuenta y vuelve aquí.</span>
+          <a class="boton-secundario psn-boton-paso" href="${psn.URL_INICIAR_SESION}" target="_blank" rel="noopener noreferrer" data-psn-paso="1">
+            ${icono('externo', { tam: 18, color: 'currentColor' })}<span>Iniciar sesión en PlayStation</span>
+          </a>
+        </div>
+      </li>
+      <li class="psn-paso${s.paso2 ? ' hecho' : ''}">
+        <span class="psn-paso-num" aria-hidden="true">${s.paso2 ? icono('completado', { tam: 28, color: 'var(--acento)', trazo: 'var(--sobre-acento)' }) : '2'}</span>
+        <div class="psn-paso-cuerpo">
+          <strong>Obtén tu código</strong>
+          <span>Copia todo el texto que aparece y vuelve aquí.</span>
+          <a class="boton-secundario psn-boton-paso" href="${psn.URL_CODIGO}" target="_blank" rel="noopener noreferrer" data-psn-paso="2">
+            ${icono('externo', { tam: 18, color: 'currentColor' })}<span>Obtener mi código</span>
+          </a>
+          ${ES_IPHONE ? '<span class="psn-nota-iphone">En iPhone, haz los pasos 1 y 2 en Safari.</span>' : ''}
+          <button type="button" class="enlace-discreto psn-ayuda-boton" data-psn="ayuda" aria-expanded="${s.ayuda}">${s.ayuda ? 'Ocultar ayuda' : '¿Sale un error en vez del código?'}</button>
+          ${s.ayuda ? `<div class="psn-ayuda">${AYUDA_ERROR}</div>` : ''}
+        </div>
+      </li>
+      <li class="psn-paso">
+        <span class="psn-paso-num" aria-hidden="true">3</span>
+        <div class="psn-paso-cuerpo">
+          <label for="psn-codigo"><strong>Pega aquí tu código</strong></label>
+          <textarea id="psn-codigo" class="psn-codigo" rows="3" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+            placeholder='{"npsso":"…"}'>${esc(s.borrador)}</textarea>
+          <div class="psn-form">
+            ${navigator.clipboard?.readText ? `<button type="button" class="boton-secundario neutro psn-pegar" data-psn="pegar">${icono('pegar', { tam: 18, color: 'currentColor', trazo: 'var(--superficie-2)' })}<span>Pegar</span></button>` : ''}
+            <button type="button" class="boton-principal" data-psn="conectar"${s.ocupado ? ' disabled' : ''}>${s.ocupado === 'conectar' ? 'Conectando…' : reconectar ? 'Reconectar' : 'Conectar'}</button>
+          </div>
+        </div>
+      </li>
+    </ol>
+    ${s.mensaje ? `<p class="psn-mensaje${s.error ? ' error' : ''}" role="status">${esc(s.mensaje)}</p>` : ''}
+    <p class="psn-privacidad">${icono('candado', { tam: 16, color: 'var(--texto-2)', trazo: 'var(--fondo)' })}<span>El código se canjea al momento por un permiso de lectura de tu biblioteca y no se guarda.</span></p>`;
+
+  const desconectarHtml = () => s.confirmarQuitar
+    ? `<div class="psn-confirmar" role="group" aria-label="Confirmar desconexión">
+         <p>¿Desconectar PlayStation? Se borran tu conexión y tu biblioteca de CVJ. Tus valoraciones no se tocan.</p>
+         <div class="psn-confirmar-botones">
+           <button type="button" class="boton-secundario neutro" data-psn="no-desconectar">Cancelar</button>
+           <button type="button" class="boton-secundario peligro" data-psn="desconectar"${s.ocupado ? ' disabled' : ''}>${s.ocupado === 'desconectar' ? 'Desconectando…' : 'Sí, desconectar'}</button>
+         </div>
+       </div>`
+    : '<button type="button" class="enlace-discreto psn-desconectar" data-psn="pedir-desconectar">Desconectar</button>';
 
   const pintar = () => {
     const u = yo && datos.usuario(yo.id);
     // Sin la migración de PSN (o sin datos aún) no se enseña nada.
     if (!u || !('psn_account_id' in u)) { cont.innerHTML = ''; return; }
-    const vinculado = !!u.psn_account_id;
+    // Conservar lo que haya escrito en el campo del código al repintar.
+    const campo = cont.querySelector('#psn-codigo');
+    if (campo) s.borrador = campo.value;
+    const conectado = !!u.psn_account_id;
+    const reconectar = conectado && !!u.psn_reconectar;
     const bib = metricas.biblioteca(u.id);
-    const formulario = !vinculado || s.cambiando;
 
     cont.innerHTML = `
-      <section class="ajustes-bloque ajustes-psn">
+      <section class="ajustes-bloque ajustes-psn" id="ajustes-psn">
         <span class="campo-titulo">PlayStation</span>
-        ${vinculado && !s.cambiando ? `
+        ${conectado && !reconectar ? `
           <div class="psn-conectado">
             <span class="psn-icono">${icono('jugando', { tam: 22, color: 'var(--acento)', trazo: 'var(--acento-suave)' })}</span>
             <div class="psn-conectado-texto">
@@ -58,52 +109,9 @@ export function montarPsn(cont) {
             </div>
           </div>
           <button type="button" class="boton-principal" data-psn="sincronizar"${s.ocupado ? ' disabled' : ''}>${s.ocupado === 'sincronizar' ? 'Sincronizando…' : 'Sincronizar ahora'}</button>
-          <div class="psn-acciones">
-            <button type="button" class="enlace-discreto" data-psn="cambiar">Cambiar de ID</button>
-            ${s.confirmarQuitar
-              ? `<span class="psn-confirmar">¿Desvincular y borrar tu biblioteca de CVJ?
-                   <button type="button" class="enlace-discreto peligro" data-psn="desvincular">Sí, desvincular</button>
-                   <button type="button" class="enlace-discreto" data-psn="no-desvincular">No</button></span>`
-              : '<button type="button" class="enlace-discreto" data-psn="pedir-desvincular">Desvincular</button>'}
-          </div>` : ''}
-        ${formulario ? `
-          <p class="ajustes-nota">Escribe tu ID online de PlayStation (el nombre que ven tus amigos) para traer tus juegos, horas y trofeos. Nunca se crean valoraciones solas.</p>
-          <div class="psn-form">
-            <label for="psn-id" class="sr">ID online de PlayStation</label>
-            <input id="psn-id" class="psn-input" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="16"
-              placeholder="Tu ID online" value="${esc(s.cambiando ? u.psn_online_id ?? '' : '')}">
-            <button type="button" class="boton-principal" data-psn="vincular"${s.ocupado ? ' disabled' : ''}>${s.ocupado === 'vincular' ? 'Buscando…' : vinculado ? 'Cambiar' : 'Vincular'}</button>
-          </div>
-          ${s.cambiando ? '<button type="button" class="enlace-discreto" data-psn="cancelar">Cancelar</button>' : ''}` : ''}
-        ${s.mensaje ? `<p class="psn-mensaje${s.error ? ' error' : ''}" role="status">${esc(s.mensaje)}</p>` : ''}
-        <button type="button" class="enlace-discreto" data-psn="guia">${s.guia ? 'Ocultar la guía de privacidad' : 'Cómo hacer visible tu perfil de PlayStation'}</button>
-        ${s.guia ? GUIA_PRIVACIDAD : ''}
-      </section>
-      ${u.es_admin ? bloqueAdmin() : ''}`;
-  };
-
-  const bloqueAdmin = () => {
-    const e = s.estadoAdmin;
-    let texto = 'Comprueba si la conexión con PlayStation funciona.';
-    let mal = false;
-    if (e) {
-      if (e.necesita_npsso || e.codigo === 'npsso_caducado' || e.codigo === 'falta_npsso') {
-        texto = e.codigo === 'falta_npsso' ? 'Falta el secreto PSN_NPSSO en Supabase.' : 'El NPSSO ha caducado: hay que poner uno nuevo.';
-        mal = true;
-      } else if (e.codigo === 'sin_funcion') {
-        texto = 'La función psn aún no está desplegada en Supabase.'; mal = true;
-      } else if (!e.ok || !e.funciona) {
-        texto = `No funciona ahora mismo${e.mensaje ? `: ${e.mensaje}` : ''}.`; mal = true;
-      } else {
-        texto = `Funciona. ${e.refresh_dias_restantes != null ? `El acceso se renueva solo durante ${e.refresh_dias_restantes} días más; después hará falta un NPSSO nuevo.` : ''}`;
-      }
-    }
-    return `
-      <section class="ajustes-bloque ajustes-admin">
-        <span class="campo-titulo">Estado de PSN <span class="etiqueta-gris">Admin</span></span>
-        <p class="psn-mensaje${mal ? ' error' : ''}">${esc(texto)}</p>
-        <button type="button" class="boton-secundario neutro" data-psn="estado"${s.ocupado ? ' disabled' : ''}>${s.ocupado === 'estado' ? 'Comprobando…' : 'Comprobar'}</button>
-        ${mal ? pasosRenovarHtml() : ''}
+          ${s.mensaje ? `<p class="psn-mensaje${s.error ? ' error' : ''}" role="status">${esc(s.mensaje)}</p>` : ''}
+          ${desconectarHtml()}` : asistente(reconectar)}
+        ${reconectar ? desconectarHtml() : ''}
       </section>`;
   };
 
@@ -121,27 +129,54 @@ export function montarPsn(cont) {
   };
 
   cont.addEventListener('click', async (e) => {
+    const paso = e.target.closest('[data-psn-paso]');
+    if (paso) {
+      // El enlace se abre solo (pestaña nueva); aquí solo se marca el paso como hecho.
+      s[`paso${paso.dataset.psnPaso}`] = true;
+      setTimeout(pintar, 300);
+      return;
+    }
     const b = e.target.closest('[data-psn]');
     if (!b || !yo) return;
     const a = b.dataset.psn;
-    if (a === 'guia') { s.guia = !s.guia; pintar(); return; }
-    if (a === 'cambiar') { s.cambiando = true; s.mensaje = null; pintar(); cont.querySelector('#psn-id')?.focus(); return; }
-    if (a === 'cancelar') { s.cambiando = false; pintar(); return; }
-    if (a === 'pedir-desvincular') { s.confirmarQuitar = true; pintar(); return; }
-    if (a === 'no-desvincular') { s.confirmarQuitar = false; pintar(); return; }
+    if (a === 'ayuda') { s.ayuda = !s.ayuda; pintar(); return; }
+    if (a === 'pedir-desconectar') { s.confirmarQuitar = true; pintar(); return; }
+    if (a === 'no-desconectar') { s.confirmarQuitar = false; pintar(); return; }
 
-    if (a === 'vincular') {
-      const id = cont.querySelector('#psn-id')?.value.trim();
-      if (!id) { s.mensaje = 'Escribe tu ID online.'; s.error = true; pintar(); return; }
-      const r = await ejecutar('vincular', () => psn.vincular(yo.id, id));
-      if (r.ok) {
-        s.cambiando = false;
-        s.mensaje = `Vinculado como ${r.online_id}. Sincronizando…`;
-        s.error = false;
+    if (a === 'pegar') {
+      try {
+        const texto = await navigator.clipboard.readText();
+        const campo = cont.querySelector('#psn-codigo');
+        if (campo && texto) { campo.value = texto.trim(); s.borrador = campo.value; }
+      } catch {
+        s.mensaje = 'No se ha podido leer el portapapeles. Mantén pulsado el campo y elige Pegar.';
+        s.error = true;
         pintar();
-        const r2 = await ejecutar('sincronizar', () => psn.sincronizar(yo.id));
-        s.mensaje = r2.ok ? resumen(r2) : psn.mensajePsn(r2);
-        s.guia = r2.codigo === 'privado' || s.guia;
+      }
+      return;
+    }
+
+    if (a === 'conectar') {
+      const texto = cont.querySelector('#psn-codigo')?.value ?? '';
+      s.borrador = texto;
+      const v = psn.extraerNpsso(texto);
+      if (v.error) { s.mensaje = v.error; s.error = true; pintar(); return; }
+      s.mensaje = null;
+      const r = await ejecutar('conectar', async () => {
+        // Mientras tanto, que se sepa que puede tardar.
+        const nota = cont.querySelector('.psn-privacidad');
+        nota?.insertAdjacentHTML('beforebegin', '<p class="psn-mensaje" role="status">Conectando y trayendo tus juegos. La primera vez puede tardar hasta un minuto.</p>');
+        return psn.conectar(yo.id, v.npsso);
+      });
+      if (r.ok) {
+        s.borrador = '';
+        s.paso1 = s.paso2 = false;
+        const sinc = r.sincronizacion;
+        s.mensaje = sinc?.ok
+          ? `Conectado como ${r.online_id}. ${resumen(sinc)}`
+          : `Conectado como ${r.online_id}, pero la primera sincronización ha fallado: ${psn.mensajePsn(sinc)} Pulsa «Sincronizar ahora» en un rato.`;
+        s.error = !sinc?.ok;
+        aviso('PlayStation conectada');
       } else {
         s.mensaje = psn.mensajePsn(r);
       }
@@ -151,20 +186,14 @@ export function montarPsn(cont) {
     if (a === 'sincronizar') {
       const r = await ejecutar('sincronizar', () => psn.sincronizar(yo.id));
       s.mensaje = r.ok ? resumen(r) : psn.mensajePsn(r);
-      if (r.codigo === 'privado') s.guia = true;
       pintar();
       return;
     }
-    if (a === 'desvincular') {
-      const r = await ejecutar('desvincular', () => psn.desvincular(yo.id));
-      s.confirmarQuitar = false;
-      s.mensaje = r.ok ? 'Cuenta de PlayStation desvinculada.' : psn.mensajePsn(r);
-      if (r.ok) aviso('PlayStation desvinculada');
-      pintar();
-      return;
-    }
-    if (a === 'estado') {
-      s.estadoAdmin = await ejecutar('estado', () => psn.pedirEstado());
+    if (a === 'desconectar') {
+      const r = await ejecutar('desconectar', () => psn.desconectar(yo.id));
+      s.confirmarQuitar = !r.ok && s.confirmarQuitar;
+      s.mensaje = r.ok ? null : psn.mensajePsn(r);
+      if (r.ok) aviso('PlayStation desconectada');
       pintar();
     }
   });
@@ -176,7 +205,7 @@ export function montarPsn(cont) {
 
 function resumen(r) {
   const partes = [`Sincronizado: ${r.juegos} ${r.juegos === 1 ? 'juego' : 'juegos'}`];
-  if (r.horas) partes.push(textoHoras(r.horas));
+  if (r.horas) partes.push(metricas.textoHoras(r.horas));
   if (r.sin_emparejar) partes.push(`${r.sin_emparejar} sin emparejar (puedes elegirlos en tu perfil)`);
   return partes.join(' · ') + '.';
 }

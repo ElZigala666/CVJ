@@ -6,6 +6,7 @@ import { aplicarAcento } from './ui.js';
 import { iniciarInstalacion } from './instalar.js';
 import { iniciarTema } from './tema.js';
 import * as psn from './psn.js';
+import { abrirAjustes } from './ajustes.js';
 import * as entrada from './pantallas/entrada.js';
 import * as inicio from './pantallas/inicio.js';
 import * as buscar from './pantallas/buscar.js';
@@ -135,9 +136,8 @@ function iniciarDatos() {
   if (datosIniciados) return;
   datosIniciados = true;
   if (!suscrito) suscrito = !!datos.suscribir(() => {
-    // PlayStation: sincronización automática y estado del token (admin), en segundo plano.
+    // PlayStation: sincronización automática, en segundo plano.
     psn.revisarAutomatico();
-    psn.revisarAdmin();
     // Si cambian mis datos (nombre, color, acento) en el servidor, actualizarlos aquí.
     const yo = usuarioActual();
     const fresco = yo && datos.usuario(yo.id);
@@ -157,6 +157,8 @@ iniciarInstalacion();
 pintarBarra();
 aplicarAcento(usuarioActual()?.acento);
 window.addEventListener('hashchange', navegar);
+// "Reconectar" PlayStation (aviso de Inicio): Ajustes abierta en el asistente.
+window.addEventListener('cvj:psn-asistente', () => { if (usuarioActual()) abrirAjustes(alSalir, { psn: true }); });
 // Refresco en segundo plano: al volver a la app y cada minuto mientras se ve.
 // Si no ha cambiado nada, datos.js no repinta.
 document.addEventListener('visibilitychange', () => {

@@ -3,20 +3,23 @@
 // Todo en un archivo para pegarlo en el editor de funciones del panel de Supabase.
 // Desplegar con "Verify JWT" / "Enforce JWT verification" DESACTIVADO.
 //
-// Secreto necesario: PSN_NPSSO (cookie "npsso" de una cuenta de PlayStation).
-// SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY los inyecta Supabase.
+// Cada usuario conecta SU PROPIA cuenta: pega su NPSSO, se canjea al momento por
+// un access token y un refresh token (que se guardan en psn_cuentas, solo service
+// role) y el NPSSO se descarta. Después se leen SUS juegos y trofeos con "me",
+// así que no depende de la privacidad de su perfil.
+// No hace falta ningún secreto propio: SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY
+// los inyecta Supabase.
 //
 // Llama a los mismos endpoints que la librería psn-api 2.18.1
-// (https://github.com/achievements-app/psn-api), pero con fetch directamente:
-// así no dependemos de cómo se comporte el paquete en el runtime de Supabase.
+// (https://github.com/achievements-app/psn-api), pero con fetch directamente.
 //
 // Peticiones (POST, JSON). Respuesta siempre JSON: { ok: true, ... } o
-// { ok: false, codigo, error }. Los códigos esperables (privado, no_existe,
-// npsso_caducado...) van con estado 200 para que la app los trate con calma.
-//   { "accion": "estado" }
-//   { "accion": "vincular", "usuario_id": "...", "online_id": "MiIDdePSN" }
-//   { "accion": "desvincular", "usuario_id": "..." }
+// { ok: false, codigo, error }. Los códigos esperables (codigo_no_valido,
+// reconectar, sin_conectar...) van con estado 200 para que la app los trate con calma.
+//   { "accion": "conectar", "usuario_id": "...", "npsso": "..." }
 //   { "accion": "sincronizar", "usuario_id": "..." }
+//   { "accion": "desconectar", "usuario_id": "..." }
+//   { "accion": "estado", "usuario_id": "..." }   (sin tokens: para probar)
 // =============================================================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -60,34 +63,20 @@ const SCOPE = "psn:mobile.v2.core psn:clientapp";
 const BASIC = "Basic MDk1MTUxNTktNzIzNy00MzcwLTliNDAtMzgwNmU2N2MwODkxOnVjUGprYTV0bnRCMktxc1A=";
 const MARGEN_MS = 2 * 60 * 1000;
 
-type FilaToken = { access_token: string; refresh_token: string; expira_en: string; refresh_expira_en: string };
-let tokenMemoria: FilaToken | null = null;
+type Tokens = { access_token: string; refresh_token?: string; expires_in: number; refresh_token_expires_in?: number };
+type Cuenta = {
+  usuario_id: string;
+  account_id: string;
+  online_id: string;
+  access_token: string;
+  refresh_token: string;
+  expira_en: string;
+  refresh_expira_en: string;
+};
 
 const caduca = (iso?: string) => (iso ? new Date(iso).getTime() : 0);
 
-async function leerToken(): Promise<FilaToken | null> {
-  if (tokenMemoria) return tokenMemoria;
-  const { data, error } = await sb.from("psn_token").select("access_token, refresh_token, expira_en, refresh_expira_en").eq("id", 1).maybeSingle();
-  if (error) console.error("Leyendo psn_token:", error.message);
-  tokenMemoria = data ?? null;
-  return tokenMemoria;
-}
-
-async function guardarToken(t: { access_token: string; refresh_token: string; expires_in: number; refresh_token_expires_in: number }) {
-  const ahora = Date.now();
-  const fila: FilaToken = {
-    access_token: t.access_token,
-    refresh_token: t.refresh_token,
-    expira_en: new Date(ahora + t.expires_in * 1000).toISOString(),
-    refresh_expira_en: new Date(ahora + t.refresh_token_expires_in * 1000).toISOString(),
-  };
-  tokenMemoria = fila;
-  const { error } = await sb.from("psn_token").upsert({ id: 1, ...fila, actualizado_en: new Date().toISOString() });
-  if (error) console.error("Guardando psn_token:", error.message);
-  return fila;
-}
-
-async function pedirTokens(cuerpo: Record<string, string>) {
+async function pedirTokens(cuerpo: Record<string, string>): Promise<Tokens | null> {
   const r = await fetch(`${AUTH}/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded", Authorization: BASIC },
@@ -95,94 +84,142 @@ async function pedirTokens(cuerpo: Record<string, string>) {
   });
   const d = await r.json().catch(() => ({}));
   if (!r.ok || !d.access_token) return null;
-  return d as { access_token: string; refresh_token: string; expires_in: number; refresh_token_expires_in: number };
+  return d as Tokens;
 }
 
-/** NPSSO → tokens nuevos. Lanza npsso_caducado si Sony no lo acepta. */
-async function tokensDesdeNpsso() {
-  const npsso = (Deno.env.get("PSN_NPSSO") ?? "").trim();
-  if (!npsso) throw new ErrorPsn("falta_npsso", "Falta el secreto PSN_NPSSO en Supabase.");
+/** Aplica unos tokens nuevos a la cuenta (si Sony no manda refresh token nuevo, se queda el de antes). */
+function aplicarTokens(c: Cuenta, t: Tokens) {
+  const ahora = Date.now();
+  c.access_token = t.access_token;
+  c.expira_en = new Date(ahora + Number(t.expires_in ?? 3600) * 1000).toISOString();
+  if (t.refresh_token) c.refresh_token = t.refresh_token;
+  if (t.refresh_token_expires_in) c.refresh_expira_en = new Date(ahora + t.refresh_token_expires_in * 1000).toISOString();
+}
+
+const CODIGO_NO_VALIDO = "Ese código no vale: puede que haya caducado o que no sea el de tu sesión. Vuelve a abrir los pasos 1 y 2 y copia el código otra vez.";
+
+/** Saca el NPSSO de lo que pegue la persona: el JSON entero o el valor suelto. */
+function extraerNpsso(texto: string): string {
+  const t = String(texto ?? "").trim();
+  const m = t.match(/"?npsso"?\s*[:=]\s*"?([A-Za-z0-9_-]+)/i);
+  return (m ? m[1] : t).replace(/[\s"'{}]/g, "");
+}
+
+/** NPSSO → tokens. El NPSSO no se guarda en ningún sitio: se usa aquí y se olvida. */
+async function canjearNpsso(npsso: string): Promise<Tokens> {
+  if (!/^[A-Za-z0-9_-]{40,128}$/.test(npsso)) throw new ErrorPsn("codigo_no_valido", CODIGO_NO_VALIDO);
   const url = `${AUTH}/authorize?` + new URLSearchParams({
     access_type: "offline", client_id: CLIENT_ID, redirect_uri: REDIRECT, response_type: "code", scope: SCOPE,
   });
   const r = await fetch(url, { headers: { Cookie: `npsso=${npsso}` }, redirect: "manual" });
   const destino = r.headers.get("location") ?? "";
-  const codigo = destino.includes("?code=") ? new URLSearchParams(destino.split("redirect/")[1] ?? destino.split("?")[1]).get("code") : null;
-  if (!codigo) {
-    throw new ErrorPsn("npsso_caducado", "El NPSSO de PlayStation ha caducado o no es válido. Hay que poner uno nuevo en Supabase.");
-  }
+  const codigo = destino.includes("?code=") ? new URLSearchParams(destino.split("?")[1]).get("code") : null;
+  if (!codigo) throw new ErrorPsn("codigo_no_valido", CODIGO_NO_VALIDO);
   const t = await pedirTokens({ code: codigo, redirect_uri: REDIRECT, grant_type: "authorization_code", token_format: "jwt" });
-  if (!t) throw new ErrorPsn("npsso_caducado", "Sony no ha dado los tokens con este NPSSO. Hay que poner uno nuevo.");
-  return guardarToken(t);
+  if (!t?.refresh_token) throw new ErrorPsn("codigo_no_valido", CODIGO_NO_VALIDO);
+  return t;
 }
 
-/** Token de acceso válido: el guardado, renovado con el refresh token o, si no, desde el NPSSO. */
-async function tokenAcceso(forzar = false): Promise<string> {
-  const ahora = Date.now();
-  const t = await leerToken();
-  if (!forzar && t && caduca(t.expira_en) - MARGEN_MS > ahora) return t.access_token;
-  if (t && caduca(t.refresh_expira_en) - MARGEN_MS > ahora) {
-    const nuevo = await pedirTokens({ refresh_token: t.refresh_token, grant_type: "refresh_token", token_format: "jwt", scope: SCOPE });
-    if (nuevo) return (await guardarToken(nuevo)).access_token;
-    console.warn("El refresh token no ha funcionado; se usa el NPSSO.");
-  }
-  return (await tokensDesdeNpsso()).access_token;
+async function marcarReconectar(usuarioId: string) {
+  const { error } = await sb.from("usuarios").update({ psn_reconectar: true }).eq("id", usuarioId);
+  if (error) console.error("Marcando psn_reconectar:", error.message);
 }
+
+const errorReconectar = () =>
+  new ErrorPsn("reconectar", "Tu conexión con PlayStation ha caducado. Vuelve a conectarla desde Ajustes → PlayStation.");
 
 // -----------------------------------------------------------------------------
-// Llamadas a la API de PlayStation
+// Llamadas a la API de PlayStation con los tokens de UN usuario
 // -----------------------------------------------------------------------------
 type RespuestaSony = { ok: boolean; status: number; datos: any };
 
-async function sony(url: string, op: { method?: string; body?: unknown } = {}): Promise<RespuestaSony> {
-  const pedir = async (tk: string) => {
-    const r = await fetch(url, {
-      method: op.method ?? "GET",
-      headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json", "Accept-Language": "es-ES" },
-      body: op.body ? JSON.stringify(op.body) : undefined,
-    });
-    return { ok: r.ok, status: r.status, datos: await r.json().catch(() => null) };
-  };
-  let r = await pedir(await tokenAcceso());
-  if (r.status === 401) r = await pedir(await tokenAcceso(true)); // token revocado: otro
-  return r;
-}
+class SesionPsn {
+  /** guardar = false mientras se conecta (la fila aún no existe). */
+  constructor(public c: Cuenta, public guardar = true) {}
 
-/** ¿El error de Sony es por privacidad del perfil? */
-function esPrivado(r: RespuestaSony) {
-  const txt = JSON.stringify(r.datos ?? "").toLowerCase();
-  return r.status === 403 || txt.includes("not permitted") || txt.includes("access control") || txt.includes("2240526") || txt.includes("privacy");
+  async token(forzar = false): Promise<string> {
+    const ahora = Date.now();
+    if (!forzar && caduca(this.c.expira_en) - MARGEN_MS > ahora) return this.c.access_token;
+    if (caduca(this.c.refresh_expira_en) - MARGEN_MS > ahora) {
+      const nuevo = await pedirTokens({ refresh_token: this.c.refresh_token, grant_type: "refresh_token", token_format: "jwt", scope: SCOPE });
+      if (nuevo) {
+        aplicarTokens(this.c, nuevo);
+        if (this.guardar) {
+          const { error } = await sb.from("psn_cuentas").update({
+            access_token: this.c.access_token,
+            refresh_token: this.c.refresh_token,
+            expira_en: this.c.expira_en,
+            refresh_expira_en: this.c.refresh_expira_en,
+            actualizado_en: new Date().toISOString(),
+          }).eq("usuario_id", this.c.usuario_id);
+          if (error) console.error("Guardando tokens:", error.message);
+        }
+        return this.c.access_token;
+      }
+    }
+    // El refresh token ha caducado o Sony lo ha revocado: hay que volver a conectar.
+    if (this.guardar) await marcarReconectar(this.c.usuario_id);
+    throw errorReconectar();
+  }
+
+  async get(url: string): Promise<RespuestaSony> {
+    const pedir = async (tk: string) => {
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${tk}`, "Accept-Language": "es-ES" } });
+      return { ok: r.ok, status: r.status, datos: await r.json().catch(() => null) };
+    };
+    let r = await pedir(await this.token());
+    if (r.status === 401) {
+      r = await pedir(await this.token(true)); // token revocado: renovarlo una vez
+      if (r.status === 401) {
+        if (this.guardar) await marcarReconectar(this.c.usuario_id);
+        throw errorReconectar();
+      }
+    }
+    return r;
+  }
 }
 
 function errorSony(r: RespuestaSony, que: string): never {
-  if (esPrivado(r)) {
-    throw new ErrorPsn("privado", "El perfil de PlayStation es privado: hay que dejar ver los juegos y los trofeos.");
-  }
   console.error(`Sony (${que}):`, r.status, JSON.stringify(r.datos).slice(0, 500));
   throw new ErrorPsn("psn_error", "PlayStation no ha respondido bien. Prueba más tarde.");
 }
 
 const URL_PERFIL = "https://us-prof.np.community.playstation.net/userProfile/v1/users";
-const URL_BUSQUEDA = "https://m.np.playstation.com/api/search/v1/universalSearch";
+const URL_PERFILES = "https://m.np.playstation.com/api/userProfile/v1/internal/users";
 const URL_JUEGOS = "https://m.np.playstation.com/api/gamelist/v2/users";
 const URL_TROFEOS = "https://m.np.playstation.com/api/trophy/v1/users";
 
-/** ID online → { accountId, onlineId }. */
-async function buscarCuenta(onlineId: string) {
-  // 1) Perfil por nombre (getProfileFromUserName)
-  const p = await sony(`${URL_PERFIL}/${encodeURIComponent(onlineId)}/profile2?fields=onlineId,accountId`);
-  if (p.ok && p.datos?.profile?.accountId) {
-    return { accountId: String(p.datos.profile.accountId), onlineId: String(p.datos.profile.onlineId ?? onlineId) };
-  }
-  // 2) Búsqueda universal (makeUniversalSearch, dominio SocialAllAccounts)
-  const b = await sony(URL_BUSQUEDA, {
-    method: "POST",
-    body: { searchTerm: onlineId, domainRequests: [{ domain: "SocialAllAccounts" }] },
-  });
-  const resultados = b.datos?.domainResponses?.[0]?.results ?? [];
-  const exacto = resultados.find((x: any) => String(x?.socialMetadata?.onlineId ?? "").toLowerCase() === onlineId.toLowerCase());
-  if (exacto) return { accountId: String(exacto.socialMetadata.accountId), onlineId: String(exacto.socialMetadata.onlineId) };
+/** accountId del propio token (por si Sony no lo da por otra vía). */
+function cuentaDelJwt(token: string): string | null {
+  try {
+    const parte = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const d = JSON.parse(atob(parte + "=".repeat((4 - (parte.length % 4)) % 4)));
+    for (const k of ["account_id", "accountId", "sub"]) if (/^\d{5,}$/.test(String(d?.[k] ?? ""))) return String(d[k]);
+  } catch { /* no es un JWT legible */ }
   return null;
+}
+
+/** accountId y onlineId de la PROPIA cuenta de la sesión. */
+async function identidad(s: SesionPsn) {
+  let accountId: string | null = null;
+  let onlineId: string | null = null;
+  // 1) Resumen de trofeos propio: trae el accountId.
+  const t = await s.get(`${URL_TROFEOS}/me/trophySummary`);
+  if (t.ok && t.datos?.accountId) accountId = String(t.datos.accountId);
+  // 2) Perfil propio: trae el onlineId (y el accountId).
+  const p = await s.get(`${URL_PERFIL}/me/profile2?fields=onlineId,accountId`);
+  if (p.ok && p.datos?.profile) {
+    onlineId = p.datos.profile.onlineId ? String(p.datos.profile.onlineId) : null;
+    accountId ??= p.datos.profile.accountId ? String(p.datos.profile.accountId) : null;
+  }
+  accountId ??= cuentaDelJwt(s.c.access_token);
+  if (!accountId) errorSony(p.ok ? t : p, "identidad");
+  // 3) Si falta el onlineId, el perfil por accountId (getProfileFromAccountId).
+  if (!onlineId) {
+    const q = await s.get(`${URL_PERFILES}/${accountId}/profiles`);
+    if (q.ok && q.datos?.onlineId) onlineId = String(q.datos.onlineId);
+  }
+  return { accountId: accountId!, onlineId: onlineId ?? accountId! };
 }
 
 /** "PT228H56M33S" (o "P1DT2H...") → horas con decimales. */
@@ -195,11 +232,11 @@ function horasISO(d?: string): number | null {
   return Math.round(total * 100) / 100;
 }
 
-/** Juegos jugados (getUserPlayedGames), como mucho 3 páginas de 200. */
-async function juegosJugados(accountId: string) {
+/** MIS juegos jugados (getUserPlayedGames con "me"), como mucho 3 páginas de 200. */
+async function juegosJugados(s: SesionPsn) {
   const todos: any[] = [];
   for (let offset = 0, pagina = 0; pagina < 3; pagina++) {
-    const r = await sony(`${URL_JUEGOS}/${accountId}/titles?categories=ps4_game,ps5_native_game&limit=200&offset=${offset}`);
+    const r = await s.get(`${URL_JUEGOS}/me/titles?categories=ps4_game,ps5_native_game&limit=200&offset=${offset}`);
     if (!r.ok || r.datos?.error) errorSony(r, "juegos");
     const titulos = r.datos?.titles ?? [];
     todos.push(...titulos);
@@ -209,9 +246,9 @@ async function juegosJugados(accountId: string) {
   return todos;
 }
 
-/** Títulos con trofeos (getUserTitles). */
-async function titulosTrofeos(accountId: string) {
-  const r = await sony(`${URL_TROFEOS}/${accountId}/trophyTitles?limit=800`);
+/** MIS títulos con trofeos (getUserTitles con "me"). */
+async function titulosTrofeos(s: SesionPsn) {
+  const r = await s.get(`${URL_TROFEOS}/me/trophyTitles?limit=800`);
   if (!r.ok || r.datos?.error) errorSony(r, "trofeos");
   return (r.datos?.trophyTitles ?? []) as any[];
 }
@@ -307,65 +344,94 @@ async function usuario(id: string) {
   return data;
 }
 
-async function estado() {
-  const t = await leerToken();
-  const ahora = Date.now();
-  const npssoPuesto = !!(Deno.env.get("PSN_NPSSO") ?? "").trim();
-  let funciona = false;
-  let codigo: string | null = null;
-  let mensaje: string | null = null;
-  try {
-    // Una llamada barata y real: el resumen de trofeos de la propia cuenta del token.
-    const r = await sony(`${URL_TROFEOS}/me/trophySummary`);
-    funciona = r.ok;
-    if (!r.ok) { codigo = "psn_error"; mensaje = `PlayStation respondió ${r.status}.`; }
-  } catch (e) {
-    if (e instanceof ErrorPsn) { codigo = e.codigo; mensaje = e.message; } else { codigo = "psn_error"; mensaje = (e as Error).message; }
-  }
-  const tt = tokenMemoria ?? t;
-  return {
-    ok: true,
-    funciona,
-    codigo,
-    mensaje,
-    npsso_puesto: npssoPuesto,
-    necesita_npsso: codigo === "npsso_caducado" || codigo === "falta_npsso",
-    token_caduca_en: tt?.expira_en ?? null,
-    refresh_caduca_en: tt?.refresh_expira_en ?? null,
-    refresh_dias_restantes: tt ? Math.max(0, Math.floor((caduca(tt.refresh_expira_en) - ahora) / 86400000)) : null,
+async function leerCuenta(usuarioId: string): Promise<Cuenta | null> {
+  const { data, error } = await sb.from("psn_cuentas")
+    .select("usuario_id, account_id, online_id, access_token, refresh_token, expira_en, refresh_expira_en")
+    .eq("usuario_id", usuarioId).maybeSingle();
+  if (error) throw new ErrorPsn("bd", "No se ha podido leer la conexión: " + error.message, 500);
+  return data as Cuenta | null;
+}
+
+async function conectar(usuarioId: string, textoNpsso: string) {
+  const u = await usuario(usuarioId);
+  const npsso = extraerNpsso(textoNpsso);
+  const tokens = await canjearNpsso(npsso); // el NPSSO acaba aquí: no se guarda
+
+  const c: Cuenta = {
+    usuario_id: usuarioId, account_id: "", online_id: "",
+    access_token: "", refresh_token: "", expira_en: "", refresh_expira_en: "",
   };
-}
+  aplicarTokens(c, tokens);
+  if (!c.refresh_expira_en) c.refresh_expira_en = new Date(Date.now() + 60 * 86400000).toISOString();
+  const id = await identidad(new SesionPsn(c, false));
+  c.account_id = id.accountId;
+  c.online_id = id.onlineId;
 
-async function vincular(usuarioId: string, onlineId: string) {
-  await usuario(usuarioId);
-  const id = String(onlineId ?? "").trim();
-  if (!/^[A-Za-z0-9_-]{3,16}$/.test(id)) {
-    throw new ErrorPsn("id_no_valido", "Ese ID online no parece válido: tiene entre 3 y 16 letras, números, - o _.");
+  // Otra cuenta de PlayStation distinta de la de antes: su biblioteca vieja fuera.
+  if (u.psn_account_id && u.psn_account_id !== c.account_id) {
+    await sb.from("biblioteca").delete().eq("usuario_id", usuarioId);
   }
-  const cuenta = await buscarCuenta(id);
-  if (!cuenta) throw new ErrorPsn("no_existe", `No existe ningún usuario de PlayStation con el ID «${id}».`);
-  const { error } = await sb.from("usuarios").update({
-    psn_online_id: cuenta.onlineId,
-    psn_account_id: cuenta.accountId,
-    psn_sincronizado_en: null,
+  const ahora = new Date().toISOString();
+  const { error } = await sb.from("psn_cuentas").upsert({ ...c, actualizado_en: ahora }, { onConflict: "usuario_id" });
+  if (error) throw new ErrorPsn("bd", "No se ha podido guardar la conexión: " + error.message, 500);
+  const { error: e2 } = await sb.from("usuarios").update({
+    psn_online_id: c.online_id,
+    psn_account_id: c.account_id,
+    psn_reconectar: false,
   }).eq("id", usuarioId);
-  if (error) throw new ErrorPsn("bd", "No se ha podido guardar: " + error.message, 500);
-  return { ok: true, online_id: cuenta.onlineId };
+  if (e2) throw new ErrorPsn("bd", "No se ha podido guardar el usuario: " + e2.message, 500);
+
+  // Primera sincronización. Si falla, la conexión ya está hecha: se puede reintentar.
+  let sincronizacion: Record<string, unknown>;
+  try {
+    sincronizacion = await sincronizar(usuarioId);
+  } catch (e) {
+    sincronizacion = e instanceof ErrorPsn
+      ? { ok: false, codigo: e.codigo, error: e.message }
+      : { ok: false, codigo: "interno", error: (e as Error).message };
+    if (!(e instanceof ErrorPsn)) console.error(e);
+  }
+  return { ok: true, online_id: c.online_id, sincronizacion };
 }
 
-async function desvincular(usuarioId: string) {
+async function desconectar(usuarioId: string) {
   await usuario(usuarioId);
-  await sb.from("biblioteca").delete().eq("usuario_id", usuarioId);
-  const { error } = await sb.from("usuarios").update({ psn_online_id: null, psn_account_id: null, psn_sincronizado_en: null }).eq("id", usuarioId);
-  if (error) throw new ErrorPsn("bd", "No se ha podido desvincular: " + error.message, 500);
+  const { error: e1 } = await sb.from("psn_cuentas").delete().eq("usuario_id", usuarioId);
+  const { error: e2 } = await sb.from("biblioteca").delete().eq("usuario_id", usuarioId);
+  const { error: e3 } = await sb.from("usuarios").update({
+    psn_online_id: null, psn_account_id: null, psn_sincronizado_en: null, psn_reconectar: false,
+  }).eq("id", usuarioId);
+  const error = e1 ?? e2 ?? e3;
+  if (error) throw new ErrorPsn("bd", "No se ha podido desconectar: " + error.message, 500);
   return { ok: true };
 }
 
-async function sincronizar(usuarioId: string) {
-  const u = await usuario(usuarioId);
-  if (!u.psn_account_id) throw new ErrorPsn("sin_vincular", "Este usuario no ha vinculado su cuenta de PlayStation.");
+/** Estado de la conexión de un usuario (sin tokens). */
+async function estado(usuarioId: string) {
+  await usuario(usuarioId);
+  const c = await leerCuenta(usuarioId);
+  if (!c) return { ok: true, conectado: false };
+  const ahora = Date.now();
+  return {
+    ok: true,
+    conectado: true,
+    online_id: c.online_id,
+    account_id: c.account_id,
+    token_caduca_en: c.expira_en,
+    refresh_caduca_en: c.refresh_expira_en,
+    refresh_dias_restantes: Math.max(0, Math.floor((caduca(c.refresh_expira_en) - ahora) / 86400000)),
+  };
+}
 
-  const [jugados, trofeos] = await Promise.all([juegosJugados(u.psn_account_id), titulosTrofeos(u.psn_account_id)]);
+async function sincronizar(usuarioId: string) {
+  await usuario(usuarioId);
+  const c = await leerCuenta(usuarioId);
+  if (!c) throw new ErrorPsn("sin_conectar", "Primero conecta tu cuenta de PlayStation.");
+  const s = new SesionPsn(c);
+
+  // De uno en uno: así, si hay que renovar el token, se renueva una sola vez.
+  const jugados = await juegosJugados(s);
+  const trofeos = await titulosTrofeos(s);
 
   // Trofeos por nombre normalizado (no hay un id común entre las dos listas).
   const trofeosPorNombre = new Map<string, any>();
@@ -450,9 +516,9 @@ async function sincronizar(usuarioId: string) {
     const { error } = await sb.from("biblioteca").upsert(lista.slice(i, i + 200), { onConflict: "usuario_id,psn_title_id" });
     if (error) throw new ErrorPsn("bd", "No se ha podido guardar la biblioteca: " + error.message, 500);
   }
-  await sb.from("usuarios").update({ psn_sincronizado_en: ahora }).eq("id", usuarioId);
+  await sb.from("usuarios").update({ psn_sincronizado_en: ahora, psn_reconectar: false }).eq("id", usuarioId);
 
-  const horas = lista.reduce((s, f) => s + Number(f.horas ?? 0), 0);
+  const horas = lista.reduce((t, f) => t + Number(f.horas ?? 0), 0);
   return {
     ok: true,
     juegos: lista.length,
@@ -476,12 +542,13 @@ Deno.serve(async (req) => {
     } catch {
       throw new ErrorPsn("parametros", "El cuerpo debe ser JSON", 400);
     }
+    const uid = String(c.usuario_id ?? "");
     switch (c.accion) {
-      case "estado": return json(await estado());
-      case "vincular": return json(await vincular(String(c.usuario_id ?? ""), String(c.online_id ?? "")));
-      case "desvincular": return json(await desvincular(String(c.usuario_id ?? "")));
-      case "sincronizar": return json(await sincronizar(String(c.usuario_id ?? "")));
-      default: throw new ErrorPsn("parametros", 'Acción desconocida (usa "estado", "vincular", "desvincular" o "sincronizar")', 400);
+      case "conectar": return json(await conectar(uid, String(c.npsso ?? "")));
+      case "sincronizar": return json(await sincronizar(uid));
+      case "desconectar": return json(await desconectar(uid));
+      case "estado": return json(await estado(uid));
+      default: throw new ErrorPsn("parametros", 'Acción desconocida (usa "conectar", "sincronizar", "desconectar" o "estado")', 400);
     }
   } catch (e) {
     if (e instanceof ErrorPsn) return json({ ok: false, codigo: e.codigo, error: e.message }, e.estado);

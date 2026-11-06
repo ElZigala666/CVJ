@@ -90,11 +90,13 @@ export function refrescar() {
 }
 
 const COLUMNAS_USUARIO = 'id, nombre, inicial, color, acento, creado_en';
-const COLUMNAS_PSN = ', psn_online_id, psn_account_id, psn_sincronizado_en, es_admin';
-/** Usuarios con sus datos de PSN; si la migración 003 aún no está, sin ellos. */
+const COLUMNAS_PSN = ', psn_online_id, psn_account_id, psn_sincronizado_en';
+/** Usuarios con sus datos de PSN; si faltan las migraciones 004 o 003, con lo que haya. */
 async function leerUsuarios(sb) {
-  const r = await sb.from('usuarios').select(COLUMNAS_USUARIO + COLUMNAS_PSN).order('creado_en');
-  if (!r.error) return r;
+  for (const extra of [COLUMNAS_PSN + ', psn_reconectar', COLUMNAS_PSN]) {
+    const r = await sb.from('usuarios').select(COLUMNAS_USUARIO + extra).order('creado_en');
+    if (!r.error) return r;
+  }
   return sb.from('usuarios').select(COLUMNAS_USUARIO).order('creado_en');
 }
 

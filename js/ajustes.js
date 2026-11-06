@@ -65,7 +65,7 @@ function bloqueInstalar(modo, abierto) {
 }
 
 /** Abre la hoja de Ajustes. alSalir: cierra la sesión (lo pasa app.js). */
-export function abrirAjustes(alSalir) {
+export function abrirAjustes(alSalir, { psn = false } = {}) {
   let pasosAbiertos = false;
   abrirHoja({
     titulo: 'Ajustes',
@@ -84,6 +84,14 @@ export function abrirAjustes(alSalir) {
       pintarInstalar();
       // PlayStation (se quita la suscripción al cerrar la hoja).
       const quitarPsn = montarPsn(cuerpo.querySelector('[data-ref="psn"]'));
+      // Abierta desde el aviso de "Reconectar": directamente al bloque de PlayStation.
+      if (psn) {
+        setTimeout(() => {
+          const bloque = cuerpo.querySelector('#ajustes-psn');
+          const scroll = bloque?.closest('.hoja-cuerpo');
+          if (bloque && scroll) scroll.scrollTop += bloque.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 8;
+        }, 450);
+      }
       const vigilar = new MutationObserver(() => { if (!cuerpo.isConnected) { quitarPsn(); vigilar.disconnect(); } });
       vigilar.observe(document.body, { childList: true });
 

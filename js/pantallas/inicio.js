@@ -3,7 +3,6 @@ import { icono } from '../icons.js';
 import * as datos from '../datos.js';
 import { tirarParaRefrescar } from '../refrescar.js';
 import * as psn from '../psn.js';
-import { pasosRenovarHtml } from '../ajustes-psn.js';
 import { usuarioActual } from '../sesion.js';
 import { mediaGrupo, recomendacionGrupo, desviacionTipica } from '../notas.js';
 import {
@@ -45,7 +44,9 @@ export function render(el) {
     }
   });
   const desuscribir = datos.suscribir(pintar);
-  const desuscribirPsn = psn.suscribirEstado(pintar); // aviso del admin
+  // Aviso de reconectar PlayStation: abre el asistente en Ajustes.
+  const alPulsar = (e) => { if (e.target.closest('[data-accion="reconectar-psn"]')) psn.abrirAsistente(); };
+  el.addEventListener('click', alPulsar);
   pintar();
   // Los "Hace 5 min" se actualizan solos sin repintar la pantalla.
   const reloj = setInterval(() => {
@@ -56,7 +57,7 @@ export function render(el) {
   const quitarGesto = tirarParaRefrescar(() => datos.refrescar());
   return () => {
     desuscribir();
-    desuscribirPsn();
+    el.removeEventListener('click', alPulsar);
     clearInterval(reloj);
     quitarGesto();
   };
@@ -68,7 +69,7 @@ function html() {
   if (!hayAlgo) {
     return `
       ${cabecera(yo)}
-      ${avisoAdmin()}
+      ${avisoPsn()}
       <div class="inicio-vacio">
         <span class="vacio-icono grande">${icono('valorar', { tam: 36, color: 'var(--acento)', trazo: 'var(--acento-suave)' })}</span>
         <h1 class="inicio-vacio-titulo">Aún no hay nada por aquí</h1>
@@ -78,7 +79,7 @@ function html() {
   }
   return `
     ${cabecera(yo)}
-    ${avisoAdmin()}
+    ${avisoPsn()}
     <div class="inicio">
       ${jugandoAhora()}
       <section class="inicio-seccion">
@@ -172,15 +173,14 @@ function tarjetaJugando(x, i) {
     </a>`;
 }
 
-/** Solo para el admin: hay que renovar el token de PlayStation. */
-function avisoAdmin() {
-  if (!psn.hayQueRenovar()) return '';
+/** Solo para mí: mi conexión con PlayStation ha caducado. */
+function avisoPsn() {
+  if (!psn.hayQueReconectar()) return '';
   return `
-    <details class="aviso-admin">
-      <summary>${icono('ajustes', { tam: 18, color: 'currentColor' })}<span>Hay que renovar el token de PlayStation</span></summary>
-      <p>La sincronización con PSN está parada hasta que pongas un NPSSO nuevo. Pasos:</p>
-      ${pasosRenovarHtml()}
-    </details>`;
+    <button type="button" class="aviso-psn" data-accion="reconectar-psn">
+      ${icono('jugando', { tam: 20, color: 'var(--peligro)', trazo: 'var(--fondo)' })}
+      <span>Tu conexión con PlayStation ha caducado · <strong>Reconectar</strong></span>
+    </button>`;
 }
 
 // ---------------------------------------------------------------------------

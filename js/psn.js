@@ -1,34 +1,50 @@
-// PlayStation (no oficial): llamadas a la Edge Function "psn", sincronización
-// automática y estado del token para el admin.
+// PlayStation (no oficial): cada usuario conecta SU PROPIA cuenta pegando su
+// código (NPSSO), que la función psn canjea al momento por un permiso de lectura.
 // Todo es un extra: si algo falla, la app sigue igual y no se avisa a nadie
-// salvo cuando la persona ha pulsado un botón de PSN.
+// salvo cuando la persona ha pulsado un botón de PSN (o su conexión caduca).
 import { SUPABASE_BASE, SUPABASE_KEY } from './config.js';
 import * as datos from './datos.js';
 import { usuarioActual } from './sesion.js';
 
 const URL_PSN = `${SUPABASE_BASE}/functions/v1/psn`;
-const AUTO_CADA_MS = 6 * 60 * 60 * 1000;      // sincronizar solo si pasaron 6 h
-const ESTADO_CADA_MS = 12 * 60 * 60 * 1000;   // el admin revisa el token cada 12 h
+const AUTO_CADA_MS = 6 * 60 * 60 * 1000; // sincronizar solo si pasaron 6 h
 const CLAVE_INTENTO = 'cvj.psn.intento';
-const CLAVE_ESTADO = 'cvj.psn.estado';
+export const LARGO_NPSSO = 64;
 
-export const GUIA_PRIVACIDAD = '#guia-psn';
+export const URL_INICIAR_SESION = 'https://www.playstation.com';
+export const URL_CODIGO = 'https://ca.account.sony.com/api/v1/ssocookie';
 
 /** Mensajes para cada código de error de la función. */
 const MENSAJES = {
-  privado: 'Tu perfil de PlayStation no deja ver los juegos o los trofeos. Cambia la privacidad y vuelve a sincronizar.',
-  no_existe: 'No hay ningún usuario de PlayStation con ese ID online. Revisa que esté bien escrito.',
-  id_no_valido: 'Ese ID online no parece válido: tiene entre 3 y 16 letras, números, - o _.',
-  npsso_caducado: 'La conexión con PlayStation está caducada. El admin del grupo tiene que renovarla.',
-  falta_npsso: 'La conexión con PlayStation aún no está configurada.',
-  sin_funcion: 'La sincronización con PlayStation aún no está activada.',
-  sin_vincular: 'Primero vincula tu ID online de PlayStation.',
+  codigo_no_valido: 'Ese código no vale: puede que haya caducado o que no sea el de tu sesión. Repite los pasos 1 y 2 y copia el código otra vez.',
+  reconectar: 'Tu conexión con PlayStation ha caducado. Vuelve a conectarla con los tres pasos.',
+  sin_conectar: 'Primero conecta tu cuenta de PlayStation.',
+  sin_funcion: 'La conexión con PlayStation aún no está activada.',
   red: 'Sin conexión. Prueba otra vez en un momento.',
   psn_error: 'PlayStation no ha respondido bien. Prueba más tarde.',
-  interno: 'La sincronización ha fallado por un error inesperado. Prueba más tarde.',
+  interno: 'Ha fallado por un error inesperado. Prueba más tarde.',
   bd: 'No se ha podido guardar en la base de datos. Prueba más tarde.',
 };
 export const mensajePsn = (r) => MENSAJES[r?.codigo] ?? r?.error ?? 'No se ha podido conectar con PlayStation.';
+
+/**
+ * Saca el NPSSO de lo que pegue la persona: el JSON entero ({"npsso":"..."})
+ * o el valor suelto. Devuelve { npsso } o { error }.
+ */
+export function extraerNpsso(texto) {
+  const t = String(texto ?? '').trim();
+  if (!t) return { error: 'Pega primero el código que copiaste en el paso 2.' };
+  if (/"?error"?\s*:/i.test(t) && !/npsso/i.test(t)) {
+    return { error: 'Eso es el mensaje de error de Sony: la sesión no estaba iniciada en este navegador. Repite el paso 1 en el mismo navegador.' };
+  }
+  const m = t.match(/"?npsso"?\s*[:=]\s*"?([A-Za-z0-9_-]+)/i);
+  const npsso = (m ? m[1] : t).replace(/[\s"'{}]/g, '');
+  if (!/^[A-Za-z0-9_-]+$/.test(npsso)) return { error: 'Ese texto no parece el código. Copia todo lo que sale en el paso 2 y pégalo tal cual.' };
+  if (npsso.length !== LARGO_NPSSO) {
+    return { error: `El código debe tener ${LARGO_NPSSO} caracteres y este tiene ${npsso.length}. Copia todo el texto del paso 2 y pégalo otra vez.` };
+  }
+  return { npsso };
+}
 
 /** Llama a la función psn. Nunca lanza: devuelve { ok, codigo, error, ... }. */
 export async function llamarPsn(accion, extra = {}, signal) {
@@ -52,14 +68,16 @@ export async function llamarPsn(accion, extra = {}, signal) {
 // ---------------------------------------------------------------------------
 // Acciones del usuario (botones de Ajustes)
 // ---------------------------------------------------------------------------
-export async function vincular(usuarioId, onlineId) {
-  const r = await llamarPsn('vincular', { usuario_id: usuarioId, online_id: onlineId });
+/** Conecta la cuenta con el NPSSO ya validado; la función hace la primera sincronización. */
+export async function conectar(usuarioId, npsso) {
+  try { localStorage.setItem(CLAVE_INTENTO, String(Date.now())); } catch { /* nada */ }
+  const r = await llamarPsn('conectar', { usuario_id: usuarioId, npsso });
   if (r.ok) await datos.refrescar();
   return r;
 }
 
-export async function desvincular(usuarioId) {
-  const r = await llamarPsn('desvincular', { usuario_id: usuarioId });
+export async function desconectar(usuarioId) {
+  const r = await llamarPsn('desconectar', { usuario_id: usuarioId });
   if (r.ok) await datos.refrescar();
   return r;
 }
@@ -71,13 +89,21 @@ export function sincronizar(usuarioId) {
   try { localStorage.setItem(CLAVE_INTENTO, String(Date.now())); } catch { /* nada */ }
   sincronizando = llamarPsn('sincronizar', { usuario_id: usuarioId })
     .then(async (r) => {
-      if (r.ok) await datos.refrescar();
+      // "reconectar": la función ya lo ha apuntado en el usuario; refrescar para enseñar el aviso.
+      if (r.ok || r.codigo === 'reconectar') await datos.refrescar();
       return r;
     })
     .finally(() => { sincronizando = null; });
   return sincronizando;
 }
 export const estaSincronizando = () => !!sincronizando;
+
+/** ¿Mi conexión con PlayStation ha caducado? (para el aviso de Inicio) */
+export function hayQueReconectar() {
+  const yo = usuarioActual();
+  const u = yo && datos.usuario(yo.id);
+  return !!(u?.psn_reconectar && u.psn_account_id);
+}
 
 // ---------------------------------------------------------------------------
 // Sincronización automática al abrir la app (en segundo plano, sin avisos)
@@ -90,7 +116,7 @@ export function revisarAutomatico() {
   const u = yo && datos.usuario(yo.id);
   if (!u || !('psn_account_id' in u)) return; // aún sin datos (o sin la migración de PSN)
   autoHecha = true;
-  if (!u.psn_account_id) return;
+  if (!u.psn_account_id || u.psn_reconectar) return;
   const ultima = u.psn_sincronizado_en ? new Date(u.psn_sincronizado_en).getTime() : 0;
   let intento = 0;
   try { intento = Number(localStorage.getItem(CLAVE_INTENTO) || 0); } catch { /* nada */ }
@@ -103,62 +129,15 @@ export function revisarAutomatico() {
   (window.requestIdleCallback ?? ((fn) => setTimeout(fn, 2000)))(lanzar);
 }
 
-// ---------------------------------------------------------------------------
-// Estado del token (solo admin)
-// ---------------------------------------------------------------------------
-const oyentes = new Set();
-export function suscribirEstado(fn) {
-  oyentes.add(fn);
-  return () => oyentes.delete(fn);
-}
-
-function leerEstadoGuardado() {
-  try { return JSON.parse(localStorage.getItem(CLAVE_ESTADO) || 'null'); } catch { return null; }
-}
-
-/** Último estado conocido del token (para el aviso de Inicio). */
-export function estadoGuardado() {
-  return leerEstadoGuardado()?.estado ?? null;
-}
-
-/** Pide el estado a la función y lo guarda. */
-export async function pedirEstado() {
-  const r = await llamarPsn('estado');
-  if (r.ok || r.codigo !== 'red') {
-    try { localStorage.setItem(CLAVE_ESTADO, JSON.stringify({ cuando: Date.now(), estado: r })); } catch { /* nada */ }
-    oyentes.forEach((fn) => { try { fn(r); } catch (e) { console.error(e); } });
-  }
-  return r;
-}
-
-let adminRevisado = false;
-/** Si soy admin, revisa el token como mucho cada 12 h (en segundo plano). */
-export function revisarAdmin() {
-  if (adminRevisado) return;
-  const yo = usuarioActual();
-  const u = yo && datos.usuario(yo.id);
-  if (!u || !('es_admin' in u)) return;
-  adminRevisado = true;
-  if (!u.es_admin) return;
-  const g = leerEstadoGuardado();
-  if (g && Date.now() - g.cuando < ESTADO_CADA_MS) return;
-  (window.requestIdleCallback ?? ((fn) => setTimeout(fn, 3000)))(() => { pedirEstado(); });
-}
-
-/** ¿Hay que enseñarle al admin el aviso de renovar el token? */
-export function hayQueRenovar() {
-  const yo = usuarioActual();
-  const u = yo && datos.usuario(yo.id);
-  if (!u?.es_admin) return false;
-  const e = estadoGuardado();
-  return !!(e && (e.necesita_npsso || e.codigo === 'npsso_caducado' || e.codigo === 'falta_npsso'));
-}
-
 /** Para cerrar sesión: que el siguiente usuario empiece de cero. */
 export function olvidar() {
   autoHecha = false;
-  adminRevisado = false;
-  try { localStorage.removeItem(CLAVE_ESTADO); localStorage.removeItem(CLAVE_INTENTO); } catch { /* nada */ }
+  try { localStorage.removeItem(CLAVE_INTENTO); localStorage.removeItem('cvj.psn.estado'); } catch { /* nada */ }
+}
+
+/** Abre el asistente de PlayStation (lo escucha app.js, que abre Ajustes). */
+export function abrirAsistente() {
+  window.dispatchEvent(new CustomEvent('cvj:psn-asistente'));
 }
 
 /** Nombre de PSN para buscarlo: sin "™", "PS4 & PS5", "Edición Estándar"... (como en la función). */

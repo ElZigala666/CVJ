@@ -24,6 +24,10 @@ const ICONOS = {
   instalar: { d: 'M10.5 2.5h3v8.2H17l-5 5.6-5-5.6h3.5zM3 18.5h18V22H3z' },
   compartir: { d: 'M12 1.5l5 5h-3.5v8.5h-3V6.5H7zM4 10h5v2.5H6.5v7h11v-7H15V10h5v12H4z' },
   'anadir-inicio': { d: 'M6 3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3z', t: 'M12 8v8M8 12h8' },
+  // PlayStation: abrir fuera, pegar el código y "no se guarda"
+  externo: { d: 'M13.5 3H21v7.5h-2.6V7.4l-7.5 7.5-1.8-1.8 7.5-7.5h-3.1zM3 7a2 2 0 0 1 2-2h6v2.6H5.6v10.8h10.8V13H19v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' },
+  pegar: { d: 'M9 2h6a1 1 0 0 1 1 1v1h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2V3a1 1 0 0 1 1-1z', t: 'M8.5 11h7M8.5 15h5' },
+  candado: { d: 'M12 2a5 5 0 0 1 5 5v3h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h1V7a5 5 0 0 1 5-5zm0 2.6A2.4 2.4 0 0 0 9.6 7v3h4.8V7A2.4 2.4 0 0 0 12 4.6z', t: 'M12 14.2v2.8' },
   // Iconos de solo trazo (en el diseño van con trazo grueso redondeado)
   cerrar: { s: 'M6 6l12 12M18 6 6 18' },
   mas: { s: 'M12 5v14M5 12h14' },

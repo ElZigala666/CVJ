@@ -1082,39 +1082,62 @@ body.sin-barra #aviso-version { bottom: calc(96px + env(safe-area-inset-bottom))
 .reparto-plataformas-pie { display: flex; justify-content: space-between; font-size: 13px; color: var(--texto-2); }
 .reparto-plataformas-pie strong { color: var(--texto); }
 
-/* Ajustes: PlayStation */
-.ajustes-psn, .ajustes-admin { gap: 12px; }
+/* Ajustes: PlayStation (asistente de 3 pasos y cuenta conectada) */
+.ajustes-psn { gap: 12px; scroll-margin-top: 16px; }
 .psn-conectado { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; background: var(--superficie); }
 .psn-icono { width: 40px; height: 40px; flex: 0 0 auto; border-radius: 12px; background: var(--acento-suave); display: flex; align-items: center; justify-content: center; }
 .psn-conectado-texto { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .psn-conectado-texto strong { font-size: 15px; overflow: hidden; text-overflow: ellipsis; }
 .psn-conectado-texto span { font-size: 12px; color: var(--texto-2); }
 .ajustes-psn .boton-principal { height: 48px; font-size: 15px; }
-.psn-acciones { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-.psn-confirmar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--texto-2); }
+.psn-desconectar { align-self: flex-start; }
+.psn-confirmar { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 14px; background: color-mix(in srgb, var(--peligro) 10%, var(--fondo)); }
+.psn-confirmar p { margin: 0; font-size: 13px; line-height: 1.45; color: var(--texto); }
+.psn-confirmar-botones { display: flex; gap: 8px; }
+.psn-confirmar-botones > * { flex: 1; }
 .enlace-discreto.peligro { color: var(--peligro); }
-.psn-form { display: flex; gap: 8px; }
-.psn-form .boton-principal { width: auto; padding: 0 18px; flex: 0 0 auto; }
-.psn-input {
-  flex: 1; min-width: 0; height: 48px; padding: 0 14px; border-radius: 14px;
-  border: 1px solid var(--borde); background: var(--superficie); color: var(--texto); font-size: 16px; outline: none;
+
+.psn-pasos { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.psn-paso { display: flex; gap: 12px; padding: 14px; border-radius: 16px; background: var(--superficie); }
+.psn-paso-num {
+  width: 28px; height: 28px; flex: 0 0 auto; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--acento); color: var(--sobre-acento); font: 700 14px var(--fuente-titulos);
 }
-.psn-input:focus { border-color: var(--acento); }
+.psn-paso.hecho .psn-paso-num { background: none; }
+.psn-paso-cuerpo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.psn-paso-cuerpo > strong, .psn-paso-cuerpo label strong { font-size: 15px; }
+.psn-paso-cuerpo > span { font-size: 13px; color: var(--texto-2); line-height: 1.4; }
+.psn-boton-paso { gap: 8px; margin-top: 4px; height: 46px; width: 100%; }
+.psn-paso.hecho .psn-boton-paso { background: var(--superficie-2); color: var(--texto); }
+.psn-nota-iphone { font-weight: 600; }
+.psn-ayuda-boton { align-self: flex-start; }
+.psn-ayuda { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: var(--fondo); }
+.psn-ayuda p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--texto-2); }
+.psn-ayuda strong { color: var(--texto); }
+.psn-ayuda code { font-size: 12px; padding: 1px 4px; border-radius: 4px; background: var(--superficie-2); color: var(--texto); word-break: break-all; }
+.psn-codigo {
+  width: 100%; min-height: 76px; padding: 10px 12px; resize: vertical; margin-top: 2px;
+  border: 1px solid var(--borde); border-radius: 12px; background: var(--fondo); color: var(--texto);
+  font: 16px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; word-break: break-all; outline: none;
+}
+.psn-codigo:focus { border-color: var(--acento); }
+.psn-form { display: flex; gap: 8px; }
+.psn-form .boton-principal { flex: 1; }
+.psn-pegar { height: 48px; gap: 6px; flex: 0 0 auto; }
+.boton-secundario.neutro.psn-pegar { background: var(--superficie-2); }
 .psn-mensaje { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--acento-suave); color: var(--texto); font-size: 13px; line-height: 1.45; }
 .psn-mensaje.error { background: color-mix(in srgb, var(--peligro) 12%, var(--fondo)); }
-.guia-psn { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 14px; background: var(--superficie); }
-.guia-psn p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--texto-2); }
-.guia-psn strong { color: var(--texto); }
-.pasos-lista { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.5; color: var(--texto-2); }
-.pasos-lista strong { color: var(--texto); }
-.pasos-lista code { font-size: 12px; padding: 1px 4px; border-radius: 4px; background: var(--superficie-2); color: var(--texto); }
+.psn-privacidad { margin: 0; display: flex; align-items: flex-start; gap: 6px; font-size: 12px; line-height: 1.4; color: var(--texto-2); }
+.psn-privacidad svg { flex: 0 0 auto; margin-top: 1px; }
 
-/* Inicio: aviso para el admin */
-.aviso-admin {
-  margin: 16px 20px 0; padding: 12px 14px; border-radius: 14px;
-  background: color-mix(in srgb, var(--peligro) 12%, var(--fondo)); color: var(--texto);
+/* Inicio: mi conexión con PlayStation ha caducado */
+.aviso-psn {
+  margin: 16px 20px 0; padding: 12px 14px; border-radius: 14px; border: 0; width: calc(100% - 40px);
+  display: flex; align-items: center; gap: 10px; text-align: left;
+  background: color-mix(in srgb, var(--peligro) 12%, var(--fondo)); color: var(--texto); font-size: 14px;
 }
-.aviso-admin summary { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; cursor: pointer; list-style: none; }
-.aviso-admin summary::-webkit-details-marker { display: none; }
-.aviso-admin p { margin: 10px 0 6px; font-size: 13px; color: var(--texto-2); }
+.aviso-psn svg { flex: 0 0 auto; }
+.aviso-psn span { flex: 1; }
+.aviso-psn strong { color: var(--acento-texto); white-space: nowrap; }
 .sin-emparejar .portada-titulo-arriba { top: 34px; }

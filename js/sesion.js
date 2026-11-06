@@ -54,7 +54,7 @@ export async function entrar(codigo) {
 export function refrescarUsuario(usuario) {
   if (!sesion || !usuario || usuario.id !== sesion.usuario.id) return;
   const { id, nombre, inicial, color, acento } = usuario;
-  guardar({ ...sesion, usuario: { id, nombre, inicial, color, acento } });
+  guardar({ ...sesion, usuario: { id, nombre, inicial, color, acento, foto_url: usuario.foto_url ?? null } });
 }
 
 export function salir() {

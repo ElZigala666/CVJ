@@ -10,6 +10,8 @@ import { usuarioActual } from './sesion.js';
 import * as datos from './datos.js';
 import { VERSION_CORTA } from './version.js';
 import { montarPsn } from './ajustes-psn.js';
+import { botonFoto } from './foto-perfil.js';
+import { avatar } from './ui.js';
 
 function bloqueApariencia(acentoActual) {
   const tema = preferenciaTema();
@@ -71,6 +73,7 @@ export function abrirAjustes(alSalir, { psn = false } = {}) {
     titulo: 'Ajustes',
     html: `
       <div class="ajustes">
+        <div data-ref="foto"></div>
         <div data-ref="apariencia" class="ajustes-apariencia"></div>
         <div data-ref="psn" class="ajustes-apariencia"></div>
         <div data-ref="instalar"></div>
@@ -82,6 +85,17 @@ export function abrirAjustes(alSalir, { psn = false } = {}) {
         cuerpo.querySelector('[data-ref="instalar"]').innerHTML = bloqueInstalar(modoInstalacion(), pasosAbiertos);
       };
       pintarInstalar();
+      // Foto de perfil (solo con la migración 005: la columna foto_url existe).
+      const pintarFoto = () => {
+        const u = datos.usuario(usuarioActual()?.id);
+        cuerpo.querySelector('[data-ref="foto"]').innerHTML = u && 'foto_url' in u ? `
+          <section class="ajustes-bloque">
+            <span class="campo-titulo">Foto de perfil</span>
+            <div class="foto-fila">${avatar(u, 56)}${botonFoto(u)}</div>
+          </section>` : '';
+      };
+      pintarFoto();
+      const quitarFoto = datos.suscribir(pintarFoto);
       // PlayStation (se quita la suscripción al cerrar la hoja).
       const quitarPsn = montarPsn(cuerpo.querySelector('[data-ref="psn"]'));
       // Abierta desde el aviso de "Reconectar": directamente al bloque de PlayStation.
@@ -92,7 +106,7 @@ export function abrirAjustes(alSalir, { psn = false } = {}) {
           if (bloque && scroll) scroll.scrollTop += bloque.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 8;
         }, 450);
       }
-      const vigilar = new MutationObserver(() => { if (!cuerpo.isConnected) { quitarPsn(); vigilar.disconnect(); } });
+      const vigilar = new MutationObserver(() => { if (!cuerpo.isConnected) { quitarPsn(); quitarFoto(); vigilar.disconnect(); } });
       vigilar.observe(document.body, { childList: true });
 
       // --- Apariencia ---------------------------------------------------------

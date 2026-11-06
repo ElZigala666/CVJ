@@ -10,6 +10,9 @@
 //   { "accion": "juego",  "igdb_id": 1942 }
 //   { "accion": "tipos" }   (depuración: tipos de juego de IGDB y los que se usan)
 //   { "accion": "depurar", "texto": "cyberpunk" }   (depuración: qué devuelve cada consulta)
+//   { "accion": "emparejar", "nombre": "Ghost of Tsushima™", "title_id": "CUSA13323", "plataforma": "PS4" }
+//       (lo usa la función psn: juego de IGDB de un título de PlayStation, o null si es dudoso)
+//   { "accion": "revisar_online" }   (marca es_online en los juegos guardados que aún no lo tienen)
 // =============================================================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -195,6 +198,10 @@ type JuegoIGDB = {
   hypes?: number;
   rating?: number;
   game_type?: number | { id: number } | null;
+  game_modes?: { name?: string }[];
+  themes?: { name?: string }[];
+  keywords?: { name?: string }[];
+  alternative_names?: { name?: string }[];
 };
 
 // -----------------------------------------------------------------------------
@@ -230,6 +237,8 @@ async function tiposValidos() {
 
 const CAMPOS_LISTA =
   "name,first_release_date,cover.image_id,platforms.abbreviation,platforms.name,total_rating_count,hypes,rating,game_type";
+const CAMPOS_FICHA =
+  "name,slug,first_release_date,summary,cover.image_id,platforms.abbreviation,platforms.name,genres.name,involved_companies.developer,involved_companies.company.name,game_modes.name,themes.name,keywords.name";
 
 // <puntuacion> (bloque sin dependencias: se prueba en local con node)
 /** minúsculas, sin tildes ni signos: "Ghost of Yōtei!" → "ghost of yotei" */
@@ -313,6 +322,96 @@ export function ordenar<T extends Candidato & { id: number }>(busqueda: T[], par
     .sort((a, b) => b.p - a.p)
     .slice(0, max)
     .map((x) => x.j);
+}
+
+/**
+ * ¿Juego online / sin final? (Fortnite, Rocket League, Warzone...)
+ *  - modo MMO o Battle Royale;
+ *  - multijugador sin modo de un jugador;
+ *  - multijugador y etiquetado como free-to-play / juego como servicio / esports.
+ */
+export function detectarOnline(j: { game_modes?: { name?: string }[]; themes?: { name?: string }[]; keywords?: { name?: string }[] }): boolean {
+  const modos = (j.game_modes ?? []).map((m) => normalizar(m.name ?? ""));
+  const etiquetas = [...(j.themes ?? []), ...(j.keywords ?? [])].map((k) => normalizar(k.name ?? ""));
+  const unJugador = modos.some((m) => m.includes("single player"));
+  const masivo = modos.some((m) => m.includes("massively multiplayer") || m.includes("mmo") || m.includes("battle royale"));
+  const multi = modos.some((m) => m.includes("multiplayer") || m.includes("co operative") || m.includes("split screen"));
+  const servicio = etiquetas.some((k) =>
+    /^(free to play|games as a service|game as a service|live service|live service game|esports|e sports|battle royale)$/.test(k)
+  );
+  if (masivo) return true;
+  if (multi && !unJugador) return true;
+  return multi && servicio;
+}
+
+// ----- Emparejar títulos de PlayStation --------------------------------------
+const EDICIONES = /\b(standard|digital|deluxe|ultimate|gold|complete|definitive|premium|special|collector s|game of the year|goty|launch|day one|cross gen|estandar|digital deluxe|completa|definitiva|del juego del ano)\s+(edition|edicion|bundle)\b/g;
+
+/** "Ghost of Tsushima™ PS4 & PS5 Edición Estándar" → "ghost of tsushima" */
+export function limpiarNombrePsn(nombre: string, sinRemaster = false): string {
+  let n = String(nombre ?? "")
+    .replace(/[™®©]/g, "")
+    .replace(/['’`´]/g, "") // "Tom Clancy's" → "tom clancys"
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\b(ps4|ps5)\s+version\b/g, " ")
+    .replace(/\bversion\s+(ps4|ps5)\b/g, " ")
+    .replace(/\bplay\s*station\s*(4|5)\b/g, " ")
+    .replace(/\b(ps4|ps5)(\s+(and|y)?\s*(ps4|ps5))?\b/g, " ")
+    .replace(EDICIONES, " ")
+    .replace(/\b(edition|edicion)\s+(estandar|standard|digital|deluxe|completa|definitiva)\b/g, " ")
+    .replace(/\s+(edition|edicion)\s*$/g, " ")
+    .replace(/\bremasterizad[oa]\b/g, "remastered");
+  if (sinRemaster) n = n.replace(/\b(remastered|remasterizado|remaster)\b/g, " ");
+  return n.replace(/\s+/g, " ").trim();
+}
+
+/** ¿Es claramente el mismo juego? (nombres ya limpios). Nunca empareja secuelas numeradas. */
+export function claramenteIgual(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const sinArticulo = (x: string) => x.replace(/^(the|el|la|los|las)\s+/, "");
+  if (sinArticulo(a) === sinArticulo(b)) return true;
+  const [corto, largo] = a.length <= b.length ? [a, b] : [b, a];
+  if (corto.length >= 6 && largo.startsWith(corto + " ") && corto.length / largo.length >= 0.8) {
+    const resto = largo.slice(corto.length + 1);
+    if (!/^(\d+|[ivx]+)\b/.test(resto)) return true;
+  }
+  const ta = new Set(a.split(" "));
+  const tb = new Set(b.split(" "));
+  const comunes = [...ta].filter((x) => tb.has(x)).length;
+  const numeros = (t: Set<string>) => [...t].filter((x) => /^(\d+|[ivx]+)$/.test(x)).sort().join(",");
+  if (numeros(ta) !== numeros(tb)) return false; // "spider man 2" ≠ "spider man"
+  return comunes / new Set([...ta, ...tb]).size >= 0.85 && Math.min(ta.size, tb.size) >= 2;
+}
+
+type CandidatoEmparejar = Candidato & { id: number; alternative_names?: { name?: string }[]; platforms?: { abbreviation?: string; name?: string }[] };
+
+/**
+ * Elige el juego de IGDB para un nombre de PSN entre candidatos ya ordenados por puntuación.
+ * Devuelve el id o null si no hay ninguno claro o si es ambiguo.
+ */
+export function elegirCandidato(limpio: string, candidatos: CandidatoEmparejar[], plataforma?: string, ahoraSeg = Date.now() / 1000): number | null {
+  const iguales = candidatos.slice(0, 12).filter((c) => {
+    if (claramenteIgual(limpio, limpiarNombrePsn(c.name))) return true;
+    return (c.alternative_names ?? []).some((x) => claramenteIgual(limpio, limpiarNombrePsn(x.name ?? "")));
+  });
+  if (!iguales.length) return null;
+  if (iguales.length === 1) return iguales[0].id;
+  // Varios: primero los de la misma plataforma.
+  const tienePlat = (c: CandidatoEmparejar) =>
+    (c.platforms ?? []).some((p) => [p.abbreviation, p.name].some((x) => String(x ?? "").toUpperCase().replace(/\s+/g, "").includes(String(plataforma ?? "").toUpperCase())));
+  const misma = plataforma ? iguales.filter(tienePlat) : iguales;
+  const lista = misma.length ? misma : iguales;
+  if (lista.length === 1) return lista[0].id;
+  // Los que se llaman EXACTAMENTE igual.
+  const exactos = lista.filter((c) => limpiarNombrePsn(c.name) === limpio);
+  if (exactos.length === 1) return exactos[0].id;
+  // Si uno destaca mucho por puntuación, ese; si no, es ambiguo.
+  const puntos = (exactos.length ? exactos : lista).map((c) => ({ c, p: puntuar(c, limpio, ahoraSeg) })).sort((x, y) => y.p - x.p);
+  return puntos[0].p - puntos[1].p >= 3 ? puntos[0].c.id : null;
 }
 // </puntuacion>
 
@@ -403,14 +502,30 @@ async function depurar(texto: string) {
   };
 }
 
-async function juego(igdbId: number) {
-  const [j] = await igdb<JuegoIGDB[]>(
-    "games",
-    `fields name,slug,first_release_date,summary,cover.image_id,platforms.abbreviation,platforms.name,genres.name,involved_companies.developer,involved_companies.company.name; where id = ${igdbId}; limit 1;`,
-  );
-  if (!j) throw new ErrorPublico("Ese juego no existe en IGDB", 404);
+/** Lo que alguien eligió a mano en la ficha (manda sobre la detección automática). */
+async function onlineManual(ids: number[]) {
+  const m = new Map<number, boolean>();
+  const { data, error } = await sb.from("juegos").select("igdb_id, es_online_manual").in("igdb_id", ids);
+  if (error) return null; // sin la migración 005
+  for (const x of data ?? []) if (x.es_online_manual !== null) m.set(Number(x.igdb_id), x.es_online_manual);
+  return m;
+}
 
-  const fila = {
+/** Guarda filas en juegos; sin la migración 005 (columna es_online), las guarda sin ella. */
+async function guardarJuegos(filas: Record<string, unknown>[]) {
+  let { error } = await sb.from("juegos").upsert(filas, { onConflict: "igdb_id" });
+  if (error && /es_online/.test(error.message)) {
+    ({ error } = await sb.from("juegos").upsert(filas.map(({ es_online: _, ...r }) => r), { onConflict: "igdb_id" }));
+  }
+  if (error) console.error("Upsert juegos:", error.message);
+}
+
+async function juego(igdbId: number) {
+  const [j] = await igdb<JuegoIGDB[]>("games", `fields ${CAMPOS_FICHA}; where id = ${igdbId}; limit 1;`);
+  if (!j) throw new ErrorPublico("Ese juego no existe en IGDB", 404);
+  const manual = await onlineManual([j.id]);
+
+  const fila: Record<string, unknown> = {
     igdb_id: j.id,
     nombre: j.name,
     slug: j.slug ?? null,
@@ -422,11 +537,86 @@ async function juego(igdbId: number) {
     resumen: j.summary ?? null,
     actualizado_en: new Date().toISOString(),
   };
+  if (manual) fila.es_online = manual.get(j.id) ?? detectarOnline(j);
 
-  const { error } = await sb.from("juegos").upsert(fila, { onConflict: "igdb_id" });
-  if (error) console.error("Upsert juegos:", error.message);
-
+  await guardarJuegos([fila]);
   return { juego: fila };
+}
+
+/** Marca es_online en los juegos guardados que aún no lo tienen (de 200 en 200). */
+async function revisarOnline() {
+  const { data, error } = await sb.from("juegos").select("igdb_id, es_online_manual").is("es_online", null).limit(200);
+  if (error) return { revisados: 0, error: "Falta la migración 005" };
+  if (!data?.length) return { revisados: 0, online: 0 };
+  const ids = data.map((x) => Number(x.igdb_id));
+  const lista = await igdb<JuegoIGDB[]>("games", `fields game_modes.name,themes.name,keywords.name; where id = (${ids.join(",")}); limit 500;`);
+  const porId = new Map(lista.map((j) => [j.id, j]));
+  let online = 0;
+  await Promise.all(data.map(async (x) => {
+    const j = porId.get(Number(x.igdb_id));
+    const valor = x.es_online_manual ?? (j ? detectarOnline(j) : false);
+    if (valor) online++;
+    await sb.from("juegos").update({ es_online: valor }).eq("igdb_id", x.igdb_id);
+  }));
+  return { revisados: data.length, online };
+}
+
+/**
+ * Juego de IGDB de un título de PlayStation:
+ *  1) external_games de PlayStation con su id (CUSA…/PPSA…), si da un único juego;
+ *  2) búsqueda por nombre limpio (y nombres alternativos), con la puntuación de siempre;
+ *     si no hay resultados, se prueba quitando palabras del principio ("Tom Clancy's ...").
+ * Si queda dudoso, null. Si encuentra uno, lo guarda en juegos.
+ */
+async function emparejarPsn(nombre: string, titleId: string, plataforma: string) {
+  const limpio = limpiarNombrePsn(nombre);
+  if (limpio.length < 2) return { igdb_id: null, motivo: "sin_nombre" };
+  const { ids } = await tiposValidos();
+
+  // 1) Por id de la PlayStation Store
+  const codigo = String(titleId ?? "").match(/^(CUSA|PPSA)\d{5}/)?.[0];
+  if (codigo) {
+    try {
+      const ext = await igdb<{ game?: number }[]>("external_games", `fields game,uid; where uid ~ *"${codigo}"*; limit 20;`);
+      const juegos = [...new Set(ext.map((x) => Number(x.game)).filter(Boolean))];
+      if (juegos.length === 1) {
+        const [j] = await igdb<JuegoIGDB[]>("games", `fields name,version_parent,game_type; where id = ${juegos[0]}; limit 1;`);
+        // Solo si el nombre se parece (por si el id de la tienda es de un pack o un DLC).
+        if (j && claramenteIgual(limpio, limpiarNombrePsn(j.name)) || j && claramenteIgual(limpiarNombrePsn(nombre, true), limpiarNombrePsn(j.name, true))) {
+          await juego(j.id);
+          return { igdb_id: j.id, motivo: "tienda" };
+        }
+      }
+    } catch (e) {
+      console.warn("external_games:", (e as Error).message);
+    }
+  }
+
+  // 2) Por nombre
+  const where = `version_parent = null & game_type = (${ids.join(",")})`;
+  const campos = `${CAMPOS_LISTA},alternative_names.name`;
+  const consultar = async (q: string) => {
+    const [busqueda, parcial] = await Promise.all([
+      igdb<CandidatoEmparejar[]>("games", `search "${escaparTexto(q)}"; fields ${campos}; where ${where}; limit 30;`),
+      igdb<CandidatoEmparejar[]>("games", `fields ${campos}; where ${filtroNombre(q)} & ${where}; sort total_rating_count desc; limit 30;`),
+    ]);
+    return ordenar(busqueda, parcial, q, 15);
+  };
+  for (const variante of [...new Set([limpio, limpiarNombrePsn(nombre, true)])]) {
+    let candidatos = await consultar(variante);
+    const palabras = variante.split(" ");
+    // Sin resultados: quitar palabras del principio mientras queden al menos 2.
+    for (let i = 1; !candidatos.length && palabras.length - i >= 2 && i <= 2; i++) {
+      candidatos = await consultar(palabras.slice(i).join(" "));
+    }
+    const id = elegirCandidato(variante, candidatos, plataforma);
+    if (id) {
+      await juego(id);
+      return { igdb_id: id, motivo: "nombre" };
+    }
+    if (candidatos.length && variante === limpio && !/remaster/.test(limpio)) break;
+  }
+  return { igdb_id: null, motivo: "dudoso" };
 }
 
 // -----------------------------------------------------------------------------
@@ -451,6 +641,10 @@ Deno.serve(async (req) => {
         return json(await tipos());
       case "depurar":
         return json(await depurar(String(cuerpo.texto ?? "")));
+      case "emparejar":
+        return json(await emparejarPsn(String(cuerpo.nombre ?? ""), String(cuerpo.title_id ?? ""), String(cuerpo.plataforma ?? "")));
+      case "revisar_online":
+        return json(await revisarOnline());
       case "juego": {
         const id = Number(cuerpo.igdb_id);
         if (!Number.isInteger(id) || id <= 0) throw new ErrorPublico("igdb_id no válido");

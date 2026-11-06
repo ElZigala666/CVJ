@@ -20,6 +20,24 @@ export async function buscarJuegos(texto, signal) {
   return d?.resultados ?? [];
 }
 
+let onlineRevisado = false;
+/**
+ * Una vez por sesión: si hay juegos guardados sin saber si son online (antes de la
+ * migración 005), la función los revisa con los datos de IGDB. En segundo plano.
+ * @param {object[]} juegos  la tabla juegos en memoria
+ * @param {() => void} alTerminar  p. ej. refrescar los datos
+ */
+export function revisarOnline(juegos, alTerminar) {
+  if (onlineRevisado || !juegos.length || !('es_online' in juegos[0])) return;
+  if (!juegos.some((j) => j.es_online === null)) return;
+  onlineRevisado = true;
+  (window.requestIdleCallback ?? ((fn) => setTimeout(fn, 3000)))(() => {
+    llamar({ accion: 'revisar_online' })
+      .then((r) => { if (r?.revisados) alTerminar?.(); })
+      .catch((e) => console.info('[igdb] Revisar online:', e.message));
+  });
+}
+
 /** Ficha completa (y la guarda en la tabla juegos desde el servidor). */
 export async function fichaJuego(igdbId, signal) {
   const d = await llamar({ accion: 'juego', igdb_id: Number(igdbId) }, signal);

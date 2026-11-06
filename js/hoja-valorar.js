@@ -6,6 +6,7 @@ import { usuarioActual } from './sesion.js';
 import { notaALetra, letraANota, redondear, formatearNota, LETRAS } from './notas.js';
 import { esc, portada, aviso, ESTADOS } from './ui.js';
 import { fichaJuego } from './igdb.js';
+import * as metricas from './metricas.js';
 
 const MAX_RESENA = 280;
 const AVISO_RESENA = 230;
@@ -13,6 +14,23 @@ const CLAVE_PLATAFORMA = 'cvj.ultimaPlataforma';
 const CLAVE_MODO = 'cvj.modoNota';
 const PLATAFORMAS_GENERICAS = ['PS5', 'PS4', 'PC', 'Xbox', 'Switch'];
 const NOTA_INICIAL = 7.0;
+const MAX_HORAS = 99999;
+
+// Juegos online / sin final: no se completan.
+const ESTADOS_ONLINE = [
+  { id: 'jugando', nombre: 'Lo juego', icono: 'jugando' },
+  { id: 'abandonado', nombre: 'Lo he dejado', icono: 'abandonado' },
+  { id: 'pendiente', nombre: 'Pendiente', icono: 'pendiente' },
+];
+
+/** "42", "1,5", "12.5 h" → número con un decimal; vacío o raro → null. */
+export function leerHoras(texto) {
+  const t = String(texto ?? '').trim().replace(/\s*h(oras?)?$/i, '').replace(',', '.');
+  if (!t) return null;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < 0) return undefined; // no válido
+  return Math.min(MAX_HORAS, Math.round(n * 10) / 10);
+}
 
 let abierta = null; // { cerrar }
 
@@ -39,6 +57,11 @@ export function abrirValorar(igdbId, op = {}) {
   abierta?.cerrar(true);
 
   const previa = datos.miValoracion(yo.id, id);
+  const online = datos.esOnline(id);
+  const estados = online ? ESTADOS_ONLINE : ESTADOS;
+  // Horas de PlayStation de este juego (si las hay) y, si las hay, las puestas a mano.
+  const horasPsn = metricas.bibliotecaDeJuego(id).get(yo.id)?.horas || null;
+  const conHoras = !datos.estado.valoraciones.length || datos.estado.valoraciones.some((v) => 'horas' in v); // migración 005
 
   // Plataformas del juego (si IGDB no trae ninguna, las de siempre).
   let plataformas = juego.plataformas?.length ? [...juego.plataformas] : [...PLATAFORMAS_GENERICAS];
@@ -51,7 +74,8 @@ export function abrirValorar(igdbId, op = {}) {
     ?? (ultima && plataformas.includes(ultima) ? ultima : plataformas.includes('PS5') ? 'PS5' : plataformas[0]);
 
   const s = {
-    estado: previa?.estado ?? 'completado',
+    // Un juego online no se "completa": si lo estaba, pasa a "Lo juego".
+    estado: online ? (previa?.estado && previa.estado !== 'completado' ? previa.estado : 'jugando') : (previa?.estado ?? 'completado'),
     modo: leer(CLAVE_MODO) === 'letra' ? 'letra' : 'nota',
     nota: previa?.nota != null ? redondear(previa.nota) : null,
     recomendado: previa?.recomendado ?? null,
@@ -82,8 +106,8 @@ export function abrirValorar(igdbId, op = {}) {
       </div>
 
       <div class="hoja-cuerpo">
-        <div class="estados" role="radiogroup" aria-label="Estado">
-          ${ESTADOS.map((e) => `
+        <div class="estados${online ? ' estados-3' : ''}" role="radiogroup" aria-label="Estado">
+          ${estados.map((e) => `
             <button type="button" class="estado-btn" role="radio" data-estado="${e.id}">
               ${icono(e.icono, { tam: 22, color: 'currentColor', trazo: 'var(--fondo-btn)', grosor: 2.4 })}
               <span>${e.nombre}</span>
@@ -141,6 +165,18 @@ export function abrirValorar(igdbId, op = {}) {
           </div>
         </div>
 
+        ${conHoras ? `
+          <div class="bloque-campo" data-bloque="horas">
+            <label for="hoja-horas" class="campo-titulo">Horas jugadas <span class="campo-opcional">(opcional)</span></label>
+            <div class="campo-horas">
+              <input id="hoja-horas" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done"
+                placeholder="${horasPsn ? esc(String(Math.round(horasPsn))) : '0'}" value="${previa?.horas != null ? esc(String(previa.horas).replace('.', ',')) : ''}">
+              <span aria-hidden="true">h</span>
+            </div>
+            ${horasPsn ? `<span class="campo-ayuda">PlayStation: ${esc(metricas.textoHoras(horasPsn))}. Si escribes otras, se usan las tuyas.</span>` : ''}
+            <span class="campo-ayuda error" data-ref="horas-error" hidden>Escribe solo un número, por ejemplo 12 o 12,5.</span>
+          </div>` : ''}
+
         <div class="bloque-campo">
           <label for="hoja-resena" class="campo-titulo">Reseña corta <span class="campo-opcional">(opcional)</span></label>
           <textarea id="hoja-resena" class="resena" rows="2" maxlength="${MAX_RESENA}" placeholder="Una o dos frases para el grupo">${esc(previa?.resena ?? '')}</textarea>
@@ -182,6 +218,8 @@ export function abrirValorar(igdbId, op = {}) {
     const conNota = s.estado !== 'pendiente';
     $('[data-bloque="nota"]').hidden = !conNota;
     $('[data-bloque="rec"]').hidden = !conNota;
+    const bh = $('[data-bloque="horas"]');
+    if (bh) bh.hidden = s.estado === 'pendiente';
 
     for (const b of capa.querySelectorAll('[data-modo]')) b.classList.toggle('activo', b.dataset.modo === s.modo);
     $('[data-panel="nota"]').hidden = s.modo !== 'nota';
@@ -304,6 +342,17 @@ export function abrirValorar(igdbId, op = {}) {
   // -------------------------------------------------------------------------
   function guardar() {
     const conNota = s.estado !== 'pendiente';
+    // Horas: solo si hay campo y no es "Pendiente" (undefined = no tocar las que hubiera).
+    const campoHoras = $('#hoja-horas');
+    let horas;
+    if (campoHoras && conNota) {
+      horas = leerHoras(campoHoras.value);
+      if (horas === undefined) {
+        $('[data-ref="horas-error"]').hidden = false;
+        campoHoras.focus();
+        return;
+      }
+    }
     escribir(CLAVE_PLATAFORMA, s.plataforma ?? '');
     datos.guardarValoracion({
       usuarioId: yo.id,
@@ -313,6 +362,7 @@ export function abrirValorar(igdbId, op = {}) {
       recomendado: conNota ? s.recomendado : null,
       plataforma: s.plataforma,
       resena: resena.value.slice(0, MAX_RESENA),
+      horas,
     }, aviso).then((ok) => {
       // Si el juego solo se conocía por Buscar, completar su ficha en la tabla.
       if (ok && !datos.juego(id)?.resumen && !datos.juego(id)?.desarrolladora) {

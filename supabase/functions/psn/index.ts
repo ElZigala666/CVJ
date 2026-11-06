@@ -265,50 +265,66 @@ function normalizar(t: string): string {
     .trim();
 }
 
-const EDICIONES = /\b(standard|digital|deluxe|ultimate|gold|complete|definitive|premium|special|collector'?s|game of the year|goty|launch|day one|cross[- ]gen|estandar|estándar|digital deluxe|completa|definitiva|del juego del año)\s+(edition|edicion|edición|bundle)\b/gi;
+const EDICIONES = /\b(standard|digital|deluxe|ultimate|gold|complete|definitive|premium|special|collector s|game of the year|goty|launch|day one|cross gen|estandar|digital deluxe|completa|definitiva|del juego del ano)\s+(edition|edicion|bundle)\b/g;
 
 /** "Ghost of Tsushima™ PS4 & PS5 Edición Estándar" → "ghost of tsushima" */
 export function limpiarNombrePsn(nombre: string, sinRemaster = false): string {
   let n = String(nombre ?? "")
     .replace(/[™®©]/g, "")
-    .replace(/\b(ps4|ps5)\s+(versi[oó]n|version)\b/gi, " ")
-    .replace(/\bplay\s*station\s*(4|5)\b/gi, " ")
-    .replace(/\(?\b(ps4|ps5)\b(\s*(&|and|y|\/)\s*\b(ps4|ps5)\b)?\)?/gi, " ")
-    .replace(/\b(versi[oó]n|version)\s+(ps4|ps5)\b/gi, " ")
+    .replace(/['’`´]/g, "") // "Tom Clancy's" → "tom clancys"
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\b(ps4|ps5)\s+version\b/g, " ")
+    .replace(/\bversion\s+(ps4|ps5)\b/g, " ")
+    .replace(/\bplay\s*station\s*(4|5)\b/g, " ")
+    .replace(/\b(ps4|ps5)(\s+(and|y)?\s*(ps4|ps5))?\b/g, " ")
     .replace(EDICIONES, " ")
-    .replace(/\b(edition|edici[oó]n)\s+(est[aá]ndar|standard|digital|deluxe|completa|definitiva)\b/gi, " ")
-    .replace(/\s*[-–:]\s*(edition|edici[oó]n)\s*$/gi, " ");
-  if (sinRemaster) n = n.replace(/\b(remastered|remasterizado|remaster)\b/gi, " ");
-  return normalizar(n);
+    .replace(/\b(edition|edicion)\s+(estandar|standard|digital|deluxe|completa|definitiva)\b/g, " ")
+    .replace(/\s+(edition|edicion)\s*$/g, " ")
+    .replace(/\bremasterizad[oa]\b/g, "remastered");
+  if (sinRemaster) n = n.replace(/\b(remastered|remasterizado|remaster)\b/g, " ");
+  return n.replace(/\s+/g, " ").trim();
 }
 
-/** ¿Es claramente el mismo juego? (nombres ya normalizados) */
-function claramenteIgual(a: string, b: string): boolean {
+/** ¿Es claramente el mismo juego? (nombres ya limpios). Nunca empareja secuelas numeradas. */
+export function claramenteIgual(a: string, b: string): boolean {
   if (!a || !b) return false;
   if (a === b) return true;
-  const sinArticulo = (s: string) => s.replace(/^(the|el|la|los|las)\s+/, "");
+  const sinArticulo = (x: string) => x.replace(/^(the|el|la|los|las)\s+/, "");
   if (sinArticulo(a) === sinArticulo(b)) return true;
-  // Uno es el otro con un subtítulo corto ("god of war ragnarok" / "god of war ragnarok valhalla" no; muy distinto en longitud sí falla)
   const [corto, largo] = a.length <= b.length ? [a, b] : [b, a];
   if (corto.length >= 6 && largo.startsWith(corto + " ") && corto.length / largo.length >= 0.8) {
-    // ...salvo que lo que sobra sea un número de secuela ("spider man" ≠ "spider man 2").
     const resto = largo.slice(corto.length + 1);
     if (!/^(\d+|[ivx]+)\b/.test(resto)) return true;
   }
   const ta = new Set(a.split(" "));
   const tb = new Set(b.split(" "));
   const comunes = [...ta].filter((x) => tb.has(x)).length;
-  const jaccard = comunes / new Set([...ta, ...tb]).size;
-  return jaccard >= 0.85 && Math.min(ta.size, tb.size) >= 2;
+  const numeros = (t: Set<string>) => [...t].filter((x) => /^(\d+|[ivx]+)$/.test(x)).sort().join(",");
+  if (numeros(ta) !== numeros(tb)) return false; // "spider man 2" ≠ "spider man"
+  return comunes / new Set([...ta, ...tb]).size >= 0.85 && Math.min(ta.size, tb.size) >= 2;
 }
 
 // -----------------------------------------------------------------------------
-// Emparejar con IGDB usando la función igdb (misma búsqueda y puntuación)
+// Emparejar títulos de PlayStation con juegos de IGDB
+//   1) con los juegos que ya están en la tabla juegos (sobre todo los que ese
+//      usuario ha valorado), comparando nombres limpios;
+//   2) con la acción "emparejar" de la función igdb (id de la tienda, nombre y
+//      nombres alternativos); en segundo plano y de 4 en 4;
+//   3) si sigue siendo dudoso, queda sin identificar (igdb_id null).
 // -----------------------------------------------------------------------------
-const MAX_EMPAREJAR = 15;          // por sincronización, para no hacerla eterna
-const MAX_EMPAREJAR_PRIMERA = 40;  // al conectar: que se vea casi toda la biblioteca desde el principio
-const EMPAREJAR_A_LA_VEZ = 4;      // búsquedas en IGDB en paralelo
-const EMPAREJAR_HASTA_MS = 80_000; // y sin pasar de ~80 s (Supabase corta a los 150 s)
+const EMPAREJAR_A_LA_VEZ = 4;
+const EMPAREJAR_HASTA_MS = 120_000; // en segundo plano (Supabase corta a los 150 s)
+const ALGORITMO = 2;                // los intentados sin éxito con una versión anterior se reintentan una vez
+
+type Emparejamiento = { igdb_id: number | null; confirmado?: boolean; algoritmo?: number };
+type Fila = Record<string, unknown>;
+
+/** ¿Hay que (re)intentar emparejar este título? */
+const hayQueEmparejar = (e?: Emparejamiento) =>
+  !e || (e.igdb_id == null && !e.confirmado && Number(e.algoritmo ?? 1) < ALGORITMO);
 
 async function llamarIgdb(cuerpo: Record<string, unknown>) {
   const r = await fetch(`${SUPABASE_URL}/functions/v1/igdb`, {
@@ -320,20 +336,96 @@ async function llamarIgdb(cuerpo: Record<string, unknown>) {
   return await r.json();
 }
 
-/** Devuelve el igdb_id si el primer resultado es claramente el mismo juego (y lo guarda en juegos). */
-async function emparejar(nombrePsn: string): Promise<number | null> {
-  for (const sinRemaster of [false, true]) {
-    const limpio = limpiarNombrePsn(nombrePsn, sinRemaster);
-    if (limpio.length < 2) return null;
-    const { resultados = [] } = await llamarIgdb({ accion: "buscar", texto: limpio });
-    const primero = resultados[0];
-    if (primero && claramenteIgual(limpio, normalizar(primero.nombre))) {
-      await llamarIgdb({ accion: "juego", igdb_id: primero.igdb_id }); // guarda el juego en la tabla juegos
-      return Number(primero.igdb_id);
-    }
-    if (!/remaster/i.test(nombrePsn)) break; // la segunda vuelta solo si había "remastered"
+/** Guarda un emparejamiento automático (sin pisar uno elegido a mano) y lo aplica a la biblioteca. */
+async function guardarEmparejamiento(titleId: string, igdbId: number | null, nombre: string) {
+  const { data: actual } = await sb.from("psn_igdb").select("confirmado").eq("psn_title_id", titleId).maybeSingle();
+  if (actual?.confirmado) return;
+  const fila: Fila = { psn_title_id: titleId, igdb_id: igdbId, confirmado: false, nombre_psn: nombre, algoritmo: ALGORITMO, actualizado_en: new Date().toISOString() };
+  let { error } = await sb.from("psn_igdb").upsert(fila, { onConflict: "psn_title_id" });
+  if (error && /algoritmo/.test(error.message)) { // sin la migración 005
+    delete fila.algoritmo;
+    ({ error } = await sb.from("psn_igdb").upsert(fila, { onConflict: "psn_title_id" }));
   }
-  return null;
+  if (error) { console.warn("psn_igdb:", error.message); return; }
+  if (igdbId) await sb.from("biblioteca").update({ juego_id: igdbId }).eq("psn_title_id", titleId);
+}
+
+// <local> (sin dependencias: se prueba en local con node)
+const sinArticulo = (x: string) => x.replace(/^(the|el|la|los|las)\s+/, "");
+
+/**
+ * Paso 1, puro: título de PSN → igdb_id usando los juegos que ya están en la tabla.
+ * Si varios juegos se llaman igual (un remake...), gana el que ha valorado ese
+ * usuario; si no, el único que ha valorado alguien del grupo; si no, ninguno.
+ */
+export function elegirLocales(
+  pendientes: { psn_title_id: unknown; nombre_psn: unknown }[],
+  juegos: { igdb_id: number | string; nombre: string }[],
+  mios: Set<number>,
+  delGrupo: Set<number>,
+) {
+  const porNombre = new Map<string, Set<number>>();
+  for (const j of juegos) {
+    for (const k of [limpiarNombrePsn(j.nombre), sinArticulo(limpiarNombrePsn(j.nombre))]) {
+      if (!porNombre.has(k)) porNombre.set(k, new Set());
+      porNombre.get(k)!.add(Number(j.igdb_id));
+    }
+  }
+  const encontrados = new Map<string, number>();
+  for (const f of pendientes) {
+    const nombre = String(f.nombre_psn);
+    for (const v of [limpiarNombrePsn(nombre), sinArticulo(limpiarNombrePsn(nombre))]) {
+      const ids = [...(porNombre.get(v) ?? [])];
+      if (!ids.length) continue;
+      const deMi = ids.filter((id) => mios.has(id));
+      const deGrupo = ids.filter((id) => delGrupo.has(id));
+      const elegido = ids.length === 1 ? ids[0] : deMi.length === 1 ? deMi[0] : deGrupo.length === 1 ? deGrupo[0] : null;
+      if (elegido) { encontrados.set(String(f.psn_title_id), elegido); break; }
+    }
+  }
+  return encontrados;
+}
+// </local>
+
+/** Paso 1: juegos que ya están en la tabla juegos. Devuelve título → igdb_id. */
+async function emparejarLocal(usuarioId: string, pendientes: Fila[]) {
+  if (!pendientes.length) return new Map<string, number>();
+  const [{ data: juegos }, { data: vals }] = await Promise.all([
+    sb.from("juegos").select("igdb_id, nombre"),
+    sb.from("valoraciones").select("juego_id, usuario_id"),
+  ]);
+  const mios = new Set((vals ?? []).filter((v) => v.usuario_id === usuarioId).map((v) => Number(v.juego_id)));
+  const delGrupo = new Set((vals ?? []).map((v) => Number(v.juego_id)));
+  return elegirLocales(pendientes as { psn_title_id: unknown; nombre_psn: unknown }[], juegos ?? [], mios, delGrupo);
+}
+
+/** Paso 2 (en segundo plano): IGDB para todo lo que falte, de 4 en 4 y con tope de tiempo. */
+async function emparejarConIgdb(pendientes: Fila[]) {
+  const inicio = Date.now();
+  let hechos = 0;
+  for (let i = 0; i < pendientes.length; i += EMPAREJAR_A_LA_VEZ) {
+    if (Date.now() - inicio > EMPAREJAR_HASTA_MS) break; // el resto, en la próxima sincronización
+    await Promise.all(pendientes.slice(i, i + EMPAREJAR_A_LA_VEZ).map(async (f) => {
+      let r: { igdb_id?: number | null } | null = null;
+      try {
+        r = await llamarIgdb({ accion: "emparejar", nombre: f.nombre_psn, title_id: f.psn_title_id, plataforma: f.plataforma });
+      } catch (e) {
+        console.warn("Emparejar", f.nombre_psn, (e as Error).message);
+        return; // se reintentará en la próxima sincronización
+      }
+      await guardarEmparejamiento(String(f.psn_title_id), r?.igdb_id ? Number(r.igdb_id) : null, String(f.nombre_psn));
+      hechos++;
+    }));
+  }
+  console.log(`Emparejados con IGDB: ${hechos} de ${pendientes.length} en ${Math.round((Date.now() - inicio) / 1000)} s`);
+}
+
+/** Lanza una tarea en segundo plano (la respuesta no la espera). */
+function enSegundoPlano(p: Promise<unknown>) {
+  const rt = (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime;
+  const segura = p.catch((e) => console.error("Segundo plano:", e));
+  if (rt?.waitUntil) rt.waitUntil(segura);
+  return segura;
 }
 
 // -----------------------------------------------------------------------------
@@ -387,7 +479,7 @@ async function conectar(usuarioId: string, textoNpsso: string) {
   // Primera sincronización. Si falla, la conexión ya está hecha: se puede reintentar.
   let sincronizacion: Record<string, unknown>;
   try {
-    sincronizacion = await sincronizar(usuarioId, MAX_EMPAREJAR_PRIMERA);
+    sincronizacion = await sincronizar(usuarioId);
   } catch (e) {
     sincronizacion = e instanceof ErrorPsn
       ? { ok: false, codigo: e.codigo, error: e.message }
@@ -426,8 +518,7 @@ async function estado(usuarioId: string) {
   };
 }
 
-async function sincronizar(usuarioId: string, maxEmparejar = MAX_EMPAREJAR) {
-  const inicio = Date.now();
+async function sincronizar(usuarioId: string) {
   await usuario(usuarioId);
   const c = await leerCuenta(usuarioId);
   if (!c) throw new ErrorPsn("sin_conectar", "Primero conecta tu cuenta de PlayStation.");
@@ -485,39 +576,26 @@ async function sincronizar(usuarioId: string, maxEmparejar = MAX_EMPAREJAR) {
 
   // Emparejamientos ya conocidos (compartidos entre usuarios).
   const ids = [...filas.keys()];
-  const conocidos = new Map<string, { igdb_id: number | null }>();
+  const conocidos = new Map<string, Emparejamiento>();
   for (let i = 0; i < ids.length; i += 200) {
-    const { data } = await sb.from("psn_igdb").select("psn_title_id, igdb_id").in("psn_title_id", ids.slice(i, i + 200));
-    for (const x of data ?? []) conocidos.set(x.psn_title_id, x);
+    let r = await sb.from("psn_igdb").select("psn_title_id, igdb_id, confirmado, algoritmo").in("psn_title_id", ids.slice(i, i + 200));
+    if (r.error) r = await sb.from("psn_igdb").select("psn_title_id, igdb_id, confirmado").in("psn_title_id", ids.slice(i, i + 200));
+    for (const x of r.data ?? []) conocidos.set(x.psn_title_id, x);
   }
 
-  // Emparejar automáticamente los nuevos (los más jugados primero, como mucho maxEmparejar),
-  // de EMPAREJAR_A_LA_VEZ en EMPAREJAR_A_LA_VEZ y parando si se acerca el límite de tiempo.
-  const nuevos = [...filas.values()]
-    .filter((f) => !conocidos.has(String(f.psn_title_id)))
-    .sort((a, b) => Number(b.horas ?? 0) - Number(a.horas ?? 0))
-    .slice(0, maxEmparejar);
-  let emparejados = 0;
-  const emparejarUno = async (f: Record<string, unknown>) => {
-    let igdbId: number | null = null;
-    try {
-      igdbId = await emparejar(String(f.nombre_psn));
-    } catch (e) {
-      console.warn("Emparejar", f.nombre_psn, (e as Error).message);
-      return; // se reintentará en la próxima sincronización
-    }
-    // igdb_id nulo = intentado sin éxito (no se repite cada vez; se puede elegir a mano).
-    const { error } = await sb.from("psn_igdb").upsert(
-      { psn_title_id: f.psn_title_id, igdb_id: igdbId, confirmado: false, nombre_psn: f.nombre_psn },
-      { onConflict: "psn_title_id", ignoreDuplicates: true },
-    );
-    if (!error) conocidos.set(String(f.psn_title_id), { igdb_id: igdbId });
-    if (igdbId) emparejados++;
-  };
-  for (let i = 0; i < nuevos.length; i += EMPAREJAR_A_LA_VEZ) {
-    if (Date.now() - inicio > EMPAREJAR_HASTA_MS) break; // el resto, en la próxima sincronización
-    await Promise.all(nuevos.slice(i, i + EMPAREJAR_A_LA_VEZ).map(emparejarUno));
+  // Lo que falta por emparejar (nuevos y los intentados sin éxito con el algoritmo anterior),
+  // los más jugados primero.
+  const pendientes = [...filas.values()]
+    .filter((f) => hayQueEmparejar(conocidos.get(String(f.psn_title_id))))
+    .sort((a, b) => Number(b.horas ?? 0) - Number(a.horas ?? 0));
+
+  // 1) Con los juegos que ya están en la tabla (al momento).
+  const locales = await emparejarLocal(usuarioId, pendientes);
+  for (const [titulo, igdbId] of locales) {
+    await guardarEmparejamiento(titulo, igdbId, String(filas.get(titulo)?.nombre_psn ?? titulo));
+    conocidos.set(titulo, { igdb_id: igdbId, algoritmo: ALGORITMO });
   }
+  const paraIgdb = pendientes.filter((f) => !locales.has(String(f.psn_title_id)));
 
   for (const f of filas.values()) f.juego_id = conocidos.get(String(f.psn_title_id))?.igdb_id ?? null;
   const lista = [...filas.values()];
@@ -527,13 +605,17 @@ async function sincronizar(usuarioId: string, maxEmparejar = MAX_EMPAREJAR) {
   }
   await sb.from("usuarios").update({ psn_sincronizado_en: ahora, psn_reconectar: false }).eq("id", usuarioId);
 
+  // 2) IGDB para el resto, en segundo plano: la app recibe la respuesta ya y refresca después.
+  if (paraIgdb.length) enSegundoPlano(emparejarConIgdb(paraIgdb));
+
   const horas = lista.reduce((t, f) => t + Number(f.horas ?? 0), 0);
   return {
     ok: true,
     juegos: lista.length,
     horas: Math.round(horas),
-    emparejados_ahora: emparejados,
-    sin_emparejar: lista.filter((f) => !f.juego_id).length,
+    emparejados_ahora: locales.size,
+    pendientes: paraIgdb.length, // se están emparejando en segundo plano
+    sin_emparejar: lista.filter((f) => !f.juego_id).length - paraIgdb.length,
     sincronizado_en: ahora,
   };
 }

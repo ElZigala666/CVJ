@@ -6,7 +6,7 @@ import * as psn from '../psn.js';
 import { usuarioActual } from '../sesion.js';
 import { mediaGrupo, recomendacionGrupo, desviacionTipica } from '../notas.js';
 import {
-  esc, cabecera, portada, notaConLetra, iconoRecomendacion, avatarPerfil, nombrePerfil, avatarInsignia,
+  esc, cabecera, portada, notaConLetra, avatar, iconoRecomendacion, avatarPerfil, nombrePerfil, avatarInsignia,
   tiempoRelativo, conservarScroll,
 } from '../ui.js';
 
@@ -69,6 +69,7 @@ function html() {
   if (!hayAlgo) {
     return `
       ${cabecera(yo)}
+      ${elGrupo()}
       ${avisoPsn()}
       <div class="inicio-vacio">
         <span class="vacio-icono grande">${icono('valorar', { tam: 36, color: 'var(--acento)', trazo: 'var(--acento-suave)' })}</span>
@@ -79,6 +80,7 @@ function html() {
   }
   return `
     ${cabecera(yo)}
+    ${elGrupo()}
     ${avisoPsn()}
     <div class="inicio">
       ${jugandoAhora()}
@@ -99,7 +101,8 @@ function html() {
 function jugandoAhora() {
   const porUsuario = new Map();
   for (const v of datos.estado.valoraciones) {
-    if (v.estado !== 'jugando' || !datos.usuario(v.usuario_id)) continue;
+    // Los juegos online / sin final no salen: se juegan siempre.
+    if (v.estado !== 'jugando' || !datos.usuario(v.usuario_id) || datos.esOnline(v.juego_id)) continue;
     const prev = porUsuario.get(v.usuario_id);
     if (!prev || new Date(v.actualizado_en) > new Date(prev.actualizado_en)) porUsuario.set(v.usuario_id, v);
   }
@@ -124,6 +127,23 @@ function jugandoAhora() {
     </section>`;
 }
 
+/** Fila de avatares con todo el grupo: tocar uno abre su perfil. */
+function elGrupo() {
+  const yo = usuarioActual();
+  const lista = [...datos.estado.usuarios].sort((a, b) => (a.id === yo?.id ? -1 : b.id === yo?.id ? 1 : a.nombre.localeCompare(b.nombre, 'es')));
+  if (lista.length < 2) return '';
+  return `
+    <section class="el-grupo" aria-label="El grupo">
+      <div class="el-grupo-fila" data-scroll="grupo">
+        ${lista.map((u) => `
+          <a class="el-grupo-persona" href="#perfil/${esc(u.id)}">
+            ${avatar(u, 52)}
+            <span>${u.id === yo?.id ? 'Tú' : esc(u.nombre)}</span>
+          </a>`).join('')}
+      </div>
+    </section>`;
+}
+
 const DIAS_PSN = 3;
 
 /** Entradas de "Jugando ahora" sacadas de PSN para quien no tiene nada en Jugando. */
@@ -131,7 +151,9 @@ function jugandoPsn(excluir) {
   const limite = Date.now() - DIAS_PSN * 86400000;
   const porUsuario = new Map();
   for (const f of datos.estado.biblioteca ?? []) {
-    if (excluir.has(f.usuario_id) || !f.ultima_vez || !datos.usuario(f.usuario_id)) continue;
+    if (excluir.has(f.usuario_id) || f.oculto || !f.ultima_vez || !datos.usuario(f.usuario_id)) continue;
+    const jid = datos.igdbDeBiblioteca(f);
+    if (jid != null && datos.esOnline(jid)) continue;
     if (new Date(f.ultima_vez).getTime() < limite) continue;
     const prev = porUsuario.get(f.usuario_id);
     if (!prev || f.ultima_vez > prev.ultima_vez) porUsuario.set(f.usuario_id, f);
@@ -205,6 +227,7 @@ function candidatos() {
       rec: recomendacionGrupo(vals),
       jugadores: vals.filter((v) => v.estado !== 'pendiente').length,
       desviacion: desviacionTipica(vals),
+      online: datos.esOnline(id),
     };
   }).filter((x) => x.j);
 }
@@ -213,13 +236,13 @@ function destacados() {
   let lista = candidatos();
   let vacio = '';
   if (pestana === 'mejor') {
-    lista = lista.filter((x) => x.votos >= 2).sort((a, b) => b.media - a.media || b.votos - a.votos);
+    lista = lista.filter((x) => x.votos >= 2 && !x.online).sort((a, b) => b.media - a.media || b.votos - a.votos);
     vacio = 'Aquí saldrán los juegos con al menos 2 notas del grupo.';
   } else if (pestana === 'jugados') {
     lista = lista.filter((x) => x.jugadores > 0).sort((a, b) => b.jugadores - a.jugadores || (b.media ?? -1) - (a.media ?? -1));
     vacio = 'Aquí saldrán los juegos que más gente del grupo ha jugado.';
   } else {
-    lista = lista.filter((x) => x.desviacion !== null).sort((a, b) => b.desviacion - a.desviacion || b.votos - a.votos);
+    lista = lista.filter((x) => x.desviacion !== null && !x.online).sort((a, b) => b.desviacion - a.desviacion || b.votos - a.votos);
     vacio = 'Cuando dos o más personas puntúen el mismo juego, aquí saldrán los que más dividen al grupo.';
   }
   lista = lista.slice(0, MAX_DESTACADOS);

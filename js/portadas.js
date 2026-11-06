@@ -28,7 +28,7 @@ export const ANCHOS = {
   'portada-lista': 54,
   'portada-jugando': 104,
   'portada-destacado': 132,
-  'portada-ficha': 198,
+  'portada-ficha': 300,     // min(64vw, 300px): con DPR 1 o más, t_cover_big_2x
   'portada-rejilla': 140,   // historial del perfil: 3 columnas (hasta ~140 px en pantallas anchas)
   'portada-tier': 51,
   'portada-ranking': 50,

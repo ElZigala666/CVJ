@@ -72,8 +72,14 @@ export async function llamarPsn(accion, extra = {}, signal) {
 export async function conectar(usuarioId, npsso) {
   try { localStorage.setItem(CLAVE_INTENTO, String(Date.now())); } catch { /* nada */ }
   const r = await llamarPsn('conectar', { usuario_id: usuarioId, npsso });
-  if (r.ok) await datos.refrescar();
+  if (r.ok) { await datos.refrescar(); refrescarLuego(r.sincronizacion); }
   return r;
+}
+
+/** La función sigue identificando juegos en segundo plano: refrescar unas cuantas veces. */
+function refrescarLuego(r) {
+  if (!r?.pendientes) return;
+  for (const ms of [15_000, 45_000, 100_000, 150_000]) setTimeout(() => datos.refrescar(), ms);
 }
 
 export async function desconectar(usuarioId) {
@@ -91,6 +97,7 @@ export function sincronizar(usuarioId) {
     .then(async (r) => {
       // "reconectar": la función ya lo ha apuntado en el usuario; refrescar para enseñar el aviso.
       if (r.ok || r.codigo === 'reconectar') await datos.refrescar();
+      if (r.ok) refrescarLuego(r);
       return r;
     })
     .finally(() => { sincronizando = null; });

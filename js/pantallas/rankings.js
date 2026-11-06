@@ -56,12 +56,14 @@ const VACIOS = {
   recomendados: 'Cuando al menos dos personas digan si recomiendan un mismo juego, aparecerá aquí.',
   jugados: 'Todavía nadie ha empezado, completado ni abandonado ningún juego.',
   polemicos: 'Cuando al menos dos personas pongan nota a un mismo juego, aquí saldrán los que más dividen al grupo.',
+  online: 'Aquí saldrán los juegos online o sin final (Fortnite, Rocket League...) en cuanto alguien les ponga nota.',
 };
 const PIES = {
   nota: 'Solo entran juegos con al menos 2 notas del grupo. Con una sola, el juego sale en su ficha como «Solo lo ha valorado…».',
   polemicos: 'Solo entran juegos con al menos 2 notas del grupo, ordenados por lo mucho que se separan sus notas.',
   recomendados: 'Solo entran juegos en los que al menos 2 personas han dicho si lo recomiendan.',
   jugados: 'Cuenta a quien lo está jugando, lo ha completado o lo ha abandonado (no los pendientes).',
+  online: 'Juegos online o sin final, por nota media. No cuentan en Nota media ni en Más polémicos. Se marcan en su ficha.',
 };
 
 function grupo() {
@@ -90,6 +92,7 @@ function filaRanking(x, i) {
   if (orden === 'jugados') extra = `${x.jugadores} ${x.jugadores === 1 ? 'jugador' : 'jugadores'}`;
   if (orden === 'recomendados') extra = `${x.rec.si} de ${x.rec.total} · ${x.rec.porcentaje}%`;
   if (orden === 'polemicos') extra = `${x.votos} notas · se separan ${x.desviacion.toFixed(1)}`;
+  if (orden === 'online') extra = `${x.votos} ${x.votos === 1 ? 'nota' : 'notas'}${x.rec.total ? ` · ${x.rec.si} de ${x.rec.total}` : ''}`;
   return `
     <li>
       <a class="ranking-fila" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}">

@@ -2,6 +2,7 @@
 import { icono } from './icons.js';
 import { notaALetra, formatearNota } from './notas.js';
 import { acentoSeguro } from './acento.js';
+import * as datos from './datos.js';
 
 export { portada, urlPortada, colorBloque, colorFondo, precargar, mejorCargada } from './portadas.js';
 
@@ -48,13 +49,26 @@ export const nombreEstado = (id) => ESTADOS.find((e) => e.id === id)?.nombre ?? 
 // ---------------------------------------------------------------------------
 // Avatares
 // ---------------------------------------------------------------------------
+/** El usuario con sus datos más recientes (la sesión guarda una copia antigua). */
+function fresco(usuario) {
+  const d = usuario?.id ? datos.usuario(usuario.id) : null;
+  return d ? { ...usuario, ...d } : usuario;
+}
+
+/** Inicial y, si tiene, su foto encima (si la foto no carga, se queda la inicial). */
+function caraAvatar(u) {
+  const ini = esc(u?.inicial || u?.nombre?.[0] || '?');
+  if (!u?.foto_url) return ini;
+  return `${ini}<img class="avatar-foto" src="${esc(u.foto_url)}" alt="" loading="lazy" decoding="async" crossorigin="anonymous" onerror="this.remove()">`;
+}
+
 export function avatar(usuario, tam = 40, enlace = null) {
-  const estilo = `--av:${esc(usuario?.color || 'var(--acento)')};--tam:${tam}px`;
-  const ini = esc(usuario?.inicial || usuario?.nombre?.[0] || '?');
+  const u = fresco(usuario);
+  const estilo = `--av:${esc(u?.color || 'var(--acento)')};--tam:${tam}px`;
   if (enlace) {
-    return `<a class="avatar" href="${enlace}" style="${estilo}" aria-label="Tu perfil">${ini}</a>`;
+    return `<a class="avatar" href="${enlace}" style="${estilo}" aria-label="Tu perfil">${caraAvatar(u)}</a>`;
   }
-  return `<span class="avatar" style="${estilo}" aria-hidden="true">${ini}</span>`;
+  return `<span class="avatar" style="${estilo}" aria-hidden="true">${caraAvatar(u)}</span>`;
 }
 
 /**
@@ -68,9 +82,9 @@ export function attrsPerfil(usuario) {
 
 /** Avatar que abre el perfil de su usuario. */
 export function avatarPerfil(usuario, tam = 40) {
-  const estilo = `--av:${esc(usuario?.color || 'var(--acento)')};--tam:${tam}px`;
-  const ini = esc(usuario?.inicial || usuario?.nombre?.[0] || '?');
-  return `<span class="avatar enlace-perfil" style="${estilo}" ${attrsPerfil(usuario)}>${ini}</span>`;
+  const u = fresco(usuario);
+  const estilo = `--av:${esc(u?.color || 'var(--acento)')};--tam:${tam}px`;
+  return `<span class="avatar enlace-perfil" style="${estilo}" ${attrsPerfil(u)}>${caraAvatar(u)}</span>`;
 }
 
 /** Nombre que abre el perfil de su usuario. */

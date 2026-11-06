@@ -97,7 +97,7 @@ export function render(el, { params }) {
 
       <section class="stats-seccion">
         <h2 class="stats-titulo">Tiempo de juego</h2>
-        ${tiempoDeJuego(u, bib)}
+        ${tiempoDeJuego(u, bib, metricas.tiempo(id))}
       </section>`;
 
     // Que el chip activo se vea aunque haya muchos usuarios.
@@ -118,28 +118,28 @@ export function render(el, { params }) {
   return desuscribir;
 }
 
-/** Horas totales, top 5 por horas y PS4 frente a PS5 (o la caja punteada si no hay PSN). */
-function tiempoDeJuego(u, bib) {
-  if (!u.psn_account_id || !bib.total) {
+/** Horas totales (PSN y las puestas a mano), top 5 por horas y PS4 frente a PS5. */
+function tiempoDeJuego(u, bib, t) {
+  if (!t.total) {
     return `
       <div class="caja-punteada">
         ${icono('pendiente', { tam: 18, color: 'var(--texto-2)', trazo: 'var(--fondo)' })}
         <span>${u.psn_account_id
           ? 'PlayStation está conectada, pero aún no hay juegos sincronizados.'
-          : 'Las horas y la biblioteca aparecerán aquí cuando se conecte PlayStation.'}</span>
+          : 'Las horas aparecerán aquí cuando se conecte PlayStation o se escriban al valorar.'}</span>
       </div>`;
   }
-  const max = Math.max(1, ...bib.top.map((x) => x.horas));
+  const max = Math.max(1, ...t.top.map((x) => x.horas));
   const totalPlat = bib.porPlataforma.PS4 + bib.porPlataforma.PS5;
   return `
     <div class="tarjeta-dato grande">
-      <span class="dato-num grande">${bib.horas}<span class="dato-de"> h</span></span>
-      <span class="dato-etq">jugadas en PlayStation · ${bib.total} ${bib.total === 1 ? 'juego' : 'juegos'}</span>
+      <span class="dato-num grande">${t.total}<span class="dato-de"> h</span></span>
+      <span class="dato-etq">jugadas${bib.total ? ` · ${bib.total} ${bib.total === 1 ? 'juego' : 'juegos'} en PlayStation` : ''}</span>
     </div>
-    ${bib.top.length ? `
+    ${t.top.length ? `
       <span class="stats-nota">Los más jugados</span>
       <div class="barras-plataforma barras-horas">
-        ${bib.top.map((x) => `
+        ${t.top.map((x) => `
           <div class="barra-plataforma">
             <span class="barra-plataforma-nombre largo" title="${esc(x.nombre)}">${esc(x.nombre)}</span>
             <div class="barra-plataforma-pista"><div style="width:${Math.max(4, Math.round((x.horas / max) * 100))}%"></div></div>

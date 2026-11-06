@@ -69,7 +69,9 @@ body.sin-barra .pantalla { padding-bottom: 0; }
   display: inline-flex; align-items: center; justify-content: center;
   font-weight: 700; font-size: calc(var(--tam, 40px) * 0.375);
   text-decoration: none; user-select: none;
+  position: relative; overflow: hidden;
 }
+.avatar-foto { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; background: var(--av, var(--acento)); }
 
 /* ---------------------------------------------------------------------------
    Barra inferior
@@ -396,10 +398,21 @@ body.hoja-abierta { overflow: hidden; }
    --------------------------------------------------------------------------- */
 .ficha { display: flex; flex-direction: column; gap: 24px; padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
 .ficha-hero {
-  position: relative; height: calc(372px + env(safe-area-inset-top));
-  background: var(--fondo-hero, #2A1F2A);
+  position: relative;
+  padding: calc(68px + env(safe-area-inset-top)) 0 24px;
+  background: linear-gradient(180deg, var(--fondo-hero, #2A1F2A) 0%, var(--fondo-hero, #2A1F2A) 35%, var(--fondo) 100%);
   display: flex; align-items: flex-end; justify-content: center;
-  padding-bottom: 28px;
+}
+/* Con el color dominante de la portada: intenso arriba y fundido al fondo del tema.
+   La luminosidad la fija el tema (no la portada) para que todo se lea bien. */
+.ficha-hero.con-color {
+  --hero-arriba: hsl(var(--hero-h) var(--hero-s) 34%);
+  --hero-medio: hsl(var(--hero-h) calc(var(--hero-s) * 0.85) 22%);
+  background: linear-gradient(180deg, var(--hero-arriba) 0%, var(--hero-medio) 55%, var(--fondo) 100%);
+}
+:root:not([data-tema="oscuro"]) .ficha-hero.con-color {
+  --hero-arriba: hsl(var(--hero-h) var(--hero-s) 70%);
+  --hero-medio: hsl(var(--hero-h) calc(var(--hero-s) * 0.75) 84%);
 }
 .ficha-volver {
   position: absolute; top: calc(16px + env(safe-area-inset-top)); left: 16px;
@@ -408,10 +421,10 @@ body.hoja-abierta { overflow: hidden; }
   display: flex; align-items: center; justify-content: center;
 }
 .portada-ficha {
-  width: 198px; border-radius: 14px;
+  width: min(64vw, 300px); border-radius: 16px;
   box-shadow: rgba(0, 0, 0, 0.45) 0 16px 40px;
 }
-.portada-ficha .portada-titulo-abajo { left: 14px; right: 14px; bottom: 14px; font-size: 18px; line-height: 1.05; }
+.portada-ficha .portada-titulo-abajo { left: 16px; right: 16px; bottom: 16px; font-size: 22px; line-height: 1.05; }
 .portada-ficha img.ficha-previa { transition: none; z-index: 2; }
 .portada-ficha img:not(.ficha-previa) { z-index: 3; }
 
@@ -1141,3 +1154,101 @@ body.sin-barra #aviso-version { bottom: calc(96px + env(safe-area-inset-bottom))
 .aviso-psn span { flex: 1; }
 .aviso-psn strong { color: var(--acento-texto); white-space: nowrap; }
 .sin-emparejar .portada-titulo-arriba { top: 34px; }
+
+/* ---------------------------------------------------------------------------
+   Fotos de perfil
+   --------------------------------------------------------------------------- */
+.foto-fila { display: flex; align-items: center; gap: 14px; }
+.perfil-cab .boton-pequeno { margin-top: 4px; }
+.foto-editor { display: flex; flex-direction: column; gap: 14px; }
+.foto-marco {
+  position: relative; width: min(100%, 280px); aspect-ratio: 1; margin: 0 auto;
+  border-radius: 50%; overflow: hidden; background: var(--superficie);
+  touch-action: none; cursor: grab; box-shadow: 0 0 0 3px var(--acento-suave);
+}
+.foto-marco:active { cursor: grabbing; }
+.foto-marco img { position: absolute; left: 50%; top: 50%; max-width: none; user-select: none; pointer-events: none; }
+.foto-vacia { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; font-size: 13px; color: var(--texto-2); text-align: center; padding: 20px; }
+.foto-vacia[hidden] { display: none; }
+.foto-zoom { display: flex; align-items: center; gap: 12px; font-size: 13px; font-weight: 600; }
+.foto-zoom[hidden] { display: none; }
+.foto-zoom input { flex: 1; }
+.foto-elegir { cursor: pointer; width: 100%; height: 48px; }
+.foto-quitar { align-self: center; }
+
+/* Inicio: fila "El grupo" */
+.el-grupo { margin-top: 4px; }
+.el-grupo-fila {
+  display: flex; gap: 14px; overflow-x: auto; padding: 4px 20px 6px;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.el-grupo-fila::-webkit-scrollbar { display: none; }
+.el-grupo-persona {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 0 0 auto;
+  width: 60px; text-decoration: none; color: var(--texto); font-size: 12px; font-weight: 600;
+}
+.el-grupo-persona span:last-child { max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.el-grupo-persona .avatar { font-size: 20px; }
+
+/* Perfil: buscador y orden encima de las rejillas */
+.filtro { display: flex; gap: 8px; margin-top: 12px; }
+.filtro-buscar {
+  flex: 1; min-width: 0; height: 40px; padding: 0 12px; border-radius: 12px;
+  display: flex; align-items: center; gap: 8px; background: var(--superficie);
+}
+.filtro-buscar input {
+  flex: 1; min-width: 0; height: 100%; border: 0; background: none; color: var(--texto);
+  font: 16px var(--fuente-texto); outline: none;
+}
+.filtro-buscar input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.filtro-buscar:focus-within { box-shadow: 0 0 0 2px var(--acento); }
+.filtro-orden { position: relative; flex: 0 0 auto; display: flex; align-items: center; }
+.filtro-orden select {
+  height: 40px; padding: 0 30px 0 12px; border: 0; border-radius: 12px; appearance: none; -webkit-appearance: none;
+  background: var(--superficie); color: var(--texto); font: 600 14px var(--fuente-texto);
+}
+.filtro-orden svg { position: absolute; right: 11px; pointer-events: none; }
+
+/* Perfil: biblioteca de PlayStation */
+.bib-celda { position: relative; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+.bib-menu {
+  position: absolute; top: 5px; right: 5px; z-index: 4; width: 28px; height: 28px; border: 0; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.55);
+}
+.bib-celda .que-juego { right: 38px; }
+.rejilla-horas { font-family: var(--fuente-texto); font-weight: 700; font-size: 11px; opacity: .9; }
+.rejilla-sin-valorar {
+  position: absolute; left: 6px; top: 6px; z-index: 3; padding: 2px 6px; border-radius: 6px;
+  background: var(--acento); color: var(--sobre-acento); font-size: 10px; font-weight: 700;
+}
+.bib-plegable { margin-top: 14px; padding: 12px 14px; border-radius: 16px; background: var(--superficie); }
+.bib-plegable summary { cursor: pointer; font-weight: 700; font-size: 15px; list-style: none; display: flex; align-items: center; gap: 8px; }
+.bib-plegable summary::-webkit-details-marker { display: none; }
+.bib-plegable summary::before { content: ''; width: 0; height: 0; border-left: 6px solid currentColor; border-top: 5px solid transparent; border-bottom: 5px solid transparent; transition: transform .15s; }
+.bib-plegable[open] summary::before { transform: rotate(90deg); }
+.bib-plegable .ajustes-nota { margin-top: 8px; }
+.bib-ver-ocultos { margin-top: 14px; display: block; }
+.bib-ocultos { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.bib-ocultos li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px 8px 14px; border-radius: 12px; background: var(--superficie); font-size: 14px; }
+.bib-ocultos li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-bib { display: flex; flex-direction: column; gap: 12px; }
+.menu-bib .boton-secundario { height: 48px; width: 100%; }
+
+/* Valorar: juegos online (3 estados) y horas jugadas */
+.estados.estados-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.campo-horas {
+  display: flex; align-items: center; gap: 8px; width: 140px; height: 48px; padding: 0 14px;
+  border-radius: 14px; border: 1px solid var(--borde); background: var(--superficie);
+}
+.campo-horas:focus-within { border-color: var(--acento); }
+.campo-horas input {
+  flex: 1; min-width: 0; height: 100%; border: 0; background: none; color: var(--texto); outline: none;
+  font: 700 18px var(--fuente-titulos);
+}
+.campo-horas span { color: var(--texto-2); font-weight: 700; }
+.campo-ayuda { font-size: 12px; color: var(--texto-2); line-height: 1.4; }
+.campo-ayuda.error { color: var(--peligro); }
+.bloque-campo[hidden] { display: none; }
+
+/* Ficha: juego online / sin final */
+.ficha-online { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 2px; font-size: 14px; color: var(--texto-2); }

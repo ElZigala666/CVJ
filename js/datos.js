@@ -91,9 +91,9 @@ export function refrescar() {
 
 const COLUMNAS_USUARIO = 'id, nombre, inicial, color, acento, creado_en';
 const COLUMNAS_PSN = ', psn_online_id, psn_account_id, psn_sincronizado_en';
-/** Usuarios con sus datos de PSN; si faltan las migraciones 004 o 003, con lo que haya. */
+/** Usuarios con sus datos de PSN y su foto; si faltan las migraciones 005, 004 o 003, con lo que haya. */
 async function leerUsuarios(sb) {
-  for (const extra of [COLUMNAS_PSN + ', psn_reconectar', COLUMNAS_PSN]) {
+  for (const extra of [COLUMNAS_PSN + ', psn_reconectar, foto_url, es_admin', COLUMNAS_PSN + ', psn_reconectar', COLUMNAS_PSN]) {
     const r = await sb.from('usuarios').select(COLUMNAS_USUARIO + extra).order('creado_en');
     if (!r.error) return r;
   }
@@ -217,7 +217,7 @@ export function recordarJuego(fila) {
  * @param {(msg:string)=>void} [onError]
  */
 async function escribirOptimista(aplicar, guardar, onError, mensajeError = 'No se ha podido guardar. Se ha deshecho el cambio.') {
-  const copia = { valoraciones: estado.valoraciones, actividad: estado.actividad, juegos: estado.juegos, usuarios: estado.usuarios, psnIgdb: estado.psnIgdb };
+  const copia = { valoraciones: estado.valoraciones, actividad: estado.actividad, juegos: estado.juegos, usuarios: estado.usuarios, psnIgdb: estado.psnIgdb, biblioteca: estado.biblioteca };
   escriturasEnCurso++;
   aplicar(estado);
   indices = construirIndices(estado);
@@ -264,7 +264,7 @@ function filaJuego(j) {
 
 /**
  * Crea o actualiza mi valoración de un juego (y su entrada en la actividad).
- * @param {{usuarioId:string, igdbId:number, estado:string, nota:number|null, recomendado:boolean|null, plataforma:string|null, resena:string|null}} v
+ * @param {{usuarioId:string, igdbId:number, estado:string, nota:number|null, recomendado:boolean|null, plataforma:string|null, resena:string|null, horas?:number|null}} v
  */
 export function guardarValoracion(v, onError) {
   const id = Number(v.igdbId);
@@ -283,6 +283,9 @@ export function guardarValoracion(v, onError) {
     creado_en: antes?.creado_en ?? ahora,
     actualizado_en: ahora,
   };
+  // Horas a mano: solo si la columna existe (migración 005) o se han escrito.
+  if (v.horas !== undefined && (v.horas != null || antes?.horas != null)) fila.horas = v.horas;
+  else if (antes && 'horas' in antes) fila.horas = antes.horas;
 
   // ¿Qué se cuenta en la actividad?
   let tipo = null;
@@ -333,13 +336,63 @@ export function guardarValoracion(v, onError) {
   );
 }
 
-/** Cambia datos de un usuario (de momento, su color de acento). */
-export function actualizarUsuario(id, cambios, onError) {
+/** Cambia datos de un usuario (su color de acento, su foto...). */
+export function actualizarUsuario(id, cambios, onError, mensajeError = 'No se ha podido guardar el color. Se ha deshecho el cambio.') {
   return escribirOptimista(
     (s) => { s.usuarios = s.usuarios.map((u) => (u.id === id ? { ...u, ...cambios } : u)); },
     async (sb) => { comprobar(await sb.from('usuarios').update(cambios).eq('id', id)); },
     onError,
-    'No se ha podido guardar el color. Se ha deshecho el cambio.',
+    mensajeError,
+  );
+}
+
+/**
+ * Guarda el color dominante de la portada de un juego (se calcula una sola vez).
+ * Sin avisos: si falla, se volverá a calcular otro día.
+ */
+export async function guardarColorDominante(igdbId, hex) {
+  const id = Number(igdbId);
+  const j = juego(id);
+  if (!j || !('color_dominante' in j) || j.color_dominante === hex) return;
+  estado.juegos = estado.juegos.map((x) => (Number(x.igdb_id) === id ? { ...x, color_dominante: hex } : x));
+  indices = construirIndices(estado);
+  guardarCache();
+  try {
+    const sb = await cliente();
+    const r = await sb.from('juegos').update({ color_dominante: hex }).eq('igdb_id', id);
+    if (r.error) throw r.error;
+  } catch (e) {
+    console.info('[datos] Color dominante sin guardar:', e?.message || e);
+  }
+}
+
+/** ¿Es un juego online / sin final? (lo elegido a mano manda sobre lo automático) */
+export const esOnline = (igdbId) => juego(igdbId)?.es_online === true;
+
+/** Marca o desmarca un juego como online / sin final (para todo el grupo). */
+export function marcarOnline(igdbId, valor, onError) {
+  const id = Number(igdbId);
+  const cambios = { es_online: !!valor, es_online_manual: !!valor };
+  return escribirOptimista(
+    (s) => { s.juegos = s.juegos.map((x) => (Number(x.igdb_id) === id ? { ...x, ...cambios } : x)); },
+    async (sb) => { comprobar(await sb.from('juegos').update(cambios).eq('igdb_id', id)); },
+    onError,
+    'No se ha podido cambiar. Se ha deshecho el cambio.',
+  );
+}
+
+/** Oculta (o vuelve a mostrar) entradas de mi biblioteca de PSN. */
+export function ocultarBiblioteca(usuarioId, psnTitleIds, oculto, onError) {
+  const ids = new Set(psnTitleIds);
+  return escribirOptimista(
+    (s) => {
+      s.biblioteca = (s.biblioteca ?? []).map((b) => (b.usuario_id === usuarioId && ids.has(b.psn_title_id) ? { ...b, oculto } : b));
+    },
+    async (sb) => {
+      comprobar(await sb.from('biblioteca').update({ oculto }).eq('usuario_id', usuarioId).in('psn_title_id', [...ids]));
+    },
+    onError,
+    'No se ha podido guardar. Se ha deshecho el cambio.',
   );
 }
 

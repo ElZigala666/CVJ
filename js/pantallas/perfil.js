@@ -7,7 +7,10 @@ import * as datos from '../datos.js';
 import * as metricas from '../metricas.js';
 import { usuarioActual } from '../sesion.js';
 import { LETRAS, rangoTier, formatearNota, notaALetra as notaLetra } from '../notas.js';
-import { esc, avatar, portada, chipLetra, cabeceraAtras, estadoVacio, tiempoRelativo } from '../ui.js';
+import { esc, avatar, portada, chipLetra, cabeceraAtras, estadoVacio, tiempoRelativo, aviso } from '../ui.js';
+import { abrirHoja } from '../hoja.js';
+import { botonFoto } from '../foto-perfil.js';
+import { normalizarBusqueda } from '../psn-nombres.js';
 import { abrirValorar } from '../hoja-valorar.js';
 import { textoHoras } from '../metricas.js';
 import { volver, rutaPerfil } from '../navegacion.js';
@@ -21,6 +24,54 @@ const PESTANAS = [
 ];
 const pestanaRecordada = new Map(); // usuario → pestaña (al volver de una ficha sigue igual)
 
+// Filtro de historial y biblioteca: "{usuario}:hist" / "{usuario}:bib" → { texto, orden }
+const ORDENES_FILTRO = [
+  { id: 'nota', nombre: 'Nota' },
+  { id: 'horas', nombre: 'Horas' },
+  { id: 'nombre', nombre: 'Nombre' },
+  { id: 'reciente', nombre: 'Más reciente' },
+];
+const filtros = new Map();
+const filtroDe = (clave, orden) => {
+  if (!filtros.has(clave)) filtros.set(clave, { texto: '', orden });
+  return filtros.get(clave);
+};
+
+/**
+ * Filtra por nombre y ordena (en el cliente, al momento).
+ * @param {(x) => { nombre: string, nota: number|null, horas: number|null, fecha: string|null }} datosDe
+ */
+function filtrar(lista, f, datosDe) {
+  const q = normalizarBusqueda(f.texto);
+  const con = lista.map((x) => ({ x, d: datosDe(x) })).filter(({ d }) => !q || normalizarBusqueda(d.nombre).includes(q));
+  const porNombre = (a, b) => a.d.nombre.localeCompare(b.d.nombre, 'es');
+  const orden = {
+    nota: (a, b) => (b.d.nota ?? -1) - (a.d.nota ?? -1) || (b.d.fecha ?? '').localeCompare(a.d.fecha ?? ''),
+    horas: (a, b) => (b.d.horas ?? -1) - (a.d.horas ?? -1) || porNombre(a, b),
+    nombre: porNombre,
+    reciente: (a, b) => (b.d.fecha ?? '').localeCompare(a.d.fecha ?? '') || porNombre(a, b),
+  }[f.orden];
+  if (orden) con.sort(orden);
+  return con.map(({ x }) => x);
+}
+
+function barraFiltro(clave, f) {
+  return `
+    <div class="filtro" data-filtro="${esc(clave)}">
+      <label class="filtro-buscar">
+        ${icono('buscar', { tam: 16, color: 'var(--texto-2)' })}
+        <input type="search" data-filtro-texto placeholder="Buscar por nombre" value="${esc(f.texto)}" autocomplete="off" aria-label="Buscar por nombre">
+      </label>
+      <label class="filtro-orden">
+        <span class="sr">Ordenar por</span>
+        <select data-filtro-orden>
+          ${ORDENES_FILTRO.map((o) => `<option value="${o.id}"${o.id === f.orden ? ' selected' : ''}>${o.nombre}</option>`).join('')}
+        </select>
+        ${icono('desplegable', { tam: 12, color: 'var(--texto-2)' })}
+      </label>
+    </div>`;
+}
+
 export function render(el, { params, alSalir }) {
   const yo = usuarioActual();
   const id = params[0] || yo?.id;
@@ -29,11 +80,14 @@ export function render(el, { params, alSalir }) {
 }
 
 // ---------------------------------------------------------------------------
-// Perfil
+// Perfil (el mío y el de los demás se ven igual; solo el dueño puede ocultar)
 // ---------------------------------------------------------------------------
 function renderPerfil(el, id, alSalir) {
   const yo = usuarioActual();
   const esMio = id === yo?.id;
+  const fHist = filtroDe(`${id}:hist`, 'nota');
+  const fBib = filtroDe(`${id}:bib`, 'horas');
+  const vista = { sinIdentificar: false, ocultos: false };
 
   const pintar = () => {
     const u = datos.usuario(id) ?? (esMio ? yo : null);
@@ -44,10 +98,17 @@ function renderPerfil(el, id, alSalir) {
       document.title = 'CVJ · Perfil';
       return;
     }
+    // Si estaba escribiendo en un buscador, que siga el foco tras repintar.
+    const activo = document.activeElement;
+    const enFiltro = el.contains(activo) && activo.matches?.('[data-filtro-texto]') ? activo.closest('[data-filtro]').dataset.filtro : null;
+    const cursor = enFiltro ? activo.selectionStart : null;
+
     document.title = `CVJ · ${esMio ? 'Perfil' : u.nombre}`;
     const p = metricas.perfil(id);
     const bib = metricas.biblioteca(id);
+    const tiempo = metricas.tiempo(id);
     const vinculado = !!u.psn_account_id;
+    const soyAdmin = !!datos.usuario(yo?.id)?.es_admin;
     if (!pestanaRecordada.has(id)) {
       const inicial = p.completados ? 'completado' : PESTANAS.find((x) => p.historial[x.id].length)?.id ?? 'completado';
       pestanaRecordada.set(id, inicial);
@@ -56,6 +117,7 @@ function renderPerfil(el, id, alSalir) {
     const sub = p.jugados
       ? `${p.jugados} ${p.jugados === 1 ? 'juego valorado' : 'juegos valorados'}${p.plataformaPrincipal ? ` · juega sobre todo en ${p.plataformaPrincipal}` : ''}`
       : (esMio ? 'Aún no has valorado ningún juego' : 'Aún no ha valorado ningún juego');
+    const hayBiblioteca = bib.total || bib.ocultos.length;
 
     el.innerHTML = `
       <section class="perfil">
@@ -67,6 +129,7 @@ function renderPerfil(el, id, alSalir) {
           ${avatar(u, 88)}
           <h1 class="perfil-nombre-grande">${esc(u.nombre)}</h1>
           <span class="perfil-sub">${esc(sub)}</span>
+          ${!esMio && soyAdmin && 'foto_url' in u ? botonFoto(u, u.foto_url ? 'Cambiar su foto' : 'Ponerle foto') : ''}
         </div>
 
         <div class="tarjetas-3">
@@ -81,8 +144,8 @@ function renderPerfil(el, id, alSalir) {
             <span class="dato-etq">Nota media</span>
           </div>
           <div class="tarjeta-dato">
-            ${vinculado && bib.total
-              ? `<span class="dato-num">${bib.horas}</span><span class="dato-etq">Horas en PlayStation</span>`
+            ${tiempo.total
+              ? `<span class="dato-num">${tiempo.total}</span><span class="dato-etq">Horas jugadas</span>`
               : '<span class="dato-num apagado">—</span><span class="dato-etq">Horas · sin datos</span>'}
           </div>
         </div>
@@ -107,14 +170,22 @@ function renderPerfil(el, id, alSalir) {
           <div data-ref="historial"></div>
         </section>
 
-        ${bib.sinValorar.length ? `
+        ${p.online.length ? `
           <section class="perfil-seccion">
             <div class="seccion-cab">
-              <h2 class="seccion-titulo">${esMio ? 'En tu biblioteca sin valorar' : 'En su biblioteca sin valorar'}</h2>
-              <span class="seccion-extra">${bib.sinValorar.length}</span>
+              <h2 class="seccion-titulo">Juegos online</h2>
+              <span class="seccion-extra">${p.online.length}</span>
             </div>
-            <div class="rejilla">${bib.sinValorar.slice(0, MAX_SIN_VALORAR).map((x, i) => itemBiblioteca(x, i, esMio)).join('')}</div>
-            ${bib.sinValorar.length > MAX_SIN_VALORAR ? `<p class="historial-tab-vacia">Y ${bib.sinValorar.length - MAX_SIN_VALORAR} más con menos horas.</p>` : ''}
+            <div class="rejilla">${p.online.map((v, i) => itemRejilla(v, i, metricas.horasDe(id, v.juego_id))).join('')}</div>
+          </section>` : ''}
+
+        ${hayBiblioteca ? `
+          <section class="perfil-seccion">
+            <div class="seccion-cab">
+              <h2 class="seccion-titulo">Biblioteca de PlayStation</h2>
+              <span class="seccion-extra">${bib.total} ${bib.total === 1 ? 'juego' : 'juegos'}${bib.horas ? ` · ${bib.horas} h` : ''}</span>
+            </div>
+            <div data-ref="biblioteca"></div>
           </section>` : ''}
 
         <section class="perfil-seccion">
@@ -123,6 +194,29 @@ function renderPerfil(el, id, alSalir) {
         </section>
       </section>`;
     pintarHistorial(u, p);
+    if (hayBiblioteca) pintarBiblioteca(bib);
+
+    if (enFiltro) {
+      const inp = el.querySelector(`[data-filtro="${enFiltro}"] [data-filtro-texto]`);
+      if (inp) { inp.focus(); try { inp.setSelectionRange(cursor, cursor); } catch { /* nada */ } }
+    }
+  };
+
+  // ----- Historial ----------------------------------------------------------
+  const datosValoracion = (v) => ({
+    nombre: datos.juegoConocido(v.juego_id)?.nombre ?? '',
+    nota: v.nota != null ? Number(v.nota) : null,
+    horas: metricas.horasDe(id, v.juego_id),
+    fecha: v.actualizado_en ?? v.creado_en,
+  });
+
+  const rejillaHistorial = (u, p) => {
+    const activa = pestanaRecordada.get(id);
+    const lista = filtrar(p.historial[activa], fHist, datosValoracion);
+    if (!lista.length) {
+      return `<p class="historial-tab-vacia">${fHist.texto ? 'Ningún juego con ese nombre.' : textoVacio(activa, esMio, u.nombre)}</p>`;
+    }
+    return `<div class="rejilla">${lista.map((v, i) => itemRejilla(v, i, fHist.orden === 'horas' ? metricas.horasDe(id, v.juego_id) : undefined)).join('')}</div>`;
   };
 
   const pintarHistorial = (u, p) => {
@@ -138,7 +232,6 @@ function renderPerfil(el, id, alSalir) {
       return;
     }
     const activa = pestanaRecordada.get(id);
-    const lista = p.historial[activa];
     cont.innerHTML = `
       <div class="pestanas pestanas-historial" role="tablist" aria-label="Historial">
         ${PESTANAS.map((x) => `
@@ -146,12 +239,147 @@ function renderPerfil(el, id, alSalir) {
             ${x.nombre} <span class="pestana-n">${p.historial[x.id].length}</span>
           </button>`).join('')}
       </div>
-      ${lista.length
-        ? `<div class="rejilla">${lista.map((v, i) => itemRejilla(v, i)).join('')}</div>`
-        : `<p class="historial-tab-vacia">${textoVacio(activa, esMio, u.nombre)}</p>`}`;
+      ${barraFiltro('hist', fHist)}
+      <div data-ref="rejilla-hist">${rejillaHistorial(u, p)}</div>`;
+  };
+
+  // ----- Biblioteca de PlayStation -------------------------------------------
+  const datosBiblioteca = (x) => ({
+    nombre: x.nombre ?? '',
+    nota: x.valoracion?.nota != null ? Number(x.valoracion.nota) : null,
+    horas: x.horas,
+    fecha: x.ultimaVez,
+  });
+
+  const rejillaBiblioteca = (bib) => {
+    const lista = filtrar(bib.identificados, fBib, datosBiblioteca);
+    if (!lista.length) {
+      return `<p class="historial-tab-vacia">${fBib.texto ? 'Ningún juego con ese nombre.' : 'Todavía no hay juegos identificados.'}</p>`;
+    }
+    return `<div class="rejilla">${lista.map((x, i) => itemBiblioteca(x, i, esMio)).join('')}</div>`;
+  };
+
+  const pintarBiblioteca = (bib) => {
+    const cont = el.querySelector('[data-ref="biblioteca"]');
+    if (!cont) return;
+    const sinId = filtrar(bib.sinIdentificar, fBib, datosBiblioteca);
+    cont.innerHTML = `
+      ${barraFiltro('bib', fBib)}
+      <div data-ref="rejilla-bib">${rejillaBiblioteca(bib)}</div>
+      ${bib.sinIdentificar.length ? `
+        <details class="bib-plegable"${vista.sinIdentificar ? ' open' : ''} data-plegable="sinIdentificar">
+          <summary>Sin identificar (${bib.sinIdentificar.length})</summary>
+          <p class="ajustes-nota">${esMio ? 'No hemos sabido qué juego es. Tócalo para elegirlo; vale para todo el grupo.' : 'Juegos de PlayStation que aún no se han identificado.'}</p>
+          <div class="rejilla">${sinId.map((x) => itemSinIdentificar(x, esMio)).join('')}</div>
+        </details>` : ''}
+      ${esMio && bib.ocultos.length ? `
+        <button type="button" class="enlace-discreto bib-ver-ocultos" data-accion="ver-ocultos" aria-expanded="${vista.ocultos}">${vista.ocultos ? 'Ocultar la lista' : `Ver ocultos (${bib.ocultos.length})`}</button>
+        ${vista.ocultos ? `
+          <ul class="bib-ocultos">
+            ${bib.ocultos.map((x) => `
+              <li><span>${esc(x.nombre)}</span><button type="button" class="boton-secundario boton-pequeno" data-mostrar="${esc(x.clave)}">Volver a mostrar</button></li>`).join('')}
+          </ul>` : ''}` : ''}`;
+  };
+
+  // ----- Ocultar de mi biblioteca (menú ⋮, pulsación larga o clic derecho) ---
+  const grupoBib = (clave) => {
+    const bib = metricas.biblioteca(id);
+    return [...bib.juegos, ...bib.ocultos].find((x) => x.clave === clave) ?? null;
+  };
+  const abrirMenuBib = (clave) => {
+    const x = grupoBib(clave);
+    if (!x || !esMio) return;
+    abrirHoja({
+      titulo: x.nombre,
+      antetitulo: 'Tu biblioteca',
+      html: `
+        <div class="menu-bib">
+          <button type="button" class="boton-secundario neutro" data-ocultar>Ocultar de mi biblioteca</button>
+          <p class="ajustes-nota">No se borra: deja de salir en tu biblioteca, en tus horas y en «Jugando ahora», también tras sincronizar. Lo recuperas abajo del todo, en «Ver ocultos».</p>
+        </div>`,
+      alMontar(cuerpo, cerrar) {
+        cuerpo.querySelector('[data-ocultar]').addEventListener('click', () => {
+          datos.ocultarBiblioteca(yo.id, x.titulos, true, aviso);
+          aviso('Oculto de tu biblioteca');
+          cerrar();
+        });
+      },
+    });
+  };
+  let largo = null;
+  let largaHecha = false;
+  el.addEventListener('pointerdown', (e) => {
+    const c = e.target.closest('[data-bib-celda]');
+    if (!c || !esMio) return;
+    largaHecha = false;
+    const x0 = e.clientX, y0 = e.clientY;
+    largo = { x0, y0, t: setTimeout(() => { largaHecha = true; abrirMenuBib(c.dataset.bibCelda); }, 550) };
+  });
+  const cancelarLargo = (e) => {
+    if (!largo) return;
+    if (e.type === 'pointermove' && Math.hypot(e.clientX - largo.x0, e.clientY - largo.y0) < 10) return;
+    clearTimeout(largo.t);
+    largo = null;
+  };
+  el.addEventListener('pointermove', cancelarLargo);
+  el.addEventListener('pointerup', cancelarLargo);
+  el.addEventListener('pointercancel', cancelarLargo);
+  el.addEventListener('contextmenu', (e) => {
+    const c = e.target.closest('[data-bib-celda]');
+    if (!c || !esMio) return;
+    e.preventDefault();
+    if (largo) { clearTimeout(largo.t); largo = null; }
+    if (!largaHecha) { largaHecha = true; abrirMenuBib(c.dataset.bibCelda); }
+  });
+
+  // ----- Eventos ------------------------------------------------------------
+  el.addEventListener('input', (e) => {
+    const f = e.target.closest('[data-filtro]');
+    if (!f || !e.target.matches('[data-filtro-texto]')) return;
+    const estado = f.dataset.filtro === 'hist' ? fHist : fBib;
+    estado.texto = e.target.value;
+    repintarRejilla(f.dataset.filtro);
+  });
+  el.addEventListener('change', (e) => {
+    const f = e.target.closest('[data-filtro]');
+    if (!f || !e.target.matches('[data-filtro-orden]')) return;
+    (f.dataset.filtro === 'hist' ? fHist : fBib).orden = e.target.value;
+    repintarRejilla(f.dataset.filtro);
+  });
+  el.addEventListener('toggle', (e) => {
+    const d = e.target.closest?.('[data-plegable]');
+    if (d) vista[d.dataset.plegable] = d.open;
+  }, true);
+  const repintarRejilla = (cual) => {
+    const u = datos.usuario(id) ?? yo;
+    if (cual === 'hist') {
+      const r = el.querySelector('[data-ref="rejilla-hist"]');
+      if (r) r.innerHTML = rejillaHistorial(u, metricas.perfil(id));
+    } else {
+      // La biblioteca entera (también filtra "Sin identificar"), sin perder el foco.
+      const bib = metricas.biblioteca(id);
+      const r = el.querySelector('[data-ref="rejilla-bib"]');
+      if (r) r.innerHTML = rejillaBiblioteca(bib);
+      const sin = el.querySelector('[data-plegable="sinIdentificar"] .rejilla');
+      if (sin) sin.innerHTML = filtrar(bib.sinIdentificar, fBib, datosBiblioteca).map((x) => itemSinIdentificar(x, esMio)).join('');
+    }
   };
 
   el.addEventListener('click', (e) => {
+    if (largaHecha && e.target.closest('[data-bib-celda]')) {
+      // El clic que llega al soltar una pulsación larga no abre nada.
+      e.preventDefault();
+      largaHecha = false;
+      return;
+    }
+    const menu = e.target.closest('[data-bib-menu]');
+    if (menu) { e.preventDefault(); abrirMenuBib(menu.dataset.bibMenu); return; }
+    const mostrar = e.target.closest('[data-mostrar]');
+    if (mostrar) {
+      const x = grupoBib(mostrar.dataset.mostrar);
+      if (x) { datos.ocultarBiblioteca(yo.id, x.titulos, false, aviso); aviso('Vuelve a estar en tu biblioteca'); }
+      return;
+    }
     const b = e.target.closest('[data-accion], [data-pestana], [data-valorar-psn]');
     if (!b) return;
     if (b.dataset.valorarPsn) {
@@ -160,6 +388,7 @@ function renderPerfil(el, id, alSalir) {
       return;
     }
     if (b.dataset.accion === 'vincular-psn') { abrirAjustes(alSalir, { psn: true }); return; }
+    if (b.dataset.accion === 'ver-ocultos') { vista.ocultos = !vista.ocultos; pintarBiblioteca(metricas.biblioteca(id)); return; }
     if (b.dataset.pestana) {
       pestanaRecordada.set(id, b.dataset.pestana);
       const u = datos.usuario(id) ?? yo;
@@ -179,8 +408,6 @@ function renderPerfil(el, id, alSalir) {
 // ---------------------------------------------------------------------------
 // PlayStation en el perfil
 // ---------------------------------------------------------------------------
-const MAX_SIN_VALORAR = 30;
-
 function bloqueBibliotecas(u, esMio, vinculado, bib) {
   if (vinculado) {
     return `
@@ -221,30 +448,47 @@ function bloqueBibliotecas(u, esMio, vinculado, bib) {
     </div>`;
 }
 
+/** Juego identificado de la biblioteca: portada, horas y su nota si lo ha valorado. */
 function itemBiblioteca(x, i, esMio) {
   const horas = textoHoras(x.horas);
-  const pie = `<span class="rejilla-nota">${horas || 'Sin horas'}</span>`;
-  if (x.igdbId != null && x.juego) {
-    // Emparejado: en mi perfil abre la hoja de Valorar con la plataforma de PSN; en otros, la ficha.
-    const attrs = esMio
-      ? `href="#juego/${x.igdbId}" data-valorar-psn="${x.igdbId}" data-plataforma="${esc(x.plataformaPrincipal ?? '')}"`
-      : `href="#juego/${x.igdbId}" data-precarga="${esc(x.juego.cover_id ?? '')}"`;
-    return `
+  const v = x.valoracion;
+  const n = v?.nota != null ? formatearNota(v.nota) : null;
+  const pie = `
+    <span class="rejilla-nota">
+      ${n ? `${n}${chipLetra(notaLetra(v.nota), 'mini')}` : ''}
+      ${horas ? `<span class="rejilla-horas">${horas}</span>` : (n ? '' : '<span class="rejilla-horas">Sin horas</span>')}
+    </span>
+    ${esMio && !v ? '<span class="rejilla-sin-valorar">Sin valorar</span>' : ''}`;
+  // Mío y sin valorar: abre la hoja de Valorar con la plataforma de PSN; si no, la ficha.
+  const attrs = esMio && !v
+    ? `href="#juego/${x.igdbId}" data-valorar-psn="${x.igdbId}" data-plataforma="${esc(x.plataformaPrincipal ?? '')}"`
+    : `href="#juego/${x.igdbId}" data-precarga="${esc(x.juego.cover_id ?? '')}"`;
+  return `
+    <div class="bib-celda" data-bib-celda="${esc(x.clave)}">
       <a class="rejilla-item" ${attrs} aria-label="${esc(x.juego.nombre)}${horas ? `, ${horas}` : ''}">
         ${portada(x.juego, { clase: 'portada-rejilla', titulo: 'arriba', prioridad: i < 6 })}
         ${pie}
-      </a>`;
-  }
-  // Sin emparejar: imagen de PSN y "¿Qué juego es?"
+      </a>
+      ${esMio ? `<button type="button" class="bib-menu" data-bib-menu="${esc(x.clave)}" aria-label="Opciones de ${esc(x.nombre)}">${icono('opciones', { tam: 18, color: '#FFFFFF' })}</button>` : ''}
+    </div>`;
+}
+
+/** Sin identificar: imagen de PSN; el dueño puede elegir qué juego es. */
+function itemSinIdentificar(x, esMio) {
+  const horas = textoHoras(x.horas);
+  const dentro = `
+    <div class="portada portada-rejilla portada-psn" style="--bloque:var(--superficie-2)">
+      <span class="portada-titulo portada-titulo-arriba">${esc(x.nombre)}</span>
+      ${x.imagen ? `<img src="${esc(x.imagen)}" alt="" loading="lazy" decoding="async" onload="this.classList.add('ok')" onerror="this.remove()">` : ''}
+      ${esMio ? '<span class="que-juego">¿Qué juego es?</span>' : ''}
+    </div>
+    <span class="rejilla-nota"><span class="rejilla-horas">${horas || 'Sin horas'}</span></span>`;
+  if (!esMio) return `<div class="rejilla-item sin-emparejar" aria-label="${esc(x.nombre)}">${dentro}</div>`;
   return `
-    <a class="rejilla-item sin-emparejar" href="#elegir/${encodeURIComponent(x.psnTitleId)}" aria-label="${esc(x.nombre)}: elegir qué juego es">
-      <div class="portada portada-rejilla portada-psn" style="--bloque:var(--superficie-2)">
-        <span class="portada-titulo portada-titulo-arriba">${esc(x.nombre)}</span>
-        ${x.imagen ? `<img src="${esc(x.imagen)}" alt="" loading="lazy" decoding="async" onload="this.classList.add('ok')" onerror="this.remove()">` : ''}
-        <span class="que-juego">¿Qué juego es?</span>
-      </div>
-      ${pie}
-    </a>`;
+    <div class="bib-celda" data-bib-celda="${esc(x.clave)}">
+      <a class="rejilla-item sin-emparejar" href="#elegir/${encodeURIComponent(x.psnTitleId)}" aria-label="${esc(x.nombre)}: elegir qué juego es">${dentro}</a>
+      <button type="button" class="bib-menu" data-bib-menu="${esc(x.clave)}" aria-label="Opciones de ${esc(x.nombre)}">${icono('opciones', { tam: 18, color: '#FFFFFF' })}</button>
+    </div>`;
 }
 
 function textoVacio(estado, esMio, nombre) {
@@ -257,14 +501,16 @@ function textoVacio(estado, esMio, nombre) {
   }[estado];
 }
 
-function itemRejilla(v, i) {
+/** Juego del historial (o de "Juegos online"): portada, nota y, si se pasan, horas. */
+function itemRejilla(v, i, horas) {
   const j = datos.juegoConocido(v.juego_id);
   if (!j) return '';
   const n = v.nota != null ? formatearNota(v.nota) : null;
+  const h = horas !== undefined ? textoHoras(horas) : '';
   return `
-    <a class="rejilla-item" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}" aria-label="${esc(j.nombre)}${n ? `, ${n}` : ''}">
+    <a class="rejilla-item" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}" aria-label="${esc(j.nombre)}${n ? `, ${n}` : ''}${h ? `, ${h}` : ''}">
       ${portada(j, { clase: 'portada-rejilla', titulo: 'arriba', prioridad: i < 6 })}
-      ${n ? `<span class="rejilla-nota">${n}${chipLetra(notaLetra(v.nota), 'mini')}</span>` : ''}
+      ${n || h ? `<span class="rejilla-nota">${n ? `${n}${chipLetra(notaLetra(v.nota), 'mini')}` : ''}${h ? `<span class="rejilla-horas">${h}</span>` : ''}</span>` : ''}
     </a>`;
 }
 

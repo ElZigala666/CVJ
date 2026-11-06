@@ -12,6 +12,7 @@ import { yaCargada, tamPara, ANCHOS } from '../portadas.js';
 import { volver } from '../navegacion.js';
 import * as metricas from '../metricas.js';
 import { abrirValorar } from '../hoja-valorar.js';
+import { colorDominante, hexAHsl } from '../color-dominante.js';
 
 export function render(el, { params }) {
   const id = Number(params[0]);
@@ -48,6 +49,7 @@ export function render(el, { params }) {
     if (previa && previa !== grande) capas.push(`<img class="ficha-previa${yaCargada(previa) ? ' ok' : ''}" data-portada crossorigin="anonymous" src="${previa}" alt="" decoding="sync">`);
     if (grande) capas.push(`<img data-portada crossorigin="anonymous" src="${grande}" alt="" loading="eager" fetchpriority="high" decoding="async"${yaCargada(grande) ? ' class="ok"' : ''}>`);
     $('hero').style.setProperty('--fondo-hero', colorFondo(id));
+    aplicarColor(j);
     $('hero').innerHTML = `
       <button type="button" class="ficha-volver" data-accion="atras" aria-label="Volver">
         ${icono('atras', { tam: 22, color: '#FFFFFF' })}
@@ -57,6 +59,27 @@ export function render(el, { params }) {
         <span class="portada-titulo portada-titulo-abajo">${esc(j?.nombre ?? '')}</span>
         ${capas.join('')}
       </div>`;
+  }
+
+  // Fondo de la cabecera: color dominante de la portada (guardado en juegos o calculado una vez).
+  let colorPedido = false;
+  function aplicarColor(j) {
+    const hero = $('hero');
+    const pintarColor = (hex) => {
+      const [h, s] = hexAHsl(hex);
+      hero.style.setProperty('--hero-h', String(h));
+      hero.style.setProperty('--hero-s', `${Math.min(s, 72)}%`);
+      hero.classList.add('con-color');
+    };
+    if (j?.color_dominante) { pintarColor(j.color_dominante); return; }
+    if (!j?.cover_id || colorPedido) return;
+    colorPedido = true;
+    // La pequeña basta (64 px) y suele estar ya en caché.
+    colorDominante(mejorCargada(j.cover_id) || urlPortada(j.cover_id, 'cover_small')).then((hex) => {
+      if (!hex || controlador.signal.aborted) return;
+      pintarColor(hex);
+      datos.guardarColorDominante(id, hex);
+    });
   }
 
   function pintarInfo(j) {
@@ -72,7 +95,15 @@ export function render(el, { params }) {
     $('info').innerHTML = `
       <h1 class="ficha-titulo">${esc(j.nombre)}</h1>
       ${meta ? `<span class="ficha-meta">${esc(meta)}</span>` : (pidiendo ? '<div class="sk sk-linea" style="width:55%;height:14px"></div>' : '')}
-      ${j.plataformas?.length ? `<div class="ficha-chips">${j.plataformas.map((p) => `<span class="ficha-chip">${esc(p)}</span>`).join('')}</div>` : ''}`;
+      ${j.plataformas?.length ? `<div class="ficha-chips">${j.plataformas.map((p) => `<span class="ficha-chip">${esc(p)}</span>`).join('')}</div>` : ''}
+      ${'es_online' in j && datos.juego(id) ? `
+        <div class="ficha-online">
+          <span>Juego online / sin final</span>
+          <div class="conmutador" role="group" aria-label="Juego online / sin final">
+            <button type="button" data-online="si" class="${j.es_online ? 'activo' : ''}" aria-pressed="${!!j.es_online}">Sí</button>
+            <button type="button" data-online="no" class="${j.es_online ? '' : 'activo'}" aria-pressed="${!j.es_online}">No</button>
+          </div>
+        </div>` : ''}`;
   }
 
   // -------------------------------------------------------------------------
@@ -154,11 +185,11 @@ export function render(el, { params }) {
   /** Horas y trofeos de PSN de un usuario en este juego: " · 42 h · 35 % trofeos". */
   function extraPsn(uid) {
     const b = metricas.bibliotecaDeJuego(id).get(uid);
-    if (!b) return '';
     const partes = [];
-    const h = metricas.textoHoras(b.horas);
+    // Las horas puestas a mano mandan sobre las de PSN.
+    const h = metricas.textoHoras(metricas.horasDe(uid, id));
     if (h) partes.push(h);
-    if (b.progreso) partes.push(`${b.progreso} % trofeos`);
+    if (b?.progreso) partes.push(`${b.progreso} % trofeos`);
     return partes.length ? ` · ${partes.join(' · ')}` : '';
   }
 
@@ -292,6 +323,15 @@ export function render(el, { params }) {
   }
 
   el.addEventListener('click', (e) => {
+    const on = e.target.closest('[data-online]');
+    if (on) {
+      const valor = on.dataset.online === 'si';
+      if (valor !== datos.esOnline(id)) {
+        datos.marcarOnline(id, valor, aviso);
+        aviso(valor ? 'Marcado como juego online: no cuenta en la tier list ni en los rankings de nota' : 'Ya no es un juego online');
+      }
+      return;
+    }
     const b = e.target.closest('[data-accion]');
     if (!b) return;
     if (b.dataset.accion === 'atras') {

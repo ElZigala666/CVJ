@@ -7,6 +7,8 @@ import { iniciarInstalacion } from './instalar.js';
 import { iniciarTema } from './tema.js';
 import * as psn from './psn.js';
 import { abrirAjustes } from './ajustes.js';
+import { abrirEditorFoto } from './foto-perfil.js';
+import { revisarOnline } from './igdb.js';
 import * as entrada from './pantallas/entrada.js';
 import * as inicio from './pantallas/inicio.js';
 import * as buscar from './pantallas/buscar.js';
@@ -138,10 +140,12 @@ function iniciarDatos() {
   if (!suscrito) suscrito = !!datos.suscribir(() => {
     // PlayStation: sincronización automática, en segundo plano.
     psn.revisarAutomatico();
+    // Juegos guardados antes de la migración 005: marcar cuáles son online (una vez).
+    revisarOnline(datos.estado.juegos, () => datos.refrescar());
     // Si cambian mis datos (nombre, color, acento) en el servidor, actualizarlos aquí.
     const yo = usuarioActual();
     const fresco = yo && datos.usuario(yo.id);
-    if (fresco && (fresco.acento !== yo.acento || fresco.color !== yo.color || fresco.nombre !== yo.nombre)) {
+    if (fresco && (fresco.acento !== yo.acento || fresco.color !== yo.color || fresco.nombre !== yo.nombre || (fresco.foto_url ?? null) !== (yo.foto_url ?? null))) {
       refrescarUsuario(fresco);
       aplicarAcento(fresco.acento);
     }
@@ -158,6 +162,12 @@ pintarBarra();
 aplicarAcento(usuarioActual()?.acento);
 window.addEventListener('hashchange', navegar);
 // "Reconectar" PlayStation (aviso de Inicio): Ajustes abierta en el asistente.
+// "Poner / cambiar foto" (Ajustes, o el perfil de otro si soy admin).
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-foto]');
+  const u = b && datos.usuario(b.dataset.foto);
+  if (u) abrirEditorFoto(u);
+});
 window.addEventListener('cvj:psn-asistente', () => { if (usuarioActual()) abrirAjustes(alSalir, { psn: true }); });
 // Refresco en segundo plano: al volver a la app y cada minuto mientras se ve.
 // Si no ha cambiado nada, datos.js no repinta.

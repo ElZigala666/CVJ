@@ -64,6 +64,12 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
+  // Fotos de perfil (Storage público): como las portadas. Cada foto nueva tiene su
+  // propia URL, así que no hace falta revalidar.
+  if (url.hostname.endsWith('supabase.co') && url.pathname.includes('/storage/v1/object/public/avatares/')) {
+    event.respondWith(portada(req));
+    return;
+  }
   // Datos de Supabase: siempre a la red, sin tocarlos.
   if (url.hostname.endsWith('supabase.co')) return;
 

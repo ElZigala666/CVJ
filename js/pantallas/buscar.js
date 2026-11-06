@@ -13,16 +13,51 @@ const MIN_LETRAS = 2;
 const memoria = {
   texto: '',
   plataforma: 'Todas',
-  resultados: null,   // array o null (sin búsqueda)
-  cargando: false,
-  error: null,
+  error: null, // { k, mensaje } del último fallo
 };
-const cache = new Map(); // texto normalizado → resultados
+
+// Resultados de cada texto ya buscado en esta sesión (memoria + sessionStorage):
+// borrar y volver a escribir es instantáneo.
+const CLAVE_CACHE = 'cvj.busquedas.v2';
+const MAX_CACHE = 60;
+const cache = new Map();
+try {
+  const guardado = JSON.parse(sessionStorage.getItem(CLAVE_CACHE) || '[]');
+  for (const [k, v] of guardado) cache.set(k, v);
+} catch { /* nada */ }
+function recordarBusqueda(k, res) {
+  cache.delete(k);
+  cache.set(k, res);
+  while (cache.size > MAX_CACHE) cache.delete(cache.keys().next().value);
+  try { sessionStorage.setItem(CLAVE_CACHE, JSON.stringify([...cache])); } catch { /* sin espacio */ }
+}
 
 let controlador = null;
+let enCurso = null; // clave de la petición que está en marcha
 let temporizador = null;
 
-const clave = (t) => t.trim().toLowerCase().replace(/\s+/g, ' ');
+const clave = (t) => normalizar(t);
+
+/** minúsculas, sin tildes ni signos (igual que en la función igdb). */
+function normalizar(t) {
+  return String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+/** El nombre contiene todas las palabras (la última puede estar a medias). */
+function coincide(nombre, k) {
+  const n = normalizar(nombre);
+  const palabrasNombre = n.split(' ');
+  return k.split(' ').every((w) => n.includes(w) || palabrasNombre.some((x) => x.startsWith(w)));
+}
+
+/** Juegos que el grupo ya tiene y coinciden con el texto (van primero). */
+function delGrupo(k) {
+  return datos.estado.juegos
+    .filter((j) => datos.valoracionesDeJuego(j.igdb_id).length && coincide(j.nombre, k))
+    .map((j) => ({ j, n: datos.valoracionesDeJuego(j.igdb_id).length }))
+    .sort((a, b) => b.n - a.n || a.j.nombre.localeCompare(b.j.nombre))
+    .map((x) => x.j);
+}
 
 /** "Switch" también cuenta "Switch 2"; "Xbox" cuenta "Xbox 360". */
 function tienePlataforma(juego, p) {
@@ -63,26 +98,38 @@ export function render(el, { ruta } = {}) {
     }
   };
 
+  // Todo se deriva del texto actual y de la caché: mientras no haya respuesta
+  // para ESTE texto se ven skeletons; "Sin resultados" solo con la respuesta final vacía.
   const pintar = () => {
-    if (memoria.cargando) {
-      lista.innerHTML = `<span class="lista-cuenta sk-texto">Buscando…</span>${[65, 55, 70, 50, 60].map((w, i) => skeletonFila(w, 30 + (i % 3) * 8)).join('')}`;
-      return;
-    }
-    if (memoria.error) {
-      lista.innerHTML = `
-        <div class="lista-mensaje">
-          <p>No se ha podido buscar. Revisa la conexión.</p>
-          <button type="button" class="boton-secundario" data-accion="reintentar">Reintentar</button>
-        </div>`;
-      return;
-    }
-    if (memoria.resultados === null) {
+    const k = clave(memoria.texto);
+    if (k.length < MIN_LETRAS) {
       lista.innerHTML = `<p class="lista-mensaje">Escribe el nombre de un juego para buscarlo en el catálogo.</p>`;
       return;
     }
-    const filtrados = memoria.resultados.filter((j) => tienePlataforma(j, memoria.plataforma));
+    const locales = delGrupo(k);
+    const res = cache.get(k);
+    const filtrar = (l) => l.filter((j) => tienePlataforma(j, memoria.plataforma));
+
+    if (!res) {
+      const filasLocales = filtrar(locales);
+      if (memoria.error?.k === k) {
+        lista.innerHTML = `
+          ${filasLocales.map((j, i) => fila(j, i, modoValorar)).join('')}
+          <div class="lista-mensaje">
+            <p>No se ha podido buscar en el catálogo. Revisa la conexión.</p>
+            <button type="button" class="boton-secundario" data-accion="reintentar">Reintentar</button>
+          </div>`;
+        return;
+      }
+      lista.innerHTML = `<span class="lista-cuenta sk-texto">Buscando…</span>${filasLocales.map((j, i) => fila(j, i, modoValorar)).join('')}${[65, 55, 70, 50, 60].map((w, i) => skeletonFila(w, 30 + (i % 3) * 8)).join('')}`;
+      return;
+    }
+
+    const ids = new Set(locales.map((j) => Number(j.igdb_id)));
+    const todos = [...locales, ...res.filter((j) => !ids.has(Number(j.igdb_id)))];
+    const filtrados = filtrar(todos);
     if (!filtrados.length) {
-      lista.innerHTML = `<p class="lista-mensaje">${memoria.resultados.length
+      lista.innerHTML = `<p class="lista-mensaje">${todos.length
         ? `Ningún resultado en ${esc(memoria.plataforma)}.`
         : `Sin resultados para «${esc(memoria.texto.trim())}».`}</p>`;
       return;
@@ -94,24 +141,23 @@ export function render(el, { ruta } = {}) {
   const lanzarBusqueda = async () => {
     const texto = memoria.texto;
     const k = clave(texto);
+    if (k.length < MIN_LETRAS || cache.has(k)) { pintar(); return; }
+    if (enCurso === k) return; // ya se está pidiendo este mismo texto
     controlador?.abort();
-    if (cache.has(k)) {
-      Object.assign(memoria, { resultados: cache.get(k), cargando: false, error: null });
-      pintar();
-      return;
-    }
     controlador = new AbortController();
     const propio = controlador;
+    enCurso = k;
     try {
       const res = await buscarJuegos(texto, propio.signal);
-      if (propio.signal.aborted) return;
-      cache.set(k, res);
+      recordarBusqueda(k, res);
       datos.recordarParciales(res);
-      Object.assign(memoria, { resultados: res, cargando: false, error: null });
+      if (memoria.error?.k === k) memoria.error = null;
     } catch (e) {
-      if (propio.signal.aborted || e.name === 'AbortError') return;
+      if (e.name === 'AbortError') return;
       console.warn('[buscar]', e.message);
-      Object.assign(memoria, { cargando: false, error: e.message });
+      memoria.error = { k, mensaje: e.message };
+    } finally {
+      if (enCurso === k) enCurso = null;
     }
     if (input.isConnected) pintar();
   };
@@ -119,23 +165,13 @@ export function render(el, { ruta } = {}) {
   input.addEventListener('input', () => {
     memoria.texto = input.value;
     clearTimeout(temporizador);
-    controlador?.abort();
-    if (clave(memoria.texto).length < MIN_LETRAS) {
-      Object.assign(memoria, { resultados: null, cargando: false, error: null });
-      pintar();
-      return;
-    }
     const k = clave(memoria.texto);
-    if (cache.has(k)) {
-      lanzarBusqueda();
-      return;
+    if (enCurso && enCurso !== k) {
+      controlador?.abort(); // una respuesta vieja ya no sirve
+      enCurso = null;
     }
-    if (!memoria.cargando) {
-      memoria.cargando = true;
-      memoria.error = null;
-      pintar();
-    }
-    temporizador = setTimeout(lanzarBusqueda, ESPERA_MS);
+    pintar(); // al instante: caché, coincidencias del grupo o skeletons
+    if (k.length >= MIN_LETRAS && !cache.has(k)) temporizador = setTimeout(lanzarBusqueda, ESPERA_MS);
   });
 
   input.addEventListener('keydown', (e) => {
@@ -158,7 +194,6 @@ export function render(el, { ruta } = {}) {
       return;
     }
     if (e.target.closest('[data-accion="reintentar"]')) {
-      memoria.cargando = true;
       memoria.error = null;
       pintar();
       lanzarBusqueda();
@@ -166,28 +201,18 @@ export function render(el, { ruta } = {}) {
   });
 
   // Si llegan datos nuevos del grupo, actualizar las notas de los resultados.
-  const desuscribir = datos.suscribir(() => {
-    if (!memoria.cargando) pintar();
-  });
+  const desuscribir = datos.suscribir(pintar);
 
   pintarChips();
-  // Búsqueda que se quedó a medias en la visita anterior: repetirla.
-  if (memoria.resultados === null && !memoria.error && clave(memoria.texto).length >= MIN_LETRAS) {
-    memoria.cargando = true;
-    lanzarBusqueda();
-  }
   pintar();
+  // Búsqueda que se quedó a medias en la visita anterior: repetirla.
+  if (clave(memoria.texto).length >= MIN_LETRAS && !cache.has(clave(memoria.texto))) lanzarBusqueda();
   if (!memoria.texto || modoValorar) requestAnimationFrame(() => input.focus({ preventScroll: true }));
 
   return () => {
     desuscribir();
     clearTimeout(temporizador);
-    // Si se sale a mitad de búsqueda, se cancela y la próxima visita la repite.
-    if (memoria.cargando) {
-      controlador?.abort();
-      memoria.cargando = false;
-      memoria.resultados = null;
-    }
+    // Si se sale a mitad de búsqueda, se deja terminar: el resultado queda en la caché.
   };
 }
 

@@ -1,0 +1,96 @@
+/* ==========================================================================
+   CVJ · tokens del sistema visual (sacados de cvj-diseno/pantallas/00-sistema-visual)
+   --------------------------------------------------------------------------
+   Todo sale de UNA variable de acento: --acento-base. En la fase 4 cada
+   usuario podrá elegir la suya (se pone en <html style="--acento-base:...">)
+   y los tonos claros y los colores de tier se recalculan solos.
+   Las mezclas reproducen la función mix() del diseño:
+   mix(acento, blanco, t)  ==  color-mix(in srgb, acento (1-t)·100%, blanco)
+   ========================================================================== */
+
+:root {
+  --acento-base: #6D28D9;
+
+  /* Neutros (modo claro) */
+  --fondo: #FFFFFF;
+  --superficie: #F6F5F9;
+  --superficie-2: #EDEBF2;   /* botones apagados y skeletons */
+  --texto: #15131A;
+  --texto-2: #68656F;        /* texto secundario */
+  --borde: #E8E6EE;
+  --peligro: #B42318;
+
+  /* Acento y derivados */
+  --acento: var(--acento-base);
+  --acento-suave: color-mix(in srgb, var(--acento-base) 12%, #FFFFFF);
+  --acento-texto: var(--acento-base);       /* pestaña activa, enlaces */
+  --sobre-acento: #FFFFFF;                  /* texto e iconos encima del acento */
+
+  /* Tiers S-F: el acento aclarándose hacia el blanco */
+  --tier-s: var(--acento);
+  --tier-a: color-mix(in srgb, var(--acento) 75%, #FFFFFF);
+  --tier-b: color-mix(in srgb, var(--acento) 55%, #FFFFFF);
+  --tier-c: color-mix(in srgb, var(--acento) 40%, #FFFFFF);
+  --tier-d: color-mix(in srgb, var(--acento) 28%, #FFFFFF);
+  --tier-e: color-mix(in srgb, var(--acento) 18%, #FFFFFF);
+  --tier-f: color-mix(in srgb, var(--acento) 10%, #FFFFFF);
+  --tier-s-texto: #FFFFFF;
+  --tier-a-texto: #FFFFFF;
+  --tier-b-texto: var(--texto);
+  --tier-c-texto: var(--texto);
+  --tier-d-texto: var(--texto);
+  --tier-e-texto: var(--texto);
+  --tier-f-texto: var(--texto);
+
+  /* Radios */
+  --r-xs: 6px;      /* letra de tier pequeña */
+  --r-sm: 8px;      /* portadas en listas */
+  --r-md: 12px;     /* portadas grandes, botón + */
+  --r-lg: 14px;     /* buscador */
+  --r-xl: 16px;     /* campos y botones principales */
+  --r-2xl: 20px;    /* tarjetas */
+  --r-fab: 18px;    /* botón central Valorar */
+  --r-pill: 999px;
+
+  /* Tipografía */
+  --fuente-titulos: "Space Grotesk", system-ui, sans-serif;
+  --fuente-texto: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Movimiento: 120-160 ms, solo opacidad y posición */
+  --t-rapida: 120ms;
+  --t-normal: 150ms;
+  --curva: cubic-bezier(.2, 0, 0, 1);
+
+  /* Medidas de la barra inferior */
+  --alto-barra: 84px;
+  --ancho-max: 480px;
+
+  color-scheme: light;
+}
+
+/* Modo oscuro (pantallas 10 y 11). El selector de tema llega más adelante:
+   se activará con <html data-tema="oscuro">. */
+:root[data-tema="oscuro"] {
+  --fondo: #0F0E13;
+  --superficie: #1A1920;
+  --superficie-2: #24222B;
+  --texto: #F3F2F7;
+  --texto-2: #A6A3B1;
+  --borde: #2E2C36;
+  --peligro: #F97066;
+
+  --acento: color-mix(in srgb, var(--acento-base) 62%, #FFFFFF);
+  --acento-suave: color-mix(in srgb, var(--acento-base) 28%, #0F0E13);
+  --acento-texto: color-mix(in srgb, var(--acento-base) 45%, #FFFFFF);
+  --sobre-acento: #0F0E13;
+
+  --tier-s-texto: #0F0E13;
+  --tier-a-texto: #0F0E13;
+  --tier-b-texto: #0F0E13;
+  --tier-c-texto: #0F0E13;
+  --tier-d-texto: #0F0E13;
+  --tier-e-texto: #0F0E13;
+  --tier-f-texto: #0F0E13;
+
+  color-scheme: dark;
+}

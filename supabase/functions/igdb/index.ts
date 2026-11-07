@@ -487,6 +487,12 @@ export function variantesBusqueda(nombre: string): string[] {
     if (significativas.length >= 2 || (significativas.length === 1 && significativas[0].length >= 5 && n === 1)) salida.push(trozo.join(" "));
     if (salida.length >= 10) break;
   }
+  // Quitando palabras del principio ("tom clancys rainbow six siege" → "rainbow six siege").
+  for (let n = 1; n <= 2 && palabras.length - n >= 2; n++) salida.push(palabras.slice(n).join(" "));
+  // Colecciones en español con la palabra al final, como suelen llamarse en inglés
+  // ("trilogia mafia" → "mafia trilogy").
+  const t = base.match(/^(trilogia|coleccion|antologia|trilogy|collection|anthology)\s+(.+)$/);
+  if (t) salida.splice(1, 0, `${t[2]} ${({ trilogia: "trilogy", coleccion: "collection", antologia: "anthology" } as Record<string, string>)[t[1]] ?? t[1]}`);
   return [...new Set(salida.map((x) => x.trim()).filter((x) => x.length >= 2))];
 }
 
@@ -554,8 +560,11 @@ function mejorNombre(nombre: string, c: CandidatoEmparejar) {
   const directo = Math.max(0, ...textosNombre(nombre).map((t) => puntuarNombre(t, c)));
   if (directo) return directo;
   const nc = limpiarNombrePsn(c.name);
+  const variantes = variantesBusqueda(nombre).slice(1);
+  // Igual a una versión del título sin palabras del principio ("rainbow six siege"): casi exacto.
+  if (variantes.some((v) => v.split(" ").length >= 2 && (nc === v || sinArt(nc) === sinArt(v)))) return 50;
   const numeros = (x: string) => (x.match(/\b(\d+|[ivx]+)\b/g) ?? []).join(",");
-  for (const v of variantesBusqueda(nombre).slice(1)) {
+  for (const v of variantes) {
     if (v.split(" ").filter((w) => w.length >= 3).length < 2) continue;
     if (nc.startsWith(v + " ") && numeros(nc.slice(0, v.length)) === numeros(v)) return 35;
   }
@@ -632,13 +641,21 @@ export function elegirCandidato(e: EntradaPsn, candidatos: CandidatoEmparejar[],
     .sort((a, b) => b.p - a.p);
   if (!lista.length) return { id: null as number | null, propuesta: null as number | null, confianza: 0, candidato: null as CandidatoEmparejar | null };
   const conNombre = lista.filter((x) => x.p > 0);
-  // Sin ningún parecido de nombre: el primero de la búsqueda queda como propuesta (confianza baja).
-  if (!conNombre.length) return { id: null, propuesta: lista[0].c.id, confianza: 10, candidato: lista[0].c };
+  // Sin ningún parecido de nombre: el primero que comparta alguna palabra importante queda
+  // como propuesta (confianza baja). Si ninguno comparte nada, sin propuesta: mejor elegir a mano.
+  if (!conNombre.length) {
+    const importantes = new Set(variantesBusqueda(e.nombre)[0].split(" ").filter((w) => w.length >= 4 && !/^(edition|edicion|game|juego|the)$/.test(w)));
+    const comparte = lista.find((x) => limpiarNombrePsn(x.c.name).split(" ").some((w) => importantes.has(w)));
+    return comparte
+      ? { id: null, propuesta: comparte.c.id, confianza: 10, candidato: comparte.c }
+      : { id: null as number | null, propuesta: null as number | null, confianza: 0, candidato: null as CandidatoEmparejar | null };
+  }
   const [primero, segundo] = conNombre;
   let conf = primero.p;
   if (segundo && segundo.n >= 45 && segundo.p >= primero.p - 10) conf -= 20;
   // Un único resultado razonable (con el nombre parecido y en una plataforma compatible): se acepta.
-  const razonables = conNombre.filter((x) => x.n >= 30 && plataformaCompatible(e.plataforma, x.c) !== false);
+  // (Que solo coincida el principio del nombre no cuenta: "rainbow six" no es "Rainbow Six Extraction".)
+  const razonables = conNombre.filter((x) => x.n >= 45 && plataformaCompatible(e.plataforma, x.c) !== false);
   // (Nunca si algo lo contradice: p. ej. que se jugara antes de salir.)
   const sinPegas = primero.p >= 55;
   if (sinPegas && razonables.length === 1 && razonables[0] === primero) conf = Math.max(conf, UMBRAL_ACEPTAR);

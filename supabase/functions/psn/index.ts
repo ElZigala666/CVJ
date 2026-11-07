@@ -320,7 +320,7 @@ export function claramenteIgual(a: string, b: string): boolean {
 // -----------------------------------------------------------------------------
 const EMPAREJAR_A_LA_VEZ = 2; // IGDB admite 4 peticiones/s y cada título hace varias
 const EMPAREJAR_HASTA_MS = 120_000; // en segundo plano (Supabase corta a los 150 s)
-const ALGORITMO = 4;                // lo no confirmado con una versión anterior se recalcula
+const ALGORITMO = 5;                // lo no confirmado con una versión anterior se recalcula
 const UMBRAL_ACEPTAR = 75;
 
 type Emparejamiento = { igdb_id: number | null; confirmado?: boolean; algoritmo?: number; tipo?: string };

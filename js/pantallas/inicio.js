@@ -9,7 +9,7 @@ import { usuarioActual } from '../sesion.js';
 import { mediaGrupo, recomendacionGrupo, desviacionTipica } from '../notas.js';
 import {
   esc, cabecera, portada, notaConLetra, avatar, iconoRecomendacion, avatarPerfil, nombrePerfil, avatarInsignia,
-  tiempoRelativo, conservarScroll,
+  tiempoRelativo, conservarScroll, aviso,
 } from '../ui.js';
 
 const PESTANAS = [
@@ -47,7 +47,11 @@ export function render(el) {
   });
   const desuscribir = datos.suscribir(pintar);
   // Aviso de reconectar PlayStation: abre el asistente en Ajustes.
-  const alPulsar = (e) => { if (e.target.closest('[data-accion="reconectar-psn"]')) psn.abrirAsistente(); };
+  const alPulsar = (e) => {
+    if (e.target.closest('[data-accion="reconectar-psn"]')) psn.abrirAsistente();
+    const leido = e.target.closest('[data-aviso-leido]');
+    if (leido) datos.marcarAvisoLeido(leido.dataset.avisoLeido, aviso);
+  };
   el.addEventListener('click', alPulsar);
   pintar();
   // Los "Hace 5 min" se actualizan solos sin repintar la pantalla.
@@ -85,6 +89,7 @@ function html() {
     ${elGrupo()}
     ${avisoPsn()}
     ${avisoRevisar()}
+    ${avisosPersonales()}
     <div class="inicio">
       ${jugandoAhora()}
       <section class="inicio-seccion">
@@ -211,6 +216,21 @@ function avisoRevisar() {
       <span>Revisa ${n} ${n === 1 ? 'juego nuevo' : 'juegos nuevos'} de tu biblioteca</span>
       ${icono('adelante', { tam: 16, color: 'var(--texto-2)' })}
     </a>`;
+}
+
+/** Mis avisos (p. ej. "tenías valoración en dos versiones de un juego"): Ver y Vale. */
+function avisosPersonales() {
+  const yo = usuarioActual();
+  if (!yo) return '';
+  return datos.avisosDe(yo.id).map((a) => `
+    <div class="aviso-personal" role="status">
+      ${icono('jugando', { tam: 20, color: 'var(--acento)', trazo: 'var(--acento-suave)' })}
+      <p>${esc(a.texto)}</p>
+      <div class="aviso-personal-botones">
+        ${a.juego_id ? `<a class="boton-secundario boton-pequeno" href="#juego/${esc(String(a.juego_id))}" data-aviso-leido="${esc(a.id)}">Revisar</a>` : ''}
+        <button type="button" class="enlace-discreto" data-aviso-leido="${esc(a.id)}">Vale</button>
+      </div>
+    </div>`).join('');
 }
 
 /** Solo para el admin: la clave de OpenXBL del grupo ha dejado de funcionar. */

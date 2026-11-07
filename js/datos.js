@@ -8,7 +8,7 @@ const CLAVE = 'cvj.datos.v1';
 const LIMITE_ACTIVIDAD = 60;
 const VENTANA_ACTIVIDAD_MS = 10 * 60 * 1000; // agrupar cambios del mismo juego en 10 min
 
-const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sagas: [], servicios: [], cuentas: [], horasExtra: [], cargadoEn: null });
+const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sagas: [], servicios: [], cuentas: [], horasExtra: [], avisos: [], cargadoEn: null });
 
 // Versión de los datos: sube cada vez que cambian (refresco, escritura o reversión).
 // metricas.js la usa para memoizar los cálculos.
@@ -40,7 +40,7 @@ function guardarCache() {
   } catch { /* sin espacio o modo privado */ }
 }
 
-const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sagas, s.servicios, s.cuentas, s.horasExtra]);
+const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sagas, s.servicios, s.cuentas, s.horasExtra, s.avisos]);
 
 /** Pinta desde caché (síncrono) y lanza el refresco en segundo plano. */
 export function iniciar() {
@@ -61,7 +61,7 @@ export function refrescar() {
     const sb = await cliente();
     // Extras que pueden no existir aún (migraciones): si fallan, se sigue con lo de antes.
     const extra = (q, previo) => q.then((r) => (r.error ? { data: previo } : r), () => ({ data: previo }));
-    const [u, v, j, a, bib, emp, ali, rech, sag, serv, cue, hex] = await Promise.all([
+    const [u, v, j, a, bib, emp, ali, rech, sag, serv, cue, hex, avi] = await Promise.all([
       leerUsuarios(sb),
       sb.from('valoraciones').select('*'),
       sb.from('juegos').select('*'),
@@ -75,13 +75,14 @@ export function refrescar() {
       extra(sb.from('estado_servicios').select('*'), estado.servicios),
       extra(sb.from('cuentas_plataforma').select('*').order('creado_en'), estado.cuentas),
       extra(sb.from('horas_extra').select('*'), estado.horasExtra),
+      extra(sb.from('avisos').select('*').eq('leido', false), estado.avisos),
     ]);
     const error = u.error || v.error || j.error || a.error;
     if (error) throw new Error(error.message);
     if (escriturasEnCurso) { refrescoAplazado = true; return; }
     const nuevo = {
       usuarios: u.data, valoraciones: v.data, juegos: j.data, actividad: a.data, biblioteca: bib.data ?? [], psnIgdb: emp.data ?? [],
-      alias: ali.data ?? [], rechazadas: rech.data ?? [], sagas: sag.data ?? [], servicios: serv.data ?? [], cuentas: cue.data ?? [], horasExtra: hex.data ?? [],
+      alias: ali.data ?? [], rechazadas: rech.data ?? [], sagas: sag.data ?? [], servicios: serv.data ?? [], cuentas: cue.data ?? [], horasExtra: hex.data ?? [], avisos: avi.data ?? [],
     };
     const cambia = firma(nuevo) !== firma(estado);
     Object.assign(estado, nuevo, { cargadoEn: new Date().toISOString() });
@@ -282,7 +283,7 @@ async function escribirOptimista(aplicar, guardar, onError, mensajeError = 'No s
   const copia = {
     valoraciones: estado.valoraciones, actividad: estado.actividad, juegos: estado.juegos, usuarios: estado.usuarios,
     psnIgdb: estado.psnIgdb, biblioteca: estado.biblioteca, alias: estado.alias, rechazadas: estado.rechazadas, sagas: estado.sagas,
-    horasExtra: estado.horasExtra, cuentas: estado.cuentas,
+    horasExtra: estado.horasExtra, cuentas: estado.cuentas, avisos: estado.avisos,
   };
   escriturasEnCurso++;
   aplicar(estado);
@@ -335,14 +336,19 @@ function filaJuego(j) {
 export function guardarValoracion(v, onError) {
   const id = canonico(v.igdbId);
   const antes = miValoracion(v.usuarioId, id);
-  // Si la que había es de una versión fusionada, se pasa al principal (y se borra aquella).
-  const mover = antes?.juego_origen != null && antes.juego_origen !== id ? antes : null;
+  // La valoración se queda en la versión que jugó cada uno (cuenta en el principal):
+  // la que ya tenía o, si es nueva y se valoró desde una versión, esa versión.
+  const pedido = Number(v.igdbId);
+  const destino = antes ? Number(antes.juego_origen ?? antes.juego_id) : (pedido !== id && aliasDe(id).includes(pedido) ? pedido : id);
+  // Restos en otras versiones del mismo juego (no debería haber): fuera.
+  const grupo = [id, ...aliasDe(id)];
+  const sobran = estado.valoraciones.filter((x) => x.usuario_id === v.usuarioId && grupo.includes(Number(x.juego_id)) && Number(x.juego_id) !== destino).map((x) => x.id);
   const ahora = new Date().toISOString();
   const pendiente = v.estado === 'pendiente';
   const fila = {
-    id: mover ? crypto.randomUUID() : antes?.id ?? crypto.randomUUID(),
+    id: antes?.id ?? crypto.randomUUID(),
     usuario_id: v.usuarioId,
-    juego_id: id,
+    juego_id: destino,
     estado: v.estado,
     nota: pendiente ? null : redondear(v.nota),
     recomendado: pendiente ? null : (v.recomendado ?? null),
@@ -382,7 +388,7 @@ export function guardarValoracion(v, onError) {
   return escribirOptimista(
     (s) => {
       if (faltaJuego) s.juegos = [...s.juegos, filaJuego(conocido)];
-      s.valoraciones = [...s.valoraciones.filter((x) => x.id !== fila.id && x.id !== mover?.id && !(x.usuario_id === fila.usuario_id && Number(x.juego_id) === id)), fila];
+      s.valoraciones = [...s.valoraciones.filter((x) => x.id !== fila.id && !sobran.includes(x.id)), fila];
       if (act) s.actividad = [act, ...s.actividad.filter((x) => x.id !== act.id)];
     },
     async (sb) => {
@@ -391,7 +397,7 @@ export function guardarValoracion(v, onError) {
         comprobar(await sb.from('juegos').upsert(filaJuego(conocido), { onConflict: 'igdb_id', ignoreDuplicates: true }));
       }
       comprobar(await sb.from('valoraciones').upsert(fila, { onConflict: 'usuario_id,juego_id' }));
-      if (mover) comprobar(await sb.from('valoraciones').delete().eq('id', mover.id));
+      if (sobran.length) comprobar(await sb.from('valoraciones').delete().in('id', sobran));
       if (act) {
         if (actualizarAct) {
           const { id: idAct, ...cambios } = act;
@@ -658,6 +664,30 @@ export function deshacerFusion(aliasId, onError) {
     async (sb) => { comprobar(await sb.from('juegos_alias').delete().eq('alias_id', a)); },
     onError,
     'No se ha podido deshacer. Se ha vuelto a como estaba.',
+  );
+}
+
+/** Separa una versión fusionada (solo admin): vuelve a contar aparte y no se fusiona sola otra vez. */
+export function separarVersion(aliasId, usuarioId, onError) {
+  const a = Number(aliasId);
+  return escribirOptimista(
+    (s) => { s.alias = (s.alias ?? []).filter((x) => Number(x.alias_id) !== a); },
+    async (sb) => {
+      const r = await sb.rpc('separar_version', { p_alias: a, p_usuario: usuarioId });
+      comprobar(r);
+    },
+    onError,
+    'No se ha podido separar. Se ha vuelto a como estaba.',
+  );
+}
+
+/** Mis avisos sin leer (p. ej. "tenías valoración en dos versiones"). */
+export const avisosDe = (usuarioId) => (estado.avisos ?? []).filter((x) => x.usuario_id === usuarioId && !x.leido);
+export function marcarAvisoLeido(id, onError) {
+  return escribirOptimista(
+    (s) => { s.avisos = (s.avisos ?? []).filter((x) => x.id !== id); },
+    async (sb) => { comprobar(await sb.from('avisos').update({ leido: true }).eq('id', id)); },
+    onError,
   );
 }
 

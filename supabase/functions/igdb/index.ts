@@ -824,7 +824,38 @@ async function juego(igdbId: number) {
   fila.relaciones = relacionesDe(j);
 
   await guardarJuegos([fila]);
+  await asegurarPadres([fila]);
   return { juego: fila };
+}
+
+/**
+ * Versiones (remaster, port, edición...): su juego original tiene que estar guardado
+ * para que la base las fusione sola (trigger en juegos → fusionar_versiones).
+ */
+function padreDe(r: Record<string, any> | null | undefined): number | null {
+  if (!r) return null;
+  const tipo = r.tipo == null ? 0 : Number(r.tipo);
+  if ([9, 10, 11].includes(tipo)) return Number(r.version_parent ?? r.parent_game) || null;
+  if (tipo === 0) return Number(r.version_parent) || null;
+  return null;
+}
+async function asegurarPadres(filas: Record<string, unknown>[], nivel = 0) {
+  if (nivel > 1) return;
+  const padres = [...new Set(filas.map((f) => padreDe(f.relaciones as Record<string, any>)).filter((x): x is number => !!x))];
+  if (!padres.length) return;
+  const { data } = await sb.from("juegos").select("igdb_id").in("igdb_id", padres);
+  const hay = new Set((data ?? []).map((x) => Number(x.igdb_id)));
+  const faltan = padres.filter((x) => !hay.has(x));
+  if (faltan.length) await guardarVarios(faltan, nivel + 1);
+}
+
+/** Busca los originales que falten de todas las versiones guardadas y fusiona. */
+async function fusionarVersiones() {
+  const { data } = await sb.from("juegos").select("igdb_id, relaciones").not("relaciones", "is", null);
+  await asegurarPadres((data ?? []) as Record<string, unknown>[]);
+  const { data: r, error } = await sb.rpc("fusionar_versiones");
+  if (error) throw new Error(error.message);
+  return r;
 }
 
 /** Lo que IGDB sabe de un juego: ediciones, versiones, remasters, colecciones, sagas... */
@@ -845,7 +876,7 @@ function relacionesDe(j: JuegoIGDB) {
 }
 
 /** Guarda varios juegos completos (con es_online y relaciones) de una vez. */
-async function guardarVarios(ids: number[]) {
+async function guardarVarios(ids: number[], nivel = 0) {
   const unicos = [...new Set(ids.filter(Boolean))];
   if (!unicos.length) return;
   const lista = await igdb<JuegoIGDB[]>("games", `fields ${CAMPOS_FICHA}; where id = (${unicos.join(",")}); limit 100;`);
@@ -861,6 +892,7 @@ async function guardarVarios(ids: number[]) {
     if (manual) fila.es_online = manual.get(j.id) ?? detectarOnline(j);
     return fila;
   }));
+  await asegurarPadres(lista.map((j) => ({ relaciones: relacionesDe(j) })), nivel);
 }
 
 /**
@@ -888,6 +920,7 @@ async function revisarJuegos() {
     if (conRelaciones && !x.relaciones) cambios.relaciones = j ? relacionesDe(j) : {};
     if (Object.keys(cambios).length) await sb.from("juegos").update(cambios).eq("igdb_id", x.igdb_id);
   }));
+  await asegurarPadres(lista.map((j) => ({ relaciones: relacionesDe(j) })));
   return { revisados: data.length, online, quedan: data.length === 100 };
 }
 
@@ -1010,6 +1043,8 @@ Deno.serve(async (req) => {
       case "revisar_juegos":
       case "revisar_online":
         return json(await revisarJuegos());
+      case "fusionar_versiones":
+        return json(await fusionarVersiones());
       case "juego": {
         const id = Number(cuerpo.igdb_id);
         if (!Number.isInteger(id) || id <= 0) throw new ErrorPublico("igdb_id no válido");

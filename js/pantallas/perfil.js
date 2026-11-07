@@ -188,7 +188,7 @@ function renderPerfil(el, id, alSalir) {
               <h2 class="seccion-titulo">Juegos online</h2>
               <span class="seccion-extra">${p.online.length}</span>
             </div>
-            <div class="rejilla">${p.online.map((v, i) => itemRejilla(v, i, metricas.horasDe(id, v.juego_id))).join('')}</div>
+            <div class="rejilla" data-lista>${p.online.map((v, i) => itemRejilla(v, i, metricas.horasDe(id, v.juego_id))).join('')}</div>
           </section>` : ''}
 
         ${hayBiblioteca ? `
@@ -231,7 +231,7 @@ function renderPerfil(el, id, alSalir) {
     // Las horas, siempre junto a la nota (si hay).
     const item = (v, i) => itemRejilla(v, i, metricas.horasDe(id, v.juego_id) ?? undefined);
     const lista2 = metricas.agruparSagas(id, lista, (v) => Number(v.juego_id));
-    return `<div class="rejilla">${lista2.map((x, i) => (x.saga
+    return `<div class="rejilla" data-lista>${lista2.map((x, i) => (x.saga
       ? bloqueGrupo(`saga:${x.saga.id}`, x.hijos.map((v) => datos.juegoConocido(v.juego_id)), `${x.saga.nombre} (saga)`,
         `${x.hijos.length} juegos`, x.hijos.map(item).join(''), esMio ? x.saga.id : null)
       : item(x, i))).join('')}</div>`;
@@ -324,7 +324,7 @@ function renderPerfil(el, id, alSalir) {
         <div class="bib-seleccionar">
           <button type="button" class="enlace-discreto" data-accion="seleccionar">${vista.seleccionando ? 'Cancelar selección' : 'Seleccionar'}</button>
         </div>` : ''}
-      <div data-ref="rejilla-bib">${rejillaBiblioteca(bib)}</div>
+      <div data-ref="rejilla-bib" data-lista>${rejillaBiblioteca(bib)}</div>
       ${vista.seleccionando ? `
         <div class="barra-accion barra-flotante">
           <button type="button" class="boton-secundario neutro" data-accion="seleccionar">Cancelar</button>
@@ -334,7 +334,7 @@ function renderPerfil(el, id, alSalir) {
         <details class="bib-plegable"${vista.probados ? ' open' : ''} data-plegable="probados">
           <summary>Probados (${bib.probados.length})</summary>
           <p class="ajustes-nota">Jugados poco (menos de ${bib.umbral} h, o sin horas y con menos del 5 % de logros), sin valorar y no recientes. No se borran: ${esMio ? 'súbelos a «Mis juegos» desde su menú (⋮) o cambia el umbral en Ajustes → Biblioteca' : 'son de relleno'}.</p>
-          <div data-ref="rejilla-probados">${rejillaBiblioteca(bib, bib.probados.filter((x) => x.coleccion || (x.igdbId != null && x.juego)), 'Ninguno identificado.')}</div>
+          <div data-ref="rejilla-probados" data-lista>${rejillaBiblioteca(bib, bib.probados.filter((x) => x.coleccion || (x.igdbId != null && x.juego)), 'Ninguno identificado.')}</div>
           ${bib.probados.some((x) => !x.coleccion && !(x.igdbId != null && x.juego)) ? `<div class="rejilla">${filtrar(bib.probados.filter((x) => !x.coleccion && !(x.igdbId != null && x.juego)), fBib, datosBiblioteca).map((x) => itemSinIdentificar(x, esMio)).join('')}</div>` : ''}
         </details>` : ''}
       ${nSinId ? `
@@ -690,7 +690,7 @@ function renderTiers(el, id) {
     let n = 0;
     el.innerHTML = `
       ${cabeceraAtras('Tier list', `${u.nombre} · ${t.total} ${t.total === 1 ? 'juego' : 'juegos'}, según sus notas`)}
-      <div class="tiers">
+      <div class="tiers" data-lista>
         ${LETRAS.map((l) => `
           <div class="tier-fila">
             <div class="tier-letra" data-tier="${l}">

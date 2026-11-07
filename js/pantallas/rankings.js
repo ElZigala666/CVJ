@@ -79,7 +79,7 @@ function grupo() {
   }
   return `
     ${chips}
-    <ol class="ranking-lista">
+    <ol class="ranking-lista" data-lista>
       ${lista.map((x, i) => filaRanking(x, i)).join('')}
     </ol>
     <p class="ranking-pie">${PIES[orden]}</p>`;

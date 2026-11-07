@@ -101,7 +101,7 @@ export function render(el, { ruta, params = [] } = {}) {
       <div class="chips" role="group" aria-label="Filtrar por plataforma">
         ${PLATAFORMAS.map((p) => `<button type="button" class="chip" data-p="${p}" aria-pressed="false">${p}</button>`).join('')}
       </div>
-      <div class="lista" id="resultados" aria-live="polite"></div>
+      <div class="lista" id="resultados" aria-live="polite" data-lista></div>
     </section>`;
 
   const input = el.querySelector('#q');

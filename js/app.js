@@ -19,6 +19,7 @@ import * as rankings from './pantallas/rankings.js';
 import * as revisar from './pantallas/revisar.js';
 import * as xbox from './xbox.js';
 import { anotarNavegacion, corregirRuta } from './navegacion.js';
+import { olvidarGaleria } from './galeria.js';
 
 const vista = document.getElementById('vista');
 const barra = document.getElementById('barra');
@@ -81,7 +82,7 @@ function leerRuta() {
   return { ruta: RUTAS[ruta] ? ruta : 'inicio', params };
 }
 
-function montar(modulo, contexto, conBarra) {
+function montar(modulo, contexto, conBarra, scroll = 0) {
   try { limpiar?.(); } catch (e) { console.error(e); }
   limpiar = null;
 
@@ -93,7 +94,9 @@ function montar(modulo, contexto, conBarra) {
 
   const r = modulo.render(pantalla, contexto);
   if (typeof r === 'function') limpiar = r;
-  window.scrollTo(0, 0);
+  window.scrollTo(0, scroll);
+  // Al volver: lo que se pinta un poco después (imágenes, datos) puede cambiar la altura.
+  if (scroll) for (const ms of [50, 200, 500]) setTimeout(() => { if (window.scrollY < scroll - 2) window.scrollTo(0, scroll); }, ms);
 }
 
 function navegar() {
@@ -107,13 +110,14 @@ function navegar() {
   }
 
   iniciarDatos();
-  anotarNavegacion();
+  const scroll = anotarNavegacion();
   const { ruta, params } = leerRuta();
+  if (ruta !== 'juego') olvidarGaleria();
   const pedida = location.hash.replace(/^#\/?/, '').split('/')[0];
   if (pedida !== ruta) corregirRuta(`#${ruta}`);
   // Título por defecto; las pantallas con nombre propio lo cambian al pintarse.
   document.title = `CVJ · ${ruta[0].toUpperCase() + ruta.slice(1)}`;
-  montar(RUTAS[ruta], { ruta, params, alSalir }, !SIN_BARRA.has(ruta));
+  montar(RUTAS[ruta], { ruta, params, alSalir }, !SIN_BARRA.has(ruta), scroll);
   marcarBarra(ruta, params);
 }
 

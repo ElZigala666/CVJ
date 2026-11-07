@@ -14,6 +14,7 @@ import * as metricas from '../metricas.js';
 import { abrirValorar } from '../hoja-valorar.js';
 import { colorDominante, hexAHsl } from '../color-dominante.js';
 import { tarjetaFusion, clicFusion } from '../fusiones.js';
+import { activarDeslizar } from '../galeria.js';
 
 export function render(el, { params }) {
   const id = Number(params[0]);
@@ -22,6 +23,7 @@ export function render(el, { params }) {
     return;
   }
   const yo = usuarioActual();
+  const esAdmin = () => !!datos.usuario(yo?.id)?.es_admin;
   const controlador = new AbortController();
   let pidiendo = false;
   let fallo = false;
@@ -97,7 +99,9 @@ export function render(el, { params }) {
       <h1 class="ficha-titulo">${esc(j.nombre)}</h1>
       ${meta ? `<span class="ficha-meta">${esc(meta)}</span>` : (pidiendo ? '<div class="sk sk-linea" style="width:55%;height:14px"></div>' : '')}
       ${j.plataformas?.length ? `<div class="ficha-chips">${j.plataformas.map((p) => `<span class="ficha-chip">${esc(p)}</span>`).join('')}</div>` : ''}
-      ${'es_online' in j && datos.juego(id) ? `
+      ${'es_online' in j && datos.juego(id) && !esAdmin() && j.es_online ? `
+        <div class="ficha-online"><span class="etiqueta-gris">Juego online / sin final</span></div>` : ''}
+      ${'es_online' in j && datos.juego(id) && esAdmin() ? `
         <div class="ficha-online">
           <span>Juego online / sin final</span>
           <div class="conmutador" role="group" aria-label="Juego online / sin final">
@@ -194,11 +198,21 @@ export function render(el, { params }) {
     return partes.length ? ` · ${partes.join(' · ')}` : '';
   }
 
+  /** "Remastered", "Definitive Edition"... de la versión que jugó (si no es el principal). */
+  function nombreVersion(origen) {
+    if (origen == null || origen === id) return '';
+    const n = datos.juegoConocido(origen)?.nombre ?? '';
+    const base = datos.juegoConocido(id)?.nombre ?? '';
+    const corto = base && n.toLowerCase().startsWith(base.toLowerCase()) ? n.slice(base.length).replace(/^[\s:\-–—]+/, '') : '';
+    return corto || n;
+  }
+
   function filaGrupo(v) {
     const u = datos.usuario(v.usuario_id);
     if (!u) return '';
     const est = ESTADOS.find((e) => e.id === v.estado);
-    const sub = [nombreEstado(v.estado), v.plataforma].filter(Boolean).join(' · ') + extraPsn(u.id);
+    const version = nombreVersion(v.juego_origen);
+    const sub = [nombreEstado(v.estado), version, v.plataforma].filter(Boolean).join(' · ') + extraPsn(u.id);
     const derecha = v.nota != null
       ? `<div class="grupo-nota">${notaConLetra(v.nota, 'lg')}${iconoRecomendacion(v.recomendado, 20)}</div>`
       : `<span class="grupo-sin-nota">Sin nota aún</span>`;
@@ -322,7 +336,9 @@ export function render(el, { params }) {
     const bundles = (r.bundles ?? []).map(enlace).filter(Boolean);
     if (bundles.length) lineas.push(`Incluido en ${bundles.join(', ')}`);
     const parejas = yo ? metricas.parejasDeJuego(yo.id, id) : [];
-    const alias = datos.aliasDe(id).map((a) => datos.juegoConocido(a)).filter(Boolean);
+    const filasAlias = (datos.estado.alias ?? []).filter((x) => Number(x.principal_id) === id);
+    const alias = filasAlias.map((x) => ({ j: datos.juegoConocido(Number(x.alias_id)), x })).filter((a) => a.j);
+    const admin = esAdmin();
     if (!lineas.length && !parejas.length && !alias.length) return '';
     return `
       <section class="ficha-versiones">
@@ -330,11 +346,12 @@ export function render(el, { params }) {
         ${parejas.map(tarjetaFusion).join('')}
         ${alias.length ? `
           <div class="ficha-fusionadas">
-            <span class="campo-titulo">Versiones fusionadas</span>
-            ${alias.map((a) => `
+            <span class="campo-titulo">Versiones incluidas</span>
+            ${alias.map(({ j: a, x }) => `
               <div class="ficha-fusionada">
-                <span>«${esc(a.nombre)}»${a.anio ? ` · ${a.anio}` : ''} cuenta como este juego.</span>
-                <button type="button" class="enlace-discreto" data-deshacer-fusion="${a.igdb_id}">Deshacer</button>
+                <span>«${esc(a.nombre)}»${a.anio ? ` · ${a.anio}` : ''}${x.auto ? '' : ' · fusionada a mano'}</span>
+                ${admin ? `<button type="button" class="enlace-discreto" data-separar="${a.igdb_id}">Separar</button>`
+                  : !x.auto && x.creado_por && x.creado_por === yo?.id ? `<button type="button" class="enlace-discreto" data-deshacer-fusion="${a.igdb_id}">Deshacer</button>` : ''}
               </div>`).join('')}
           </div>` : ''}
       </section>`;
@@ -390,6 +407,12 @@ export function render(el, { params }) {
 
   el.addEventListener('click', (e) => {
     if (yo && clicFusion(e, yo.id)) return;
+    const separar = e.target.closest('[data-separar]');
+    if (separar && yo) {
+      datos.separarVersion(separar.dataset.separar, yo.id, aviso);
+      aviso('Separada: vuelve a contar como otro juego y no se fusionará sola');
+      return;
+    }
     const deshacer = e.target.closest('[data-deshacer-fusion]');
     if (deshacer) {
       datos.deshacerFusion(deshacer.dataset.deshacerFusion, aviso);
@@ -397,7 +420,7 @@ export function render(el, { params }) {
       return;
     }
     const on = e.target.closest('[data-online]');
-    if (on) {
+    if (on && esAdmin()) {
       const valor = on.dataset.online === 'si';
       if (valor !== datos.esOnline(id)) {
         datos.marcarOnline(id, valor, aviso);
@@ -437,8 +460,11 @@ export function render(el, { params }) {
       });
   }
 
+  // Abierta desde una lista: deslizar al anterior / siguiente de esa lista.
+  const quitarGaleria = datos.canonico(id) === id ? activarDeslizar(el, id, el.querySelector('.ficha')) : () => {};
   return () => {
     controlador.abort();
     desuscribir();
+    quitarGaleria();
   };
 }

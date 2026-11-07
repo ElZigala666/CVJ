@@ -5,7 +5,9 @@
 // El color del relleno es currentColor salvo que se pase { color }.
 
 const ICONOS = {
-  saga: { d: 'M8 2h11a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM3 6.5v13A2.5 2.5 0 0 0 5.5 22H17v-2.2H5.5a.3.3 0 0 1-.3-.3v-13z' },
+  coleccion: { d: 'M8 2h11a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM3 6.5v13A2.5 2.5 0 0 0 5.5 22H17v-2.2H5.5a.3.3 0 0 1-.3-.3v-13z' },
+  // Saga: libros en una estantería (juegos distintos que van juntos).
+  saga: { d: 'M3 3h4v18H3zM8.5 3h4v18h-4zM14.2 4.6l3.9-1 4.4 17.3-3.9 1z' },
   fusionar: { d: 'M9 4.5a7.5 7.5 0 1 1 0 15 7.5 7.5 0 0 1 0-15zm6 0a7.5 7.5 0 1 1 0 15 7.5 7.5 0 0 1 0-15z' },
   probados: { d: 'M3 4h18v5H3zM4.5 10.5h15V20a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1z', t: 'M9.5 14.5h5' },
   ocultar: { d: 'M12 5c5.2 0 9 4.4 10 7-1 2.6-4.8 7-10 7S3 14.6 2 12c1-2.6 4.8-7 10-7z', t: 'M5 5l14 14' },

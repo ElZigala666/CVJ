@@ -5,6 +5,7 @@ import { tirarParaRefrescar } from '../refrescar.js';
 import * as psn from '../psn.js';
 import * as xbox from '../xbox.js';
 import * as metricas from '../metricas.js';
+import { tarjetaSugerenciaColeccion, clicSugerenciaColeccion } from '../colecciones-ui.js';
 import { usuarioActual } from '../sesion.js';
 import { mediaGrupo, recomendacionGrupo, desviacionTipica } from '../notas.js';
 import {
@@ -50,6 +51,7 @@ export function render(el) {
   const alPulsar = (e) => {
     if (e.target.closest('[data-accion="reconectar-psn"]')) psn.abrirAsistente();
     if (e.target.closest('[data-accion="conectar-plataformas"]')) window.dispatchEvent(new CustomEvent('cvj:ajustes-plataformas'));
+    if (clicSugerenciaColeccion(e, usuarioActual()?.id)) return;
     const leido = e.target.closest('[data-aviso-leido]');
     if (leido) datos.marcarAvisoLeido(leido.dataset.avisoLeido, aviso);
   };
@@ -93,6 +95,7 @@ function html() {
     ${avisoRevisar()}
     ${avisosPersonales()}
     ${bienvenida()}
+    ${yo ? `<div class="inicio-sugerencias">${metricas.sugerenciasColeccion(yo.id).map(tarjetaSugerenciaColeccion).join('')}</div>` : ''}
     <div class="inicio">
       ${jugandoAhora()}
       <section class="inicio-seccion">

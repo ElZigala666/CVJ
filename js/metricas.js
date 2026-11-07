@@ -34,7 +34,7 @@ const online = (v) => datos.esOnline(v.juego_id);
  */
 export const cuentaEnRanking = (v) => (typeof v?.cuenta_ranking === 'boolean'
   ? v.cuenta_ranking
-  : !(v?.esSaga ? datos.sagaOnline(v.saga_id) : datos.esOnline(v?.juego_id)));
+  : !(v?.esColeccion ? datos.coleccionOnline(v.coleccion_id) : datos.esOnline(v?.juego_id)));
 
 /** Valoraciones de todo el grupo agrupadas por usuario (solo usuarios existentes). */
 function porUsuario() {
@@ -81,10 +81,10 @@ export function perfil(uid) {
         ...historial[e].filter((v) => !tieneNota(v)).sort(porFecha),
       ];
     }
-    // Sagas valoradas: una tarjeta más en su pestaña (La sigo → Jugando, La dejé → Abandonados).
-    // Las sagas online / sin final van con los juegos online.
-    for (const v of valoracionesSagaComoItems(uid)) {
-      if (datos.sagaOnline(v.saga_id)) juegosOnline.push(v);
+    // Colecciones valoradas: una tarjeta más en su pestaña (La sigo → Jugando, La dejé → Abandonados).
+    // Las colecciones online / sin final van con los juegos online.
+    for (const v of valoracionesColeccionComoItems(uid)) {
+      if (datos.coleccionOnline(v.coleccion_id)) juegosOnline.push(v);
       else historial[v.estado]?.push(v);
     }
     juegosOnline.sort((a, b) => (nota(b) ?? -1) - (nota(a) ?? -1) || porFecha(a, b));
@@ -124,7 +124,7 @@ export function perfil(uid) {
 export function tierList(uid) {
   return memoizar(`tiers:${uid}`, () => {
     const filas = Object.fromEntries(LETRAS.map((l) => [l, []]));
-    const conNota = [...valoracionesDe(uid), ...valoracionesSagaComoItems(uid)].filter((v) => tieneNota(v) && cuentaEnRanking(v)).sort(porNota);
+    const conNota = [...valoracionesDe(uid), ...valoracionesColeccionComoItems(uid)].filter((v) => tieneNota(v) && cuentaEnRanking(v)).sort(porNota);
     for (const v of conNota) filas[notaALetra(v.nota)].push(v);
     return { filas, total: conNota.length };
   });
@@ -173,7 +173,7 @@ export const ORDENES = [
 ];
 
 /**
- * Notas del grupo en un juego o saga. media/votos/rec/desviacion: solo las que cuentan
+ * Notas del grupo en un juego o colección. media/votos/rec/desviacion: solo las que cuentan
  * en los rankings (Nota media, Polémicos, Recomendados; el mínimo de 2 notas va sobre
  * esas). mediaTodas/votosTodas/recTodas: todas (chip "Sin final").
  */
@@ -213,20 +213,20 @@ function juegosDelGrupo() {
         horas: Math.round(usuarios().reduce((t, u) => t + (horasDe(u.id, id) ?? 0), 0) * 10) / 10,
       }))
       .filter((x) => x.juego)
-      .concat(sagasDelGrupo());
+      .concat(coleccionesDelGrupo());
   });
 }
 
-/** Sagas en los rankings: con sus valoraciones de saga y las horas de todos en sus juegos. */
-function sagasDelGrupo() {
-  return datos.sagas().map((sg) => {
-    const vals = datos.valoracionesDeSaga(sg.id).filter(usuarioValido).map((v) => ({ ...v, esSaga: true }));
+/** Colecciones en los rankings: con sus valoraciones de colección y las horas de todos en sus juegos. */
+function coleccionesDelGrupo() {
+  return datos.colecciones().map((sg) => {
+    const vals = datos.valoracionesDeColeccion(sg.id).filter(usuarioValido).map((v) => ({ ...v, esColeccion: true }));
     return {
       juego: datos.comoJuego(sg),
-      saga: sg,
+      coleccion: sg,
       ...resumenNotas(vals),
       online: !!sg.es_online,
-      horas: Math.round(usuarios().reduce((t, u) => t + horasSaga(u.id, sg.id).total, 0) * 10) / 10,
+      horas: Math.round(usuarios().reduce((t, u) => t + horasColeccion(u.id, sg.id).total, 0) * 10) / 10,
     };
   });
 }
@@ -244,8 +244,8 @@ export function ranking(orden) {
         .sort((a, b) => b.jugadores - a.jugadores || (b.media ?? -1) - (a.media ?? -1) || nombre(a, b));
     }
     if (orden === 'horas') {
-      // Los juegos de una saga cuentan dentro de la saga ("cuántas horas al FIFA").
-      return l.filter((x) => x.horas > 0 && (x.saga || !datos.sagaDeJuego(x.juego.igdb_id)))
+      // Los juegos de una colección cuentan dentro de la colección ("cuántas horas al FIFA").
+      return l.filter((x) => x.horas > 0 && (x.coleccion || !datos.coleccionDeJuego(x.juego.igdb_id)))
         .sort((a, b) => b.horas - a.horas || (b.media ?? -1) - (a.media ?? -1) || nombre(a, b));
     }
     if (orden === 'online') {
@@ -577,7 +577,7 @@ export function textoHoras(h) {
 }
 
 // ---------------------------------------------------------------------------
-// Revisión, fusiones y sagas
+// Revisión, fusiones y colecciones
 // ---------------------------------------------------------------------------
 /**
  * Estado del emparejamiento de una entrada de la biblioteca:
@@ -603,7 +603,7 @@ function idsDe(uid) {
 
 /**
  * "¿Es el mismo juego?": parejas de juegos de un usuario que IGDB relaciona
- * (edición o versión, remaster, port, versión ampliada, o misma saga con el nombre
+ * (edición o versión, remaster, port, versión ampliada, o misma coleccion con el nombre
  * casi igual). Los remakes no: son juegos distintos salvo que él los fusione.
  * [{ a, b, motivo }] sin las que ya rechazó.
  */
@@ -629,14 +629,14 @@ export function parejasFusion(uid) {
       for (const b of r.remasters ?? []) anadir(a, datos.canonico(b), 'remaster');
       for (const b of r.ports ?? []) anadir(a, datos.canonico(b), 'port');
       for (const b of r.expanded_games ?? []) anadir(a, datos.canonico(b), 'ampliado');
-      // Misma saga y nombre casi igual ("Mafia II" / "Mafia II: Definitive Edition").
-      const sagas = new Set((r.colecciones ?? []).map((c) => c.id));
-      if (!sagas.size) continue;
+      // Misma coleccion y nombre casi igual ("Mafia II" / "Mafia II: Definitive Edition").
+      const colecciones = new Set((r.colecciones ?? []).map((c) => c.id));
+      if (!colecciones.size) continue;
       for (const b of lista) {
         if (b <= a) continue;
         const jb = datos.juegoConocido(b);
-        if (!(jb?.relaciones?.colecciones ?? []).some((c) => sagas.has(c.id))) continue;
-        if (nucleoNombre(j.nombre) && nucleoNombre(j.nombre) === nucleoNombre(jb.nombre)) anadir(a, b, 'saga');
+        if (!(jb?.relaciones?.colecciones ?? []).some((c) => colecciones.has(c.id))) continue;
+        if (nucleoNombre(j.nombre) && nucleoNombre(j.nombre) === nucleoNombre(jb.nombre)) anadir(a, b, 'coleccion');
       }
     }
     return [...parejas.values()];
@@ -662,33 +662,33 @@ export function parejasDeJuego(uid, igdbId) {
 const VERSION_REDUCIDA = /(prologue|pr[oó]logo|\bdemo\b|episode|episodio|chapter|cap[ií]tulo|\blite\b|\btrial\b|prelude|preludio|ground zeroes|first look|vertical slice|\bbeta\b)/i;
 
 // ---------------------------------------------------------------------------
-// Sagas del grupo (como un juego más)
+// Colecciones del grupo (como un juego más)
 // ---------------------------------------------------------------------------
-/** Ruta de algo que se pinta como juego: un juego o una saga. */
-export const rutaDe = (j) => (j?.saga_id ? `#saga/${j.saga_id}` : `#juego/${j?.igdb_id}`);
+/** Ruta de algo que se pinta como juego: un juego o una colección. */
+export const rutaDe = (j) => (j?.coleccion_id ? `#coleccion/${j.coleccion_id}` : `#juego/${j?.igdb_id}`);
 
-/** Valoraciones de sagas de un usuario con forma de valoración de juego (para listas). */
-export function valoracionesSagaComoItems(uid) {
-  return memoizar(`valsSaga:${uid}`, () => datos.valoracionesSagaDe(uid).map((v) => ({ ...v, juego_id: null, esSaga: true })));
+/** Valoraciones de colecciones de un usuario con forma de valoración de juego (para listas). */
+export function valoracionesColeccionComoItems(uid) {
+  return memoizar(`valsColeccion:${uid}`, () => datos.valoracionesColeccionDe(uid).map((v) => ({ ...v, juego_id: null, esColeccion: true })));
 }
 
 /**
- * Horas de un usuario en una saga: las totales de cada uno de sus juegos (sincronizadas
- * + extra) más las horas extra propias de la saga. { porJuego: [{ id, horas }], juegos, extra, total }
+ * Horas de un usuario en una colección: las totales de cada uno de sus juegos (sincronizadas
+ * + extra) más las horas extra propias de la colección. { porJuego: [{ id, horas }], juegos, extra, total }
  */
-export function horasSaga(uid, sagaId) {
-  return memoizar(`horasSaga:${uid}:${sagaId}`, () => {
-    const porJuego = datos.juegosDeSaga(sagaId).map((id) => ({ id, horas: horasDe(uid, id) ?? 0 }));
+export function horasColeccion(uid, coleccionId) {
+  return memoizar(`horasColeccion:${uid}:${coleccionId}`, () => {
+    const porJuego = datos.juegosDeColeccion(coleccionId).map((id) => ({ id, horas: horasDe(uid, id) ?? 0 }));
     const juegos = porJuego.reduce((t, x) => t + x.horas, 0);
-    const extra = Number(datos.miValoracionSaga(uid, sagaId)?.horas_extra ?? 0);
+    const extra = Number(datos.miValoracionColeccion(uid, coleccionId)?.horas_extra ?? 0);
     return { porJuego, juegos: Math.round(juegos * 10) / 10, extra, total: Math.round((juegos + extra) * 10) / 10 };
   });
 }
 
-/** Métricas del grupo en una saga (como statsJuego). */
-export function statsSaga(sagaId) {
-  return memoizar(`statsSaga:${sagaId}`, () => {
-    const vals = datos.valoracionesDeSaga(sagaId).filter(usuarioValido);
+/** Métricas del grupo en una colección (como statsJuego). */
+export function statsColeccion(coleccionId) {
+  return memoizar(`statsColeccion:${coleccionId}`, () => {
+    const vals = datos.valoracionesDeColeccion(coleccionId).filter(usuarioValido);
     const media = mediaGrupo(vals);
     return {
       valoraciones: vals,
@@ -703,22 +703,22 @@ export function statsSaga(sagaId) {
 }
 
 /**
- * Biblioteca: los juegos de una saga sin valoración propia del usuario se juntan en
- * una tarjeta de la saga (en el sitio del primero). Los que tienen valoración propia
- * siguen sueltos. → items y { esSaga, saga, juego, hijos, horas, valoracion, clave }
+ * Biblioteca: los juegos de una colección sin valoración propia del usuario se juntan en
+ * una tarjeta de la colección (en el sitio del primero). Los que tienen valoración propia
+ * siguen sueltos. → items y { esColeccion, coleccion, juego, hijos, horas, valoracion, clave }
  */
-export function agruparSagas(uid, items, idDe) {
-  if (!datos.haySagas() || !datos.sagas().length) return items;
+export function agruparColecciones(uid, items, idDe) {
+  if (!datos.hayColecciones() || !datos.colecciones().length) return items;
   const salida = [];
   const bloques = new Map();
   for (const x of items) {
     const id = idDe(x);
-    const sg = id != null && !datos.miValoracion(uid, id) ? datos.sagaDeJuego(id) : null;
+    const sg = id != null && !datos.miValoracion(uid, id) ? datos.coleccionDeJuego(id) : null;
     if (!sg) { salida.push(x); continue; }
     if (!bloques.has(sg.id)) {
       const b = {
-        esSaga: true, saga: sg, juego: datos.comoJuego(sg), hijos: [], clave: `saga:${sg.id}`,
-        horas: horasSaga(uid, sg.id).total, valoracion: datos.miValoracionSaga(uid, sg.id),
+        esColeccion: true, coleccion: sg, juego: datos.comoJuego(sg), hijos: [], clave: `coleccion:${sg.id}`,
+        horas: horasColeccion(uid, sg.id).total, valoracion: datos.miValoracionColeccion(uid, sg.id),
       };
       bloques.set(sg.id, b);
       salida.push(b);
@@ -729,48 +729,115 @@ export function agruparSagas(uid, items, idDe) {
 }
 
 /**
- * Sagas que se podrían crear: 3 o más juegos de una misma colección de IGDB cuyos
- * nombres solo cambian en un número o un año (FIFA, NBA 2K...), que aún no están en
- * ninguna saga. Nunca las que rechazó. [{ id, nombre, juegos: [igdbId] }]
+ * Colecciones que se podrían crear (solo se le enseñan al admin): juegos de la app de una
+ * misma colección de IGDB, aún sin colección, cuyos nombres solo cambian en
+ *  - un año (FIFA 22 / FIFA 23, NBA 2K24...: una entrega por año), o
+ *  - un número, si todos son sin final (Overwatch / Overwatch 2, CS:GO / CS2: el
+ *    sucesor sustituye al anterior).
+ * Persona 3 / 4 / 5 (sagas de juegos distintos) no: esas son sagas.
+ * Nunca las que el admin rechazó. [{ id, nombre, juegos: [igdbId] }]
  */
-export function sugerenciasSaga(uid) {
-  return memoizar(`sugSaga:${uid}`, () => {
-    if (!datos.haySagas()) return [];
-    const prefs = datos.sagasDe(uid);
-    const porSaga = new Map();
-    for (const id of idsDe(uid)) {
-      if (datos.sagaDeJuego(id)) continue;
+const AÑO = /(^|\D)(19[89]\d|20[0-4]\d|[0-4]\d|9\d|2k\d\d)(\D|$)/i;
+export function sugerenciasColeccion(uid) {
+  return memoizar(`sugColeccion:${uid}`, () => {
+    if (!datos.hayColecciones() || !datos.usuario(uid)?.es_admin) return [];
+    const prefs = datos.coleccionesRechazadasDe(uid);
+    // Juegos que alguien del grupo tiene (valorados o en su biblioteca).
+    const ids = new Set(datos.valoracionesEfectivas().map((v) => Number(v.juego_id)));
+    for (const f of datos.estado.biblioteca ?? []) {
+      const id = datos.igdbDeBiblioteca(f);
+      if (id != null && !f.oculto) ids.add(id);
+    }
+    const porColeccion = new Map();
+    for (const id of ids) {
+      if (datos.coleccionDeJuego(id)) continue;
       const j = datos.juegoConocido(id);
-      for (const c of j?.relaciones?.colecciones ?? []) {
+      if (!j?.nombre) continue;
+      for (const c of j.relaciones?.colecciones ?? []) {
         if (prefs.has(Number(c.id))) continue;
-        if (!porSaga.has(c.id)) porSaga.set(c.id, { id: c.id, nombre: c.nombre, porBase: new Map() });
+        if (!porColeccion.has(c.id)) porColeccion.set(c.id, { id: c.id, nombre: c.nombre, porBase: new Map() });
         const base = sinNumeros(j.nombre);
-        const m = porSaga.get(c.id).porBase;
+        if (!base) continue;
+        const m = porColeccion.get(c.id).porBase;
         if (!m.has(base)) m.set(base, []);
-        m.get(base).push(id);
+        if (!m.get(base).includes(id)) m.get(base).push(id);
       }
     }
     const res = [];
-    for (const x of porSaga.values()) {
-      const [base, juegos] = [...x.porBase.entries()].sort((a, b) => b[1].length - a[1].length)[0] ?? [];
-      if (base && juegos.length >= 3) res.push({ id: x.id, nombre: x.nombre || base, juegos });
+    for (const x of porColeccion.values()) {
+      for (const [base, juegos] of x.porBase) {
+        if (juegos.length < 2) continue;
+        const nombres = juegos.map((id) => datos.juegoConocido(id)?.nombre ?? '');
+        // Lo que cambia entre ellos (quitando la parte común) tiene que ser un año...
+        const anual = nombres.every((n) => AÑO.test(n.replace(/:.*$/, '')));
+        // ...o un número de sucesor en juegos sin final.
+        const sucesor = juegos.every((id) => datos.esOnline(id));
+        if (anual || sucesor) res.push({ id: x.id, nombre: x.nombre || base, juegos: juegos.sort((a, b) => (datos.juegoConocido(a)?.anio ?? 0) - (datos.juegoConocido(b)?.anio ?? 0)) });
+      }
     }
     return res;
   });
 }
 
 /**
- * Para "Añadir a una saga…" desde un juego: la saga existente que ya tiene juegos de su
+ * Para "Añadir a una colección…" desde un juego: la colección existente que ya tiene juegos de su
  * misma colección de IGDB o, si no hay, crear una con el nombre de la colección.
- * → { saga } | { crear: { nombre, coleccionId } } | null
+ * → { coleccion } | { crear: { nombre, coleccionId } } | null
  */
-export function sagaSugerida(igdbId) {
+export function coleccionSugerida(igdbId) {
   const j = datos.juegoConocido(igdbId);
   const cols = j?.relaciones?.colecciones ?? [];
   for (const c of cols) {
-    const existente = datos.sagas().find((sg) => Number(sg.coleccion_id) === Number(c.id))
-      ?? datos.sagas().find((sg) => datos.juegosDeSaga(sg.id).some((g) => (datos.juegoConocido(g)?.relaciones?.colecciones ?? []).some((x) => Number(x.id) === Number(c.id))));
-    if (existente) return { saga: existente };
+    const existente = datos.colecciones().find((sg) => Number(sg.igdb_coleccion_id) === Number(c.id))
+      ?? datos.colecciones().find((sg) => datos.juegosDeColeccion(sg.id).some((g) => (datos.juegoConocido(g)?.relaciones?.colecciones ?? []).some((x) => Number(x.id) === Number(c.id))));
+    if (existente) return { coleccion: existente };
   }
   return cols[0] ? { crear: { nombre: cols[0].nombre, coleccionId: Number(cols[0].id) } } : null;
+}
+
+// ---------------------------------------------------------------------------
+// Sagas (Persona, Zelda...): cada juego por separado; esto solo los resume juntos
+// ---------------------------------------------------------------------------
+/**
+ * Resumen de una saga para su página. Cada juego: nota del grupo, la mía, mis horas,
+ * las del grupo y si alguien lo ha jugado (valorado sin ser pendiente, o en su biblioteca).
+ */
+export function resumenSaga(sagaId, uid) {
+  return memoizar(`resumenSaga:${sagaId}:${uid}`, () => {
+    const ids = datos.juegosDeSaga(sagaId);
+    const conBiblioteca = new Set();
+    for (const id of ids) if (datos.bibliotecaDeJuego(id).some((f) => !f.oculto && datos.usuario(f.usuario_id))) conBiblioteca.add(id);
+    const juegos = ids.map((id) => {
+      const st = datos.statsJuego(id);
+      const jugadoPor = new Set([
+        ...st.valoraciones.filter((v) => v.estado !== 'pendiente').map((v) => v.usuario_id),
+        ...datos.bibliotecaDeJuego(id).filter((f) => !f.oculto && datos.usuario(f.usuario_id)).map((f) => f.usuario_id),
+      ]);
+      return {
+        id,
+        juego: datos.juegoConocido(id),
+        media: st.media,
+        votos: st.votos,
+        mia: uid ? datos.miValoracion(uid, id) : null,
+        misHoras: uid ? horasDe(uid, id) : null,
+        horasGrupo: Math.round(usuarios().reduce((t, u) => t + (horasDe(u.id, id) ?? 0), 0) * 10) / 10,
+        jugadoPor,
+        jugado: jugadoPor.size > 0,
+      };
+    }).filter((x) => x.juego);
+    const conNota = juegos.filter((x) => x.media != null);
+    const ranking = [...conNota].sort((a, b) => b.media - a.media || b.votos - a.votos);
+    // Quién ha jugado más juegos de la saga.
+    const cuenta = new Map();
+    for (const x of juegos) for (const u of x.jugadoPor) cuenta.set(u, (cuenta.get(u) ?? 0) + 1);
+    const [masId, masN] = [...cuenta.entries()].sort((a, b) => b[1] - a[1])[0] ?? [null, 0];
+    return {
+      juegos,
+      ranking,
+      mejor: ranking[0] ?? null,
+      horasGrupo: Math.round(juegos.reduce((t, x) => t + x.horasGrupo, 0) * 10) / 10,
+      masJugador: masId ? { usuario: datos.usuario(masId), n: masN } : null,
+      jugados: juegos.filter((x) => x.jugado).length,
+    };
+  });
 }

@@ -1490,29 +1490,29 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 .casilla.marcada { border-color: transparent; }
 
 /* Sagas: sello en las tarjetas y ficha */
-.sello-saga {
+.sello-coleccion {
   position: absolute; left: 6px; top: 6px; z-index: 3; padding: 2px 6px; border-radius: 6px;
   background: var(--acento); color: var(--sobre-acento); font-size: 10px; font-weight: 800; letter-spacing: .02em;
 }
-.sello-saga.mini { left: 3px; top: 3px; padding: 1px 3px; font-size: 7px; border-radius: 4px; }
+.sello-coleccion.mini { left: 3px; top: 3px; padding: 1px 3px; font-size: 7px; border-radius: 4px; }
 .rejilla-item { position: relative; }
-.saga-editar-fila { margin-top: 10px; }
-.saga-juegos { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.saga-juego { display: flex; align-items: center; gap: 8px; }
-.saga-juego-enlace { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; color: var(--texto); text-decoration: none; }
-.saga-juego-texto { display: grid; gap: 2px; min-width: 0; }
-.saga-juego-texto strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.saga-juego-texto small { font-size: 12px; color: var(--texto-2); }
-.saga-juego-acciones { display: flex; gap: 4px; flex: none; }
-.saga-juego-acciones .boton-cuadrado { width: 34px; height: 34px; }
-.saga-juego-acciones .boton-cuadrado:disabled { opacity: .35; }
+.coleccion-editar-fila { margin-top: 10px; }
+.coleccion-juegos { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.coleccion-juego { display: flex; align-items: center; gap: 8px; }
+.coleccion-juego-enlace { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; color: var(--texto); text-decoration: none; }
+.coleccion-juego-texto { display: grid; gap: 2px; min-width: 0; }
+.coleccion-juego-texto strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.coleccion-juego-texto small { font-size: 12px; color: var(--texto-2); }
+.coleccion-juego-acciones { display: flex; gap: 4px; flex: none; }
+.coleccion-juego-acciones .boton-cuadrado { width: 34px; height: 34px; }
+.coleccion-juego-acciones .boton-cuadrado:disabled { opacity: .35; }
 .girar-180 { transform: rotate(180deg); }
-.saga-edicion { display: flex; flex-direction: column; gap: 10px; }
-.saga-portadas { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
-.saga-portada { padding: 2px; border: 2px solid transparent; border-radius: 10px; background: none; cursor: pointer; flex: none; }
-.saga-portada.activa { border-color: var(--acento); }
+.coleccion-edicion { display: flex; flex-direction: column; gap: 10px; }
+.coleccion-portadas { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.coleccion-portada { padding: 2px; border: 2px solid transparent; border-radius: 10px; background: none; cursor: pointer; flex: none; }
+.coleccion-portada.activa { border-color: var(--acento); }
 .peligro-texto { color: var(--peligro); align-self: flex-start; }
-.ficha-saga { margin-bottom: 4px; }
+.ficha-coleccion { margin-bottom: 4px; }
 .ficha-versiones .boton-secundario.con-icono { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; }
 
 /* Ajustes → Gestionar grupo (solo admin) */
@@ -1585,3 +1585,53 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 .plat-otras { margin-top: 10px; }
 .plat-otras summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--texto-2); padding: 6px 2px; }
 .plat-otras .plat-linea { margin-top: 6px; cursor: default; }
+
+/* Ficha: "Parte de la saga" */
+.ficha-saga-parte { display: grid; gap: 10px; margin: 18px 0 0; padding: 0 20px; }
+.ficha-saga-cab { display: flex; align-items: center; gap: 10px; color: var(--texto); text-decoration: none; font-size: 15px; }
+.ficha-saga-cab span { flex: 1; }
+.ficha-saga-fila { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: none; }
+.ficha-saga-fila::-webkit-scrollbar { display: none; }
+.ficha-saga-item { flex: none; display: grid; gap: 4px; text-decoration: none; color: var(--texto-2); font-size: 11px; text-align: center; }
+.portada-saga-mini { width: 84px; border-radius: 10px; }
+.portada-saga-mini .portada-titulo { font-size: 9px; }
+
+/* Página de saga (estilo editorial) */
+.saga { padding-bottom: 40px; }
+.saga-cab {
+  position: relative; display: grid; gap: 16px; padding: calc(env(safe-area-inset-top, 0px) + 64px) 20px 22px;
+  background: var(--fondo-hero, var(--superficie)); color: #FFFFFF;
+}
+.saga-cab.con-color { background: linear-gradient(180deg, hsl(var(--hero-h) var(--hero-s) 22%), hsl(var(--hero-h) var(--hero-s) 12%)); }
+.saga-cab .ficha-volver { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 14px); left: 14px; }
+.saga-mosaico { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.saga-mosaico.n1 { grid-template-columns: 1fr; max-width: 160px; }
+.saga-mosaico.n2 { grid-template-columns: repeat(2, 1fr); max-width: 320px; }
+.saga-mosaico.n3 { grid-template-columns: repeat(3, 1fr); }
+.portada-saga { width: 100%; border-radius: 10px; box-shadow: rgba(0, 0, 0, .45) 0 10px 24px; }
+.saga-mosaico .portada-saga:nth-child(2n) { transform: translateY(10px); }
+.saga-cab-texto { display: grid; gap: 4px; margin-top: 8px; }
+.saga-antetitulo { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; opacity: .8; }
+.saga-titulo { margin: 0; font: 800 34px/1.05 var(--fuente-titulos); letter-spacing: -.01em; }
+.saga-meta { font-size: 14px; opacity: .8; }
+.saga-resumen { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding: 18px 20px 0; }
+.saga-dato { display: grid; gap: 4px; align-content: start; padding: 14px; border-radius: 16px; background: var(--superficie); color: var(--texto); text-decoration: none; }
+.saga-dato-etq { font-size: 12px; color: var(--texto-2); font-weight: 600; }
+.saga-dato-sub { font-size: 12px; color: var(--texto-2); }
+.saga-num { font: 800 24px var(--fuente-titulos); }
+.saga-mejor { grid-column: 1 / -1; grid-template-columns: 1fr auto; align-items: center; }
+.saga-mejor .saga-dato-etq { grid-column: 1 / -1; }
+.saga-quien { display: flex; align-items: center; gap: 8px; }
+.saga-bloque { display: grid; gap: 10px; padding: 22px 20px 0; }
+.saga-ranking, .saga-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.saga-ranking a { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 12px; background: var(--superficie); color: var(--texto); text-decoration: none; }
+.saga-pos { width: 22px; font: 800 16px var(--fuente-titulos); color: var(--acento-texto); }
+.saga-rk-nombre { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.saga-juego { display: flex; align-items: center; gap: 8px; }
+.saga-juego > a { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; color: var(--texto); text-decoration: none; }
+.saga-juego.sin-jugar > a { opacity: .45; }
+.saga-juego-texto { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.saga-juego-texto strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.saga-juego-texto small { font-size: 12px; color: var(--texto-2); }
+.saga-juego-mio { color: var(--acento-texto) !important; font-weight: 600; }
+.saga-admin { gap: 10px; }

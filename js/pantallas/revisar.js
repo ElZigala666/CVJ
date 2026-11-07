@@ -1,6 +1,6 @@
 // "Revisa tu biblioteca" (#revisar): lo nuevo o dudoso de la última sincronización
 // con PlayStation. Por fila: Confirmar / Cambiar juego / Quitar; selección múltiple
-// con barra inferior; arriba, las sagas que se podrían agrupar y las parejas de
+// con barra inferior; arriba, las colecciones que se podrían agrupar y las parejas de
 // "¿Es el mismo juego?".
 import * as datos from '../datos.js';
 import * as metricas from '../metricas.js';
@@ -21,7 +21,6 @@ export function render(el) {
     const claves = new Set(items.map((x) => x.clave));
     for (const k of [...sel]) if (!claves.has(k)) sel.delete(k);
     const parejas = metricas.parejasFusion(yo.id).slice(0, 6);
-    const sagas = metricas.sugerenciasSaga(yo.id);
     // Abajo, aparte, los de "relleno" (por debajo del umbral): se pueden mandar todos a Probados.
     const principales = items.filter((x) => !x.probado);
     const relleno = items.filter((x) => x.probado);
@@ -32,7 +31,6 @@ export function render(el) {
     el.innerHTML = `
       ${cabeceraAtras('Revisa tu biblioteca', items.length ? `${items.length} ${items.length === 1 ? 'juego' : 'juegos'} por revisar` : 'Todo revisado')}
       <div class="revisar${items.length ? ' con-barra' : ''}">
-        ${sagas.map(tarjetaSaga).join('')}
         ${parejas.map(tarjetaFusion).join('')}
         ${items.length ? `
           ${conPropuesta.length ? `
@@ -88,14 +86,6 @@ export function render(el) {
   el.addEventListener('click', (e) => {
     if (clicFusion(e, yo.id)) return;
     if (e.target.closest('[data-accion="atras"]')) { volver('#perfil'); return; }
-    const saga = e.target.closest('[data-saga-si], [data-saga-no]');
-    if (saga) {
-      const si = !!saga.dataset.sagaSi;
-      const [id, nombre] = [Number(saga.dataset.sagaSi ?? saga.dataset.sagaNo), saga.dataset.nombre];
-      datos.guardarSaga(yo.id, id, nombre, si, aviso);
-      aviso(si ? `Agrupados: ${nombre}` : 'No volveremos a sugerirlo');
-      return;
-    }
     const b = e.target.closest('[data-confirmar], [data-quitar], [data-bloque]');
     if (!b) return;
     if (b.dataset.confirmar) { const x = porClave(b.dataset.confirmar); if (x) confirmar([x]); return; }
@@ -155,21 +145,4 @@ function fila(x, marcada) {
     </div>`;
 }
 
-function tarjetaSaga(s) {
-  const juegos = s.juegos.map((id) => datos.juegoConocido(id)).filter(Boolean);
-  return `
-    <div class="tarjeta-fusion">
-      <div class="tarjeta-fusion-portadas">${juegos.slice(0, 3).map((j) => portada(j, { clase: 'portada-lista' })).join('')}</div>
-      <div class="tarjeta-fusion-texto">
-        <strong>¿Juntar tus ${esc(s.nombre)} en una saga?</strong>
-        <span>Tienes ${juegos.length}. Se verá como un juego más, con sus horas sumadas. Tus notas de cada juego no se tocan.</span>
-        <div class="tarjeta-fusion-botones">
-          <button type="button" class="boton-secundario boton-pequeno" data-saga-si="${s.id}" data-nombre="${esc(s.nombre)}">Crear saga «${esc(s.nombre)}»</button>
-          <button type="button" class="boton-secundario neutro boton-pequeno" data-saga-otra="${s.id}" data-nombre="${esc(s.nombre)}">Elegir otra saga</button>
-          <button type="button" class="enlace-discreto" data-saga-no="${s.id}" data-nombre="${esc(s.nombre)}">No, son juegos distintos</button>
-        </div>
-      </div>
-    </div>`;
-}
 
-export { tarjetaSaga };

@@ -159,11 +159,23 @@ export function montarGrupo(cont) {
           }).join('')}
         </div>
         <button type="button" class="boton-secundario con-icono" data-anadir>${icono('mas', { tam: 18, color: 'currentColor' })}<span>Añadir persona</span></button>
+        ${datos.sagasOcultas().length ? `
+          <details class="plat-otras">
+            <summary>Sagas ocultas (${datos.sagasOcultas().length})</summary>
+            ${datos.sagasOcultas().map((sg) => `
+              <div class="plat-linea plat-oculta">
+                ${icono('saga', { tam: 20, color: 'var(--texto-2)' })}
+                <span>${esc(sg.nombre)}</span>
+                <button type="button" class="enlace-discreto" data-mostrar-saga="${esc(sg.id)}">Volver a mostrar</button>
+              </div>`).join('')}
+          </details>` : ''}
       </section>`;
   };
 
   cont.addEventListener('click', async (e) => {
     const t = e.target;
+    const ms = t.closest('[data-mostrar-saga]');
+    if (ms) { datos.editarSaga(ms.dataset.mostrarSaga, { oculta: false }, aviso); aviso('La saga vuelve a verse'); return; }
     const abrir = t.closest('[data-abrir]');
     if (abrir) { vista.abierto = vista.abierto === abrir.dataset.abrir ? null : abrir.dataset.abrir; vista.confirmar = null; pintar(); return; }
     if (t.closest('[data-anadir]')) {

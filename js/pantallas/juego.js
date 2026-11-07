@@ -5,7 +5,7 @@ import * as datos from '../datos.js';
 import { usuarioActual } from '../sesion.js';
 import { LETRAS } from '../notas.js';
 import {
-  esc, urlPortada, colorBloque, colorFondo, mejorCargada, notaConLetra,
+  esc, portada, urlPortada, colorBloque, colorFondo, mejorCargada, notaConLetra,
   iconoRecomendacion, avatar, avatarInsignia, avatarPerfil, nombrePerfil, nombreEstado, ESTADOS, aviso,
 } from '../ui.js';
 import { yaCargada, tamPara, ANCHOS } from '../portadas.js';
@@ -15,7 +15,7 @@ import { abrirValorar } from '../hoja-valorar.js';
 import { colorDominante, hexAHsl } from '../color-dominante.js';
 import { tarjetaFusion, clicFusion } from '../fusiones.js';
 import { activarDeslizar } from '../galeria.js';
-import { anadirASagaUI } from '../sagas-ui.js';
+import { anadirAColeccionUI } from '../colecciones-ui.js';
 
 export function render(el, { params }) {
   const id = Number(params[0]);
@@ -311,11 +311,30 @@ export function render(el, { params }) {
           ${soloBiblioteca.map(([uid, b]) => filaBiblioteca(uid, b)).join('')}
           ${corregirEmparejamiento()}
         </section>` : ''}
-      ${bloqueVersiones()}`;
+      ${bloqueVersiones()}
+      ${bloqueSagas()}`;
+  }
+
+  /** "Parte de la saga {nombre}": fila de portadas de los otros juegos y enlace a la saga. */
+  function bloqueSagas() {
+    return datos.sagasDeJuego(id).map((sg) => {
+      const otros = datos.juegosDeSaga(sg.id).filter((g) => g !== id).map((g) => datos.juegoConocido(g)).filter(Boolean);
+      return `
+        <section class="ficha-saga-parte">
+          <a class="ficha-saga-cab" href="#saga/${esc(sg.id)}">
+            ${icono('saga', { tam: 20, color: 'var(--acento)' })}
+            <span>Parte de la saga <strong>${esc(sg.nombre)}</strong></span>
+            ${icono('adelante', { tam: 16, color: 'var(--texto-2)' })}
+          </a>
+          <div class="ficha-saga-fila" data-scroll="saga-${esc(sg.id)}">
+            ${otros.map((j) => `<a href="#juego/${j.igdb_id}" class="ficha-saga-item" data-precarga="${esc(j.cover_id ?? '')}">${portada(j, { clase: 'portada-saga-mini', titulo: 'arriba' })}${j.anio ? `<small>${j.anio}</small>` : ''}</a>`).join('')}
+          </div>
+        </section>`;
+    }).join('');
   }
 
   /**
-   * Lo que IGDB sabe (saga, versión de, incluido en...), "¿Es el mismo juego?" con
+   * Lo que IGDB sabe (coleccion, versión de, incluido en...), "¿Es el mismo juego?" con
    * mis otras versiones y las versiones ya fusionadas (con "Deshacer").
    */
   function bloqueVersiones() {
@@ -326,9 +345,9 @@ export function render(el, { params }) {
       return g && g.igdb_id !== id ? `<a href="#juego/${g.igdb_id}" class="enlace-discreto">${esc(g.nombre)}</a>` : '';
     };
     const lineas = [];
-    const sgGrupo = datos.sagaDeJuego(id);
-    const sagas = (r.colecciones ?? []).map((c) => esc(c.nombre)).filter(Boolean);
-    if (!sgGrupo && sagas.length) lineas.push(`Saga en IGDB: ${sagas.join(', ')}`);
+    const sgGrupo = datos.coleccionDeJuego(id);
+    const colecciones = (r.colecciones ?? []).map((c) => esc(c.nombre)).filter(Boolean);
+    if (!sgGrupo && colecciones.length) lineas.push(`Colección en IGDB: ${colecciones.join(', ')}`);
     const padre = [r.version_parent, r.parent_game].filter(Boolean).map(enlace).filter(Boolean);
     if (padre.length) lineas.push(`Versión de ${padre.join(', ')}`);
     const remasters = (r.remasters ?? []).map(enlace).filter(Boolean);
@@ -341,18 +360,18 @@ export function render(el, { params }) {
     const filasAlias = (datos.estado.alias ?? []).filter((x) => Number(x.principal_id) === id);
     const alias = filasAlias.map((x) => ({ j: datos.juegoConocido(Number(x.alias_id)), x })).filter((a) => a.j);
     const admin = esAdmin();
-    const bloqueSaga = datos.haySagas() && yo ? (sgGrupo ? `
-        <a class="enlace-fila ficha-saga" href="#saga/${esc(sgGrupo.id)}">
-          ${icono('saga', { tam: 22, color: 'var(--acento)' })}
-          <span class="enlace-fila-texto">Saga «${esc(sgGrupo.nombre)}» · ${datos.juegosDeSaga(sgGrupo.id).length} juegos</span>
+    const bloqueColeccion = datos.hayColecciones() && yo ? (sgGrupo ? `
+        <a class="enlace-fila ficha-coleccion" href="#coleccion/${esc(sgGrupo.id)}">
+          ${icono('coleccion', { tam: 22, color: 'var(--acento)' })}
+          <span class="enlace-fila-texto">Colección «${esc(sgGrupo.nombre)}» · ${datos.juegosDeColeccion(sgGrupo.id).length} juegos</span>
           ${icono('adelante', { tam: 18, color: 'var(--texto-2)' })}
         </a>
-        <button type="button" class="enlace-discreto" data-quitar-saga>Quitar de la saga</button>`
-      : '<button type="button" class="boton-secundario neutro con-icono" data-anadir-saga>' + icono('saga', { tam: 20, color: 'currentColor' }) + '<span>Añadir a una saga…</span></button>') : '';
-    if (!lineas.length && !parejas.length && !alias.length && !bloqueSaga) return '';
+        ${esAdmin() ? '<button type="button" class="enlace-discreto" data-quitar-coleccion>Quitar de la colección</button>' : ''}`
+      : esAdmin() ? '<button type="button" class="boton-secundario neutro con-icono" data-anadir-coleccion>' + icono('coleccion', { tam: 20, color: 'currentColor' }) + '<span>Añadir a una colección…</span></button>' : '') : '';
+    if (!lineas.length && !parejas.length && !alias.length && !bloqueColeccion) return '';
     return `
       <section class="ficha-versiones">
-        ${bloqueSaga}
+        ${bloqueColeccion}
         ${lineas.length ? `<p class="ficha-relaciones">${lineas.join(' · ')}</p>` : ''}
         ${parejas.map(tarjetaFusion).join('')}
         ${alias.length ? `
@@ -418,10 +437,10 @@ export function render(el, { params }) {
 
   el.addEventListener('click', (e) => {
     if (yo && clicFusion(e, yo.id)) return;
-    if (e.target.closest('[data-anadir-saga]') && yo) { anadirASagaUI(id, yo.id); return; }
-    if (e.target.closest('[data-quitar-saga]')) {
-      const sg = datos.sagaDeJuego(id);
-      if (sg) { datos.quitarDeSaga(id, aviso); aviso(`Quitado de «${sg.nombre}»`); }
+    if (e.target.closest('[data-anadir-coleccion]') && yo && esAdmin()) { anadirAColeccionUI(id, yo.id); return; }
+    if (e.target.closest('[data-quitar-coleccion]') && esAdmin()) {
+      const sg = datos.coleccionDeJuego(id);
+      if (sg) { datos.quitarDeColeccion(id, aviso); aviso(`Quitado de «${sg.nombre}»`); }
       return;
     }
     const separar = e.target.closest('[data-separar]');

@@ -1,7 +1,7 @@
-// Piezas de sagas que se usan desde varios sitios:
+// Piezas de colecciones que se usan desde varios sitios:
 //  - elegirJuegos: buscador en hoja inferior (uno o varios), con los juegos que ya
 //    conoce la app y, si se escribe, los de IGDB.
-//  - anadirASagaUI: "Añadir a una saga…" desde un juego (cualquier saga o una nueva;
+//  - anadirAColeccionUI: "Añadir a una colección…" desde un juego (cualquier colección o una nueva;
 //    la sugerencia automática sale primero, pero se puede elegir otra).
 import { abrirHoja } from './hoja.js';
 import { icono } from './icons.js';
@@ -100,37 +100,37 @@ export function elegirJuegos({ titulo, antetitulo = '', multiple = false, exclui
   });
 }
 
-/** "Añadir a una saga…": elegir cualquier saga o crear una; la sugerida va primero. */
-export function anadirASagaUI(igdbId, uid) {
+/** "Añadir a una colección…": elegir cualquier colección o crear una; la sugerida va primero. */
+export function anadirAColeccionUI(igdbId, uid) {
   const id = datos.canonico(igdbId);
   const j = datos.juegoConocido(id);
   if (!j) return;
-  const sug = metricas.sagaSugerida(id);
+  const sug = metricas.coleccionSugerida(id);
   let texto = '';
   const tarjeta = (sg, etiqueta = '') => {
-    const ids = datos.juegosDeSaga(sg.id);
+    const ids = datos.juegosDeColeccion(sg.id);
     return `
-      <button type="button" class="fila-elegir" data-saga="${esc(sg.id)}">
+      <button type="button" class="fila-elegir" data-coleccion="${esc(sg.id)}">
         ${portada(datos.comoJuego(sg), { clase: 'portada-lista' })}
         <span class="fila-elegir-texto"><strong>${esc(sg.nombre)}</strong><small>${etiqueta ? `${esc(etiqueta)} · ` : ''}${ids.length} ${ids.length === 1 ? 'juego' : 'juegos'}</small></span>
       </button>`;
   };
   abrirHoja({
-    titulo: 'Añadir a una saga',
+    titulo: 'Añadir a una colección',
     antetitulo: j.nombre,
     html: `
       <div class="elegir-juegos">
-        ${sug?.saga ? tarjeta(sug.saga, 'Sugerida') : ''}
+        ${sug?.coleccion ? tarjeta(sug.coleccion, 'Sugerida') : ''}
         ${sug?.crear ? `
           <button type="button" class="fila-elegir" data-crear="${esc(sug.crear.nombre)}" data-coleccion="${sug.crear.coleccionId}">
-            <span class="fila-elegir-icono">${icono('saga', { tam: 22, color: 'var(--acento)' })}</span>
-            <span class="fila-elegir-texto"><strong>Crear «${esc(sug.crear.nombre)}»</strong><small>Sugerida por su saga en IGDB</small></span>
+            <span class="fila-elegir-icono">${icono('coleccion', { tam: 22, color: 'var(--acento)' })}</span>
+            <span class="fila-elegir-texto"><strong>Crear «${esc(sug.crear.nombre)}»</strong><small>Sugerida por IGDB</small></span>
           </button>` : ''}
-        <input type="search" class="psn-input" data-ref="q" placeholder="Busca una saga" autocomplete="off">
+        <input type="search" class="psn-input" data-ref="q" placeholder="Busca una colección" autocomplete="off">
         <div class="elegir-lista" data-ref="lista"></div>
         <span class="campo-titulo">O crea una nueva</span>
         <div class="psn-form">
-          <input class="psn-input" data-ref="nueva" maxlength="80" placeholder="Nombre de la saga" autocomplete="off">
+          <input class="psn-input" data-ref="nueva" maxlength="80" placeholder="Nombre de la colección" autocomplete="off">
           <button type="button" class="boton-principal" data-ref="crear">Crear</button>
         </div>
       </div>`,
@@ -138,26 +138,26 @@ export function anadirASagaUI(igdbId, uid) {
       const $ = (r) => cuerpo.querySelector(`[data-ref="${r}"]`);
       const pintar = () => {
         const q = normalizarBusqueda(texto);
-        const lista = datos.sagas()
-          .filter((sg) => sg.id !== sug?.saga?.id && (!q || normalizarBusqueda(sg.nombre).includes(q)))
+        const lista = datos.colecciones()
+          .filter((sg) => sg.id !== sug?.coleccion?.id && (!q || normalizarBusqueda(sg.nombre).includes(q)))
           .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
         $('lista').innerHTML = lista.map((sg) => tarjeta(sg)).join('')
-          || `<p class="ajustes-nota">${datos.sagas().length ? 'Ninguna saga con ese nombre.' : 'Todavía no hay sagas.'}</p>`;
+          || `<p class="ajustes-nota">${datos.colecciones().length ? 'Ninguna colección con ese nombre.' : 'Todavía no hay colecciones.'}</p>`;
       };
       const crear = (nombre, coleccionId = null) => {
         if (!nombre.trim()) { $('nueva').focus(); return; }
         cerrar();
-        const nueva = datos.crearSaga({ nombre, juegos: [id], coleccionId, usuarioId: uid }, aviso);
-        aviso(`Saga «${nombre.trim()}» creada`);
+        const nueva = datos.crearColeccion({ nombre, juegos: [id], igdbColeccionId: coleccionId, usuarioId: uid }, aviso);
+        aviso(`Colección «${nombre.trim()}» creada`);
         return nueva;
       };
       $('q').addEventListener('input', (e) => { texto = e.target.value; pintar(); });
       cuerpo.addEventListener('click', (e) => {
-        const b = e.target.closest('[data-saga]');
+        const b = e.target.closest('[data-coleccion]');
         if (b) {
-          const sg = datos.saga(b.dataset.saga);
+          const sg = datos.coleccion(b.dataset.coleccion);
           cerrar();
-          datos.anadirASaga(sg.id, [id], aviso);
+          datos.anadirAColeccion(sg.id, [id], aviso);
           aviso(`Añadido a «${sg.nombre}»`);
           return;
         }
@@ -167,6 +167,75 @@ export function anadirASagaUI(igdbId, uid) {
       });
       $('nueva').addEventListener('keydown', (e) => { if (e.key === 'Enter') crear($('nueva').value); });
       pintar();
+    },
+  });
+}
+
+/** Tarjeta "¿Juntar … en una colección?" (solo la ve el admin, en Inicio). */
+export function tarjetaSugerenciaColeccion(s) {
+  const juegos = s.juegos.map((id) => datos.juegoConocido(id)).filter(Boolean);
+  return `
+    <div class="tarjeta-fusion">
+      <div class="tarjeta-fusion-portadas">${juegos.slice(0, 3).map((j) => portada(j, { clase: 'portada-lista' })).join('')}</div>
+      <div class="tarjeta-fusion-texto">
+        <strong>¿Juntar ${esc(juegos.map((j) => j.nombre).slice(0, 3).join(', '))}${juegos.length > 3 ? '…' : ''} en una colección?</strong>
+        <span>Contarán como un solo juego para todo el grupo: una tarjeta, una nota y las horas sumadas. Solo lo ves tú (admin).</span>
+        <div class="tarjeta-fusion-botones">
+          <button type="button" class="boton-secundario boton-pequeno" data-col-si="${s.id}">Crear colección «${esc(s.nombre)}»</button>
+          <button type="button" class="boton-secundario neutro boton-pequeno" data-col-otra="${s.id}">Añadir a otra colección</button>
+          <button type="button" class="enlace-discreto" data-col-no="${s.id}" data-nombre="${esc(s.nombre)}">No, son juegos distintos</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+/** Clics de esa tarjeta. Devuelve true si era suyo. */
+export function clicSugerenciaColeccion(e, uid) {
+  const b = e.target.closest('[data-col-si], [data-col-no], [data-col-otra]');
+  if (!b) return false;
+  const col = Number(b.dataset.colSi ?? b.dataset.colNo ?? b.dataset.colOtra);
+  const sug = metricas.sugerenciasColeccion(uid).find((x) => Number(x.id) === col);
+  if (b.dataset.colNo) {
+    datos.guardarSugerenciaColeccion(uid, col, b.dataset.nombre, false, aviso);
+    aviso('No volveremos a sugerirlo');
+  } else if (b.dataset.colOtra && sug) {
+    elegirColeccionParaVarios(sug.juegos, uid);
+  } else if (sug) {
+    datos.crearColeccion({ nombre: sug.nombre, juegos: sug.juegos, igdbColeccionId: col, usuarioId: uid }, aviso);
+    aviso(`Colección «${sug.nombre}» creada`);
+  }
+  return true;
+}
+
+/** "Añadir a otra colección": todos esos juegos a la que se elija (o a una nueva). */
+export function elegirColeccionParaVarios(ids, uid) {
+  abrirHoja({
+    titulo: 'Elegir colección',
+    html: `
+      <div class="elegir-juegos">
+        ${datos.colecciones().sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')).map((sg) => `
+          <button type="button" class="fila-elegir" data-a-coleccion="${esc(sg.id)}">
+            ${portada(datos.comoJuego(sg), { clase: 'portada-lista' })}
+            <span class="fila-elegir-texto"><strong>${esc(sg.nombre)}</strong><small>${datos.juegosDeColeccion(sg.id).length} juegos</small></span>
+          </button>`).join('') || '<p class="ajustes-nota">Todavía no hay colecciones.</p>'}
+        <span class="campo-titulo">O crea una con otro nombre</span>
+        <div class="psn-form">
+          <input class="psn-input" data-ref="nueva" maxlength="80" placeholder="Nombre de la colección" autocomplete="off">
+          <button type="button" class="boton-principal" data-ref="crear">Crear</button>
+        </div>
+      </div>`,
+    alMontar(cuerpo, cerrar) {
+      cuerpo.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-a-coleccion]');
+        if (b) { cerrar(); datos.anadirAColeccion(b.dataset.aColeccion, ids, aviso); aviso('Añadidos a la colección'); return; }
+        if (e.target.closest('[data-ref="crear"]')) {
+          const n = cuerpo.querySelector('[data-ref="nueva"]').value.trim();
+          if (!n) return;
+          cerrar();
+          datos.crearColeccion({ nombre: n, juegos: ids, usuarioId: uid }, aviso);
+          aviso(`Colección «${n}» creada`);
+        }
+      });
     },
   });
 }

@@ -880,6 +880,88 @@ async function porAppidSteam(appids: string[]) {
   return { juegos };
 }
 
+// -----------------------------------------------------------------------------
+// Sagas (Persona, Zelda...): juegos independientes que se ven juntos. Salen de las
+// colecciones de IGDB de los juegos que alguien del grupo tiene (valorados o en su
+// biblioteca), con TODOS sus juegos principales (jugados o no), en la tabla sagas.
+// Lo que el admin cambia (nombre, oculta, fusionada, juegos quitados o añadidos) se
+// respeta. Poco a poco: como mucho SAGAS_POR_VUELTA colecciones por llamada.
+// -----------------------------------------------------------------------------
+const SAGAS_POR_VUELTA = 30;
+const TIPOS_SAGA = [0, 4, 8]; // juego principal, expansión independiente, remake
+const REFRESCAR_SAGAS_MS = 7 * 86400000;
+
+async function generarSagas() {
+  // 1) Juegos que alguien tiene.
+  const tenidos = new Set<number>();
+  const leer = async (tabla: string, campo: string) => {
+    for (let desde = 0; ; desde += 1000) {
+      const { data } = await sb.from(tabla).select(campo).range(desde, desde + 999);
+      for (const x of (data ?? []) as Record<string, unknown>[]) if (x[campo] != null) tenidos.add(Number(x[campo]));
+      if (!data || data.length < 1000) break;
+    }
+  };
+  await leer("valoraciones", "juego_id");
+  await leer("biblioteca", "juego_id");
+  await leer("psn_igdb", "igdb_id");
+  // 2) Sus colecciones de IGDB (con el nombre que trae la ficha).
+  const colecciones = new Map<number, string>();
+  for (let desde = 0; ; desde += 1000) {
+    const { data } = await sb.from("juegos").select("igdb_id, relaciones").not("relaciones", "is", null).range(desde, desde + 999);
+    for (const j of data ?? []) {
+      if (!tenidos.has(Number(j.igdb_id))) continue;
+      for (const c of (j.relaciones as any)?.colecciones ?? []) if (c?.id) colecciones.set(Number(c.id), String(c.nombre ?? ""));
+    }
+    if (!data || data.length < 1000) break;
+  }
+  // 3) Primero las nuevas; luego, las que llevan más de una semana sin repasar.
+  const { data: existentes } = await sb.from("sagas").select("id, igdb_coleccion_id, nombre, nombre_manual, fusionada_en, actualizado_en");
+  const porColeccion = new Map((existentes ?? []).filter((x) => x.igdb_coleccion_id != null).map((x) => [Number(x.igdb_coleccion_id), x]));
+  const limite = Date.now() - REFRESCAR_SAGAS_MS;
+  const nuevas = [...colecciones.keys()].filter((c) => !porColeccion.has(c));
+  const viejas = [...colecciones.keys()].filter((c) => porColeccion.has(c) && new Date(porColeccion.get(c)!.actualizado_en).getTime() < limite);
+  const tanda = [...nuevas, ...viejas].slice(0, SAGAS_POR_VUELTA);
+
+  let creadas = 0, juegosNuevos = 0;
+  for (const cid of tanda) {
+    let lista: JuegoIGDB[] = [];
+    try {
+      lista = await igdb<JuegoIGDB[]>("games", `fields id,name,game_type,version_parent,first_release_date; where collections = (${cid}); limit 200;`);
+    } catch (e) {
+      console.warn("Saga", cid, (e as Error).message);
+      continue;
+    }
+    const principales = lista.filter((j) => !j.version_parent && TIPOS_SAGA.includes(Number(idTipo(j) ?? 0)));
+    const ahora = new Date().toISOString();
+    let saga = porColeccion.get(cid);
+    const nombre = (colecciones.get(cid) || "").trim() || principales[0]?.name || `Saga ${cid}`;
+    if (!saga) {
+      const { data, error } = await sb.from("sagas").insert({ igdb_coleccion_id: cid, nombre: nombre.slice(0, 80), actualizado_en: ahora })
+        .select("id, igdb_coleccion_id, nombre, nombre_manual, fusionada_en, actualizado_en").single();
+      if (error || !data) { console.warn("Saga nueva:", error?.message); continue; }
+      saga = data;
+      creadas++;
+    } else {
+      const cambios: Record<string, unknown> = { actualizado_en: ahora };
+      if (!saga.nombre_manual && nombre && nombre !== saga.nombre) cambios.nombre = nombre.slice(0, 80);
+      await sb.from("sagas").update(cambios).eq("id", saga.id);
+    }
+    if (principales.length < 2) continue; // con uno solo no es una saga (la fila queda para no repetir)
+    // Los juegos que falten en la tabla (con su ficha), y la relación con la saga.
+    const ids = principales.map((j) => j.id);
+    const { data: ya } = await sb.from("juegos").select("igdb_id").in("igdb_id", ids);
+    const hay = new Set((ya ?? []).map((x) => Number(x.igdb_id)));
+    const faltan = ids.filter((id) => !hay.has(id));
+    for (let i = 0; i < faltan.length; i += 100) await guardarVarios(faltan.slice(i, i + 100));
+    juegosNuevos += faltan.length;
+    // Si el admin la fusionó con otra, sus juegos van a esa.
+    const destino = saga.fusionada_en ?? saga.id;
+    const { error } = await sb.from("sagas_juegos").upsert(ids.map((id) => ({ saga_id: destino, juego_id: id })), { onConflict: "saga_id,juego_id", ignoreDuplicates: true });
+    if (error) console.warn("sagas_juegos:", error.message);
+  }
+  return { ok: true, colecciones: colecciones.size, repasadas: tanda.length, creadas, juegos_nuevos: juegosNuevos, quedan: Math.max(0, nuevas.length + viejas.length - tanda.length) };
+}
+
 /** Busca los originales que falten de todas las versiones guardadas y fusiona. */
 async function fusionarVersiones() {
   const { data } = await sb.from("juegos").select("igdb_id, relaciones").not("relaciones", "is", null);
@@ -1074,6 +1156,8 @@ Deno.serve(async (req) => {
       case "revisar_juegos":
       case "revisar_online":
         return json(await revisarJuegos());
+      case "generar_sagas":
+        return json(await generarSagas());
       case "steam_appids":
         return json(await porAppidSteam(Array.isArray(cuerpo.appids) ? cuerpo.appids.map(String) : []));
       case "fusionar_versiones":

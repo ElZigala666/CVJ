@@ -15,6 +15,7 @@ import { abrirValorar } from '../hoja-valorar.js';
 import { colorDominante, hexAHsl } from '../color-dominante.js';
 import { tarjetaFusion, clicFusion } from '../fusiones.js';
 import { activarDeslizar } from '../galeria.js';
+import { anadirASagaUI } from '../sagas-ui.js';
 
 export function render(el, { params }) {
   const id = Number(params[0]);
@@ -325,8 +326,9 @@ export function render(el, { params }) {
       return g && g.igdb_id !== id ? `<a href="#juego/${g.igdb_id}" class="enlace-discreto">${esc(g.nombre)}</a>` : '';
     };
     const lineas = [];
+    const sgGrupo = datos.sagaDeJuego(id);
     const sagas = (r.colecciones ?? []).map((c) => esc(c.nombre)).filter(Boolean);
-    if (sagas.length) lineas.push(`Saga: ${sagas.join(', ')}`);
+    if (!sgGrupo && sagas.length) lineas.push(`Saga en IGDB: ${sagas.join(', ')}`);
     const padre = [r.version_parent, r.parent_game].filter(Boolean).map(enlace).filter(Boolean);
     if (padre.length) lineas.push(`Versión de ${padre.join(', ')}`);
     const remasters = (r.remasters ?? []).map(enlace).filter(Boolean);
@@ -339,9 +341,18 @@ export function render(el, { params }) {
     const filasAlias = (datos.estado.alias ?? []).filter((x) => Number(x.principal_id) === id);
     const alias = filasAlias.map((x) => ({ j: datos.juegoConocido(Number(x.alias_id)), x })).filter((a) => a.j);
     const admin = esAdmin();
-    if (!lineas.length && !parejas.length && !alias.length) return '';
+    const bloqueSaga = datos.haySagas() && yo ? (sgGrupo ? `
+        <a class="enlace-fila ficha-saga" href="#saga/${esc(sgGrupo.id)}">
+          ${icono('saga', { tam: 22, color: 'var(--acento)' })}
+          <span class="enlace-fila-texto">Saga «${esc(sgGrupo.nombre)}» · ${datos.juegosDeSaga(sgGrupo.id).length} juegos</span>
+          ${icono('adelante', { tam: 18, color: 'var(--texto-2)' })}
+        </a>
+        <button type="button" class="enlace-discreto" data-quitar-saga>Quitar de la saga</button>`
+      : '<button type="button" class="boton-secundario neutro con-icono" data-anadir-saga>' + icono('saga', { tam: 20, color: 'currentColor' }) + '<span>Añadir a una saga…</span></button>') : '';
+    if (!lineas.length && !parejas.length && !alias.length && !bloqueSaga) return '';
     return `
       <section class="ficha-versiones">
+        ${bloqueSaga}
         ${lineas.length ? `<p class="ficha-relaciones">${lineas.join(' · ')}</p>` : ''}
         ${parejas.map(tarjetaFusion).join('')}
         ${alias.length ? `
@@ -407,6 +418,12 @@ export function render(el, { params }) {
 
   el.addEventListener('click', (e) => {
     if (yo && clicFusion(e, yo.id)) return;
+    if (e.target.closest('[data-anadir-saga]') && yo) { anadirASagaUI(id, yo.id); return; }
+    if (e.target.closest('[data-quitar-saga]')) {
+      const sg = datos.sagaDeJuego(id);
+      if (sg) { datos.quitarDeSaga(id, aviso); aviso(`Quitado de «${sg.nombre}»`); }
+      return;
+    }
     const separar = e.target.closest('[data-separar]');
     if (separar && yo) {
       datos.separarVersion(separar.dataset.separar, yo.id, aviso);

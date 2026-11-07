@@ -70,6 +70,11 @@ export function perfil(uid) {
         ...historial[e].filter((v) => !tieneNota(v)).sort(porFecha),
       ];
     }
+    // Sagas valoradas: una tarjeta más en su pestaña (La sigo → Jugando, La dejé → Abandonados).
+    for (const v of valoracionesSagaComoItems(uid)) historial[v.estado]?.push(v);
+    for (const e of ['abandonado']) {
+      historial[e] = [...historial[e].filter(tieneNota).sort(porNota), ...historial[e].filter((v) => !tieneNota(v)).sort(porFecha)];
+    }
     // Jugando y pendientes: lo más reciente primero.
     historial.jugando.sort(porFecha);
     historial.pendiente.sort(porFecha);
@@ -103,7 +108,7 @@ export function perfil(uid) {
 export function tierList(uid) {
   return memoizar(`tiers:${uid}`, () => {
     const filas = Object.fromEntries(LETRAS.map((l) => [l, []]));
-    const conNota = valoracionesDe(uid).filter((v) => tieneNota(v) && !online(v)).sort(porNota);
+    const conNota = [...valoracionesDe(uid).filter((v) => tieneNota(v) && !online(v)), ...valoracionesSagaComoItems(uid).filter(tieneNota)].sort(porNota);
     for (const v of conNota) filas[notaALetra(v.nota)].push(v);
     return { filas, total: conNota.length };
   });
@@ -176,7 +181,29 @@ function juegosDelGrupo() {
           horas: Math.round(usuarios().reduce((t, u) => t + (horasDe(u.id, id) ?? 0), 0) * 10) / 10,
         };
       })
-      .filter((x) => x.juego);
+      .filter((x) => x.juego)
+      .concat(sagasDelGrupo());
+  });
+}
+
+/** Sagas en los rankings: con sus valoraciones de saga y las horas de todos en sus juegos. */
+function sagasDelGrupo() {
+  return datos.sagas().map((sg) => {
+    const vals = datos.valoracionesDeSaga(sg.id).filter(usuarioValido);
+    const media = mediaGrupo(vals);
+    return {
+      juego: datos.comoJuego(sg),
+      saga: sg,
+      vals,
+      media: media.media,
+      letra: media.letra,
+      votos: media.votos,
+      rec: recomendacionGrupo(vals),
+      jugadores: vals.filter((v) => v.estado !== 'pendiente').length,
+      desviacion: desviacionTipica(vals),
+      online: false,
+      horas: Math.round(usuarios().reduce((t, u) => t + horasSaga(u.id, sg.id).total, 0) * 10) / 10,
+    };
   });
 }
 
@@ -193,7 +220,8 @@ export function ranking(orden) {
         .sort((a, b) => b.jugadores - a.jugadores || (b.media ?? -1) - (a.media ?? -1) || nombre(a, b));
     }
     if (orden === 'horas') {
-      return l.filter((x) => x.horas > 0)
+      // Los juegos de una saga cuentan dentro de la saga ("cuántas horas al FIFA").
+      return l.filter((x) => x.horas > 0 && (x.saga || !datos.sagaDeJuego(x.juego.igdb_id)))
         .sort((a, b) => b.horas - a.horas || (b.media ?? -1) - (a.media ?? -1) || nombre(a, b));
     }
     if (orden === 'online') {
@@ -592,16 +620,85 @@ export function parejasFusion(uid) {
 /** Parejas para "¿Es el mismo juego?" en la ficha de un juego. */
 export const parejasDeJuego = (uid, igdbId) => parejasFusion(uid).filter((x) => x.a === Number(igdbId) || x.b === Number(igdbId));
 
+// ---------------------------------------------------------------------------
+// Sagas del grupo (como un juego más)
+// ---------------------------------------------------------------------------
+/** Ruta de algo que se pinta como juego: un juego o una saga. */
+export const rutaDe = (j) => (j?.saga_id ? `#saga/${j.saga_id}` : `#juego/${j?.igdb_id}`);
+
+/** Valoraciones de sagas de un usuario con forma de valoración de juego (para listas). */
+export function valoracionesSagaComoItems(uid) {
+  return memoizar(`valsSaga:${uid}`, () => datos.valoracionesSagaDe(uid).map((v) => ({ ...v, juego_id: null, esSaga: true })));
+}
+
 /**
- * Sagas que se podrían agrupar: 3 o más juegos de una misma colección de IGDB
- * cuyos nombres solo cambian en un número o un año (FIFA, NBA 2K...). Nunca las
- * que ya agrupó o rechazó. [{ id, nombre, juegos: [igdbId] }]
+ * Horas de un usuario en una saga: las totales de cada uno de sus juegos (sincronizadas
+ * + extra) más las horas extra propias de la saga. { porJuego: [{ id, horas }], juegos, extra, total }
+ */
+export function horasSaga(uid, sagaId) {
+  return memoizar(`horasSaga:${uid}:${sagaId}`, () => {
+    const porJuego = datos.juegosDeSaga(sagaId).map((id) => ({ id, horas: horasDe(uid, id) ?? 0 }));
+    const juegos = porJuego.reduce((t, x) => t + x.horas, 0);
+    const extra = Number(datos.miValoracionSaga(uid, sagaId)?.horas_extra ?? 0);
+    return { porJuego, juegos: Math.round(juegos * 10) / 10, extra, total: Math.round((juegos + extra) * 10) / 10 };
+  });
+}
+
+/** Métricas del grupo en una saga (como statsJuego). */
+export function statsSaga(sagaId) {
+  return memoizar(`statsSaga:${sagaId}`, () => {
+    const vals = datos.valoracionesDeSaga(sagaId).filter(usuarioValido);
+    const media = mediaGrupo(vals);
+    return {
+      valoraciones: vals,
+      media: media.media,
+      letra: media.letra,
+      votos: media.votos,
+      recomendacion: recomendacionGrupo(vals),
+      reparto: repartoLetras(vals),
+      jugadores: vals.filter((v) => v.estado !== 'pendiente').length,
+    };
+  });
+}
+
+/**
+ * Biblioteca: los juegos de una saga sin valoración propia del usuario se juntan en
+ * una tarjeta de la saga (en el sitio del primero). Los que tienen valoración propia
+ * siguen sueltos. → items y { esSaga, saga, juego, hijos, horas, valoracion, clave }
+ */
+export function agruparSagas(uid, items, idDe) {
+  if (!datos.haySagas() || !datos.sagas().length) return items;
+  const salida = [];
+  const bloques = new Map();
+  for (const x of items) {
+    const id = idDe(x);
+    const sg = id != null && !datos.miValoracion(uid, id) ? datos.sagaDeJuego(id) : null;
+    if (!sg) { salida.push(x); continue; }
+    if (!bloques.has(sg.id)) {
+      const b = {
+        esSaga: true, saga: sg, juego: datos.comoJuego(sg), hijos: [], clave: `saga:${sg.id}`,
+        horas: horasSaga(uid, sg.id).total, valoracion: datos.miValoracionSaga(uid, sg.id),
+      };
+      bloques.set(sg.id, b);
+      salida.push(b);
+    }
+    bloques.get(sg.id).hijos.push(x);
+  }
+  return salida;
+}
+
+/**
+ * Sagas que se podrían crear: 3 o más juegos de una misma colección de IGDB cuyos
+ * nombres solo cambian en un número o un año (FIFA, NBA 2K...), que aún no están en
+ * ninguna saga. Nunca las que rechazó. [{ id, nombre, juegos: [igdbId] }]
  */
 export function sugerenciasSaga(uid) {
   return memoizar(`sugSaga:${uid}`, () => {
+    if (!datos.haySagas()) return [];
     const prefs = datos.sagasDe(uid);
     const porSaga = new Map();
     for (const id of idsDe(uid)) {
+      if (datos.sagaDeJuego(id)) continue;
       const j = datos.juegoConocido(id);
       for (const c of j?.relaciones?.colecciones ?? []) {
         if (prefs.has(Number(c.id))) continue;
@@ -621,33 +718,18 @@ export function sugerenciasSaga(uid) {
   });
 }
 
-/** Sagas que tiene agrupadas un usuario: Map(coleccion_id → nombre). */
-export function sagasAgrupadas(uid) {
-  return new Map([...datos.sagasDe(uid)].filter(([, x]) => x.agrupada).map(([id, x]) => [id, x.nombre]));
-}
-
 /**
- * Junta en una sola entrada los juegos de las sagas que el usuario tiene agrupadas.
- * @param {any[]} items  lo que se va a pintar (valoraciones o entradas de la biblioteca)
- * @param {(x) => number|null} idDe  juego de cada item
- * @returns lista con { saga: { id, nombre }, hijos: [...] } en el sitio del primero
+ * Para "Añadir a una saga…" desde un juego: la saga existente que ya tiene juegos de su
+ * misma colección de IGDB o, si no hay, crear una con el nombre de la colección.
+ * → { saga } | { crear: { nombre, coleccionId } } | null
  */
-export function agruparSagas(uid, items, idDe) {
-  const agrupadas = sagasAgrupadas(uid);
-  if (!agrupadas.size) return items;
-  const salida = [];
-  const bloques = new Map();
-  for (const x of items) {
-    const id = idDe(x);
-    const saga = id != null ? (datos.juegoConocido(id)?.relaciones?.colecciones ?? []).find((c) => agrupadas.has(Number(c.id))) : null;
-    if (!saga) { salida.push(x); continue; }
-    if (!bloques.has(saga.id)) {
-      const b = { saga: { id: Number(saga.id), nombre: agrupadas.get(Number(saga.id)) || saga.nombre }, hijos: [] };
-      bloques.set(saga.id, b);
-      salida.push(b);
-    }
-    bloques.get(saga.id).hijos.push(x);
+export function sagaSugerida(igdbId) {
+  const j = datos.juegoConocido(igdbId);
+  const cols = j?.relaciones?.colecciones ?? [];
+  for (const c of cols) {
+    const existente = datos.sagas().find((sg) => Number(sg.coleccion_id) === Number(c.id))
+      ?? datos.sagas().find((sg) => datos.juegosDeSaga(sg.id).some((g) => (datos.juegoConocido(g)?.relaciones?.colecciones ?? []).some((x) => Number(x.id) === Number(c.id))));
+    if (existente) return { saga: existente };
   }
-  // Una "saga" con un solo juego se ve como el juego.
-  return salida.map((x) => (x.saga && x.hijos.length === 1 ? x.hijos[0] : x));
+  return cols[0] ? { crear: { nombre: cols[0].nombre, coleccionId: Number(cols[0].id) } } : null;
 }

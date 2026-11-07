@@ -8,7 +8,7 @@ const CLAVE = 'cvj.datos.v1';
 const LIMITE_ACTIVIDAD = 60;
 const VENTANA_ACTIVIDAD_MS = 10 * 60 * 1000; // agrupar cambios del mismo juego en 10 min
 
-const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sagas: [], servicios: [], cuentas: [], horasExtra: [], avisos: [], cargadoEn: null });
+const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sagas: [], servicios: [], cuentas: [], horasExtra: [], avisos: [], sagasG: [], sagasJuegos: [], valSagas: [], cargadoEn: null });
 
 // Versión de los datos: sube cada vez que cambian (refresco, escritura o reversión).
 // metricas.js la usa para memoizar los cálculos.
@@ -40,7 +40,7 @@ function guardarCache() {
   } catch { /* sin espacio o modo privado */ }
 }
 
-const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sagas, s.servicios, s.cuentas, s.horasExtra, s.avisos]);
+const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sagas, s.servicios, s.cuentas, s.horasExtra, s.avisos, s.sagasG, s.sagasJuegos, s.valSagas]);
 
 /** Pinta desde caché (síncrono) y lanza el refresco en segundo plano. */
 export function iniciar() {
@@ -61,7 +61,7 @@ export function refrescar() {
     const sb = await cliente();
     // Extras que pueden no existir aún (migraciones): si fallan, se sigue con lo de antes.
     const extra = (q, previo) => q.then((r) => (r.error ? { data: previo } : r), () => ({ data: previo }));
-    const [u, v, j, a, bib, emp, ali, rech, sag, serv, cue, hex, avi] = await Promise.all([
+    const [u, v, j, a, bib, emp, ali, rech, sag, serv, cue, hex, avi, sg, sgj, vsg] = await Promise.all([
       leerUsuarios(sb),
       sb.from('valoraciones').select('*'),
       sb.from('juegos').select('*'),
@@ -76,6 +76,9 @@ export function refrescar() {
       extra(sb.from('cuentas_plataforma').select('*').order('creado_en'), estado.cuentas),
       extra(sb.from('horas_extra').select('*'), estado.horasExtra),
       extra(sb.from('avisos').select('*').eq('leido', false), estado.avisos),
+      extra(sb.from('sagas').select('*'), estado.sagasG),
+      extra(sb.from('sagas_juegos').select('*'), estado.sagasJuegos),
+      extra(sb.from('valoraciones_saga').select('*'), estado.valSagas),
     ]);
     const error = u.error || v.error || j.error || a.error;
     if (error) throw new Error(error.message);
@@ -83,6 +86,7 @@ export function refrescar() {
     const nuevo = {
       usuarios: u.data, valoraciones: v.data, juegos: j.data, actividad: a.data, biblioteca: bib.data ?? [], psnIgdb: emp.data ?? [],
       alias: ali.data ?? [], rechazadas: rech.data ?? [], sagas: sag.data ?? [], servicios: serv.data ?? [], cuentas: cue.data ?? [], horasExtra: hex.data ?? [], avisos: avi.data ?? [],
+      sagasG: sg.data ?? [], sagasJuegos: sgj.data ?? [], valSagas: vsg.data ?? [],
     };
     const cambia = firma(nuevo) !== firma(estado);
     Object.assign(estado, nuevo, { cargadoEn: new Date().toISOString() });
@@ -183,7 +187,25 @@ function construirIndices(s) {
     const k = `${h.usuario_id}:${canon(h.juego_id)}`;
     extraHoras.set(k, (extraHoras.get(k) ?? 0) + Number(h.horas ?? 0));
   }
-  return { usuarios, juegos, porJuego, psnIgdb, bibUsuario, bibJuego, canon, vals, aliasA, extraHoras };
+  // Sagas del grupo: juego (principal) → saga y saga → juegos en orden.
+  const sagas = new Map((s.sagasG ?? []).map((x) => [x.id, x]));
+  const sagaDeJuego = new Map();
+  const juegosDeSaga = new Map();
+  for (const x of [...(s.sagasJuegos ?? [])].sort((a, b) => a.orden - b.orden)) {
+    if (!sagas.has(x.saga_id)) continue;
+    const id = canon(x.juego_id);
+    if (sagaDeJuego.has(id)) continue;
+    sagaDeJuego.set(id, x.saga_id);
+    if (!juegosDeSaga.has(x.saga_id)) juegosDeSaga.set(x.saga_id, []);
+    juegosDeSaga.get(x.saga_id).push(id);
+  }
+  const valsSaga = new Map();
+  for (const v of s.valSagas ?? []) {
+    if (!sagas.has(v.saga_id)) continue;
+    if (!valsSaga.has(v.saga_id)) valsSaga.set(v.saga_id, []);
+    valsSaga.get(v.saga_id).push(v);
+  }
+  return { usuarios, juegos, porJuego, psnIgdb, bibUsuario, bibJuego, canon, vals, aliasA, extraHoras, sagas, sagaDeJuego, juegosDeSaga, valsSaga };
 }
 
 /** Juego (principal) de una fila de biblioteca: lo de psn_igdb manda; colecciones y no-juegos, ninguno. */
@@ -206,6 +228,31 @@ export const hayHorasExtra = () => Array.isArray(estado.horasExtra) && (estado.h
 /** Cuentas de plataforma de un usuario (opcionalmente de una fuente: psn, xbox, steam). */
 export const cuentasDe = (usuarioId, fuente) => (estado.cuentas ?? []).filter((c) => c.usuario_id === usuarioId && (!fuente || c.fuente === fuente));
 export const cuenta = (id) => (estado.cuentas ?? []).find((c) => c.id === id) ?? null;
+
+// ---------------------------------------------------------------------------
+// Sagas del grupo
+// ---------------------------------------------------------------------------
+/** ¿Hay tablas de sagas? (migración 013) */
+export const haySagas = () => Array.isArray(estado.sagasG);
+export const saga = (id) => indices.sagas.get(id) ?? null;
+export const sagas = () => [...indices.sagas.values()];
+/** Saga en la que está un juego (o null). */
+export const sagaDeJuego = (igdbId) => saga(indices.sagaDeJuego.get(canonico(igdbId)));
+/** Juegos de una saga, en su orden. */
+export const juegosDeSaga = (sagaId) => indices.juegosDeSaga.get(sagaId) ?? [];
+export const valoracionesDeSaga = (sagaId) => indices.valsSaga.get(sagaId) ?? [];
+export const miValoracionSaga = (usuarioId, sagaId) => valoracionesDeSaga(sagaId).find((v) => v.usuario_id === usuarioId) ?? null;
+export const valoracionesSagaDe = (usuarioId) => (estado.valSagas ?? []).filter((v) => v.usuario_id === usuarioId && indices.sagas.has(v.saga_id));
+/** Portada de una saga: la elegida o la de su último juego. */
+export function portadaSaga(s) {
+  if (!s) return null;
+  if (s.cover_id) return s.cover_id;
+  const ids = juegosDeSaga(s.id);
+  for (let i = ids.length - 1; i >= 0; i--) { const c = juegoConocido(ids[i])?.cover_id; if (c) return c; }
+  return null;
+}
+/** Una saga "como un juego" para pintarla con las mismas piezas (portada, nombre...). */
+export const comoJuego = (s) => (s ? { igdb_id: null, saga_id: s.id, nombre: s.nombre, cover_id: portadaSaga(s), anio: null, plataformas: [] } : null);
 
 /** Juego principal de un juego (el mismo si no está fusionado con otro). */
 export const canonico = (igdbId) => indices.canon(igdbId);
@@ -284,6 +331,7 @@ async function escribirOptimista(aplicar, guardar, onError, mensajeError = 'No s
     valoraciones: estado.valoraciones, actividad: estado.actividad, juegos: estado.juegos, usuarios: estado.usuarios,
     psnIgdb: estado.psnIgdb, biblioteca: estado.biblioteca, alias: estado.alias, rechazadas: estado.rechazadas, sagas: estado.sagas,
     horasExtra: estado.horasExtra, cuentas: estado.cuentas, avisos: estado.avisos,
+    sagasG: estado.sagasG, sagasJuegos: estado.sagasJuegos, valSagas: estado.valSagas,
   };
   escriturasEnCurso++;
   aplicar(estado);
@@ -664,6 +712,160 @@ export function deshacerFusion(aliasId, onError) {
     async (sb) => { comprobar(await sb.from('juegos_alias').delete().eq('alias_id', a)); },
     onError,
     'No se ha podido deshacer. Se ha vuelto a como estaba.',
+  );
+}
+
+/** Que los juegos existan en la tabla antes de apuntar a ellos (los conocidos solo por Buscar). */
+function juegosQueFaltan(ids) {
+  return ids.map((id) => (!juego(id) ? juegoConocido(id) : null)).filter(Boolean);
+}
+
+/** Crea una saga con unos juegos (que salen de la saga en la que estuvieran). Devuelve su id. */
+export function crearSaga({ nombre, juegos: ids = [], coleccionId = null, usuarioId }, onError) {
+  const id = crypto.randomUUID();
+  const ahora = new Date().toISOString();
+  const lista = [...new Set(ids.map((x) => canonico(x)))];
+  const faltan = juegosQueFaltan(lista);
+  const fila = { id, nombre: String(nombre).trim().slice(0, 80) || 'Saga', cover_id: null, coleccion_id: coleccionId, creado_por: usuarioId, creado_en: ahora, actualizado_en: ahora };
+  const filasJ = lista.map((j, i) => ({ juego_id: j, saga_id: id, orden: i + 1, creado_en: ahora }));
+  escribirOptimista(
+    (s) => {
+      if (faltan.length) s.juegos = [...s.juegos, ...faltan.map(filaJuego)];
+      s.sagasG = [...(s.sagasG ?? []), fila];
+      s.sagasJuegos = [...(s.sagasJuegos ?? []).filter((x) => !lista.includes(canonico(x.juego_id))), ...filasJ];
+    },
+    async (sb) => {
+      if (faltan.length) comprobar(await sb.from('juegos').upsert(faltan.map(filaJuego), { onConflict: 'igdb_id', ignoreDuplicates: true }));
+      comprobar(await sb.from('sagas').insert(fila));
+      if (filasJ.length) comprobar(await sb.from('sagas_juegos').upsert(filasJ, { onConflict: 'juego_id' }));
+    },
+    onError,
+    'No se ha podido crear la saga. Se ha deshecho el cambio.',
+  );
+  return id;
+}
+
+/** Cambia el nombre o la portada de una saga. */
+export function editarSaga(sagaId, cambios, onError) {
+  const c = { ...cambios, actualizado_en: new Date().toISOString() };
+  if ('nombre' in c) c.nombre = String(c.nombre).trim().slice(0, 80);
+  if (c.nombre === '') return Promise.resolve(false);
+  return escribirOptimista(
+    (s) => { s.sagasG = (s.sagasG ?? []).map((x) => (x.id === sagaId ? { ...x, ...c } : x)); },
+    async (sb) => { comprobar(await sb.from('sagas').update(c).eq('id', sagaId)); },
+    onError,
+    'No se ha podido guardar la saga. Se ha deshecho el cambio.',
+  );
+}
+
+/** Añade juegos al final de una saga (si estaban en otra, se cambian a esta). */
+export function anadirASaga(sagaId, ids, onError) {
+  const ahora = new Date().toISOString();
+  const lista = [...new Set(ids.map((x) => canonico(x)))].filter((j) => indices.sagaDeJuego.get(j) !== sagaId);
+  if (!lista.length) return Promise.resolve(true);
+  const faltan = juegosQueFaltan(lista);
+  const max = juegosDeSaga(sagaId).length;
+  const filas = lista.map((j, i) => ({ juego_id: j, saga_id: sagaId, orden: max + i + 1, creado_en: ahora }));
+  return escribirOptimista(
+    (s) => {
+      if (faltan.length) s.juegos = [...s.juegos, ...faltan.map(filaJuego)];
+      s.sagasJuegos = [...(s.sagasJuegos ?? []).filter((x) => !lista.includes(canonico(x.juego_id))), ...filas];
+    },
+    async (sb) => {
+      if (faltan.length) comprobar(await sb.from('juegos').upsert(faltan.map(filaJuego), { onConflict: 'igdb_id', ignoreDuplicates: true }));
+      comprobar(await sb.from('sagas_juegos').upsert(filas, { onConflict: 'juego_id' }));
+    },
+    onError,
+    'No se han podido añadir. Se ha deshecho el cambio.',
+  );
+}
+
+/** Saca un juego de su saga. */
+export function quitarDeSaga(igdbId, onError) {
+  const id = canonico(igdbId);
+  const ids = [id, ...aliasDe(id)];
+  return escribirOptimista(
+    (s) => { s.sagasJuegos = (s.sagasJuegos ?? []).filter((x) => !ids.includes(Number(x.juego_id))); },
+    async (sb) => { comprobar(await sb.from('sagas_juegos').delete().in('juego_id', ids)); },
+    onError,
+    'No se ha podido quitar de la saga. Se ha deshecho el cambio.',
+  );
+}
+
+/** Nuevo orden de los juegos de una saga. */
+export function ordenarSaga(sagaId, ids, onError) {
+  const orden = new Map(ids.map((j, i) => [Number(j), i + 1]));
+  return escribirOptimista(
+    (s) => { s.sagasJuegos = (s.sagasJuegos ?? []).map((x) => (x.saga_id === sagaId && orden.has(canonico(x.juego_id)) ? { ...x, orden: orden.get(canonico(x.juego_id)) } : x)); },
+    async (sb) => {
+      const filas = (estado.sagasJuegos ?? []).filter((x) => x.saga_id === sagaId);
+      comprobar(await sb.from('sagas_juegos').upsert(filas, { onConflict: 'juego_id' }));
+    },
+    onError,
+    'No se ha podido reordenar. Se ha deshecho el cambio.',
+  );
+}
+
+/** Junta la saga "origen" dentro de "destino" (sus juegos van al final). */
+export function fusionarSagas(destino, origen, onError) {
+  const max = juegosDeSaga(destino).length;
+  return escribirOptimista(
+    (s) => {
+      s.sagasJuegos = (s.sagasJuegos ?? []).map((x) => (x.saga_id === origen ? { ...x, saga_id: destino, orden: max + x.orden } : x));
+      const enDestino = new Set((s.valSagas ?? []).filter((v) => v.saga_id === destino).map((v) => v.usuario_id));
+      s.valSagas = (s.valSagas ?? []).filter((v) => !(v.saga_id === origen && enDestino.has(v.usuario_id))).map((v) => (v.saga_id === origen ? { ...v, saga_id: destino } : v));
+      s.sagasG = (s.sagasG ?? []).filter((x) => x.id !== origen);
+    },
+    async (sb) => { comprobar(await sb.rpc('fusionar_sagas', { p_destino: destino, p_origen: origen })); },
+    onError,
+    'No se han podido fusionar las sagas. Se ha deshecho el cambio.',
+  );
+}
+
+/** Borra una saga (sus juegos vuelven a verse sueltos; las valoraciones de la saga se borran). */
+export function eliminarSaga(sagaId, onError) {
+  return escribirOptimista(
+    (s) => {
+      s.sagasG = (s.sagasG ?? []).filter((x) => x.id !== sagaId);
+      s.sagasJuegos = (s.sagasJuegos ?? []).filter((x) => x.saga_id !== sagaId);
+      s.valSagas = (s.valSagas ?? []).filter((x) => x.saga_id !== sagaId);
+    },
+    async (sb) => { comprobar(await sb.from('sagas').delete().eq('id', sagaId)); },
+    onError,
+    'No se ha podido eliminar la saga. Se ha deshecho el cambio.',
+  );
+}
+
+/** Valorar una saga (La sigo / La dejé / Pendiente, nota, recomendación, reseña y horas extra). */
+export function guardarValoracionSaga(v, onError) {
+  const antes = miValoracionSaga(v.usuarioId, v.sagaId);
+  const ahora = new Date().toISOString();
+  const pendiente = v.estado === 'pendiente';
+  const fila = {
+    id: antes?.id ?? crypto.randomUUID(),
+    usuario_id: v.usuarioId,
+    saga_id: v.sagaId,
+    estado: v.estado,
+    nota: pendiente ? null : redondear(v.nota),
+    recomendado: pendiente ? null : (v.recomendado ?? null),
+    resena: (v.resena || '').trim() || null,
+    horas_extra: v.horasExtra !== undefined ? (v.horasExtra > 0 ? Math.round(v.horasExtra * 10) / 10 : null) : (antes?.horas_extra ?? null),
+    creado_en: antes?.creado_en ?? ahora,
+    actualizado_en: ahora,
+  };
+  return escribirOptimista(
+    (s) => { s.valSagas = [...(s.valSagas ?? []).filter((x) => x.id !== fila.id), fila]; },
+    async (sb) => { comprobar(await sb.from('valoraciones_saga').upsert(fila, { onConflict: 'usuario_id,saga_id' })); },
+    onError,
+  );
+}
+
+export function quitarValoracionSaga(usuarioId, sagaId, onError) {
+  return escribirOptimista(
+    (s) => { s.valSagas = (s.valSagas ?? []).filter((x) => !(x.usuario_id === usuarioId && x.saga_id === sagaId)); },
+    async (sb) => { comprobar(await sb.from('valoraciones_saga').delete().eq('usuario_id', usuarioId).eq('saga_id', sagaId)); },
+    onError,
+    'No se ha podido quitar. Se ha deshecho el cambio.',
   );
 }
 

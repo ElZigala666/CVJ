@@ -18,6 +18,7 @@ import { abrirValorar } from '../hoja-valorar.js';
 import { textoHoras } from '../metricas.js';
 import { volver, rutaPerfil } from '../navegacion.js';
 import { abrirAjustes } from '../ajustes.js';
+import { abrirMenuJuego, abrirMenuSaga } from '../menu-juego.js';
 
 const PESTANAS = [
   { id: 'jugando', nombre: 'Jugando' },
@@ -188,7 +189,7 @@ function renderPerfil(el, id, alSalir) {
               <h2 class="seccion-titulo">Juegos online</h2>
               <span class="seccion-extra">${p.online.length}</span>
             </div>
-            <div class="rejilla" data-lista>${p.online.map((v, i) => itemRejilla(v, i, metricas.horasDe(id, v.juego_id))).join('')}</div>
+            <div class="rejilla" data-lista>${p.online.map((v, i) => itemRejilla(v, i, metricas.horasDe(id, v.juego_id) ?? undefined, esMio)).join('')}</div>
           </section>` : ''}
 
         ${hayBiblioteca ? `
@@ -215,10 +216,11 @@ function renderPerfil(el, id, alSalir) {
   };
 
   // ----- Historial ----------------------------------------------------------
+  const horasItem = (v) => (v.esSaga ? metricas.horasSaga(id, v.saga_id).total || null : metricas.horasDe(id, v.juego_id));
   const datosValoracion = (v) => ({
-    nombre: datos.juegoConocido(v.juego_id)?.nombre ?? '',
+    nombre: (v.esSaga ? datos.saga(v.saga_id)?.nombre : datos.juegoConocido(v.juego_id)?.nombre) ?? '',
     nota: v.nota != null ? Number(v.nota) : null,
-    horas: metricas.horasDe(id, v.juego_id),
+    horas: horasItem(v),
     fecha: v.actualizado_en ?? v.creado_en,
   });
 
@@ -228,13 +230,8 @@ function renderPerfil(el, id, alSalir) {
     if (!lista.length) {
       return `<p class="historial-tab-vacia">${fHist.texto ? 'Ningún juego con ese nombre.' : textoVacio(activa, esMio, u.nombre)}</p>`;
     }
-    // Las horas, siempre junto a la nota (si hay).
-    const item = (v, i) => itemRejilla(v, i, metricas.horasDe(id, v.juego_id) ?? undefined);
-    const lista2 = metricas.agruparSagas(id, lista, (v) => Number(v.juego_id));
-    return `<div class="rejilla" data-lista>${lista2.map((x, i) => (x.saga
-      ? bloqueGrupo(`saga:${x.saga.id}`, x.hijos.map((v) => datos.juegoConocido(v.juego_id)), `${x.saga.nombre} (saga)`,
-        `${x.hijos.length} juegos`, x.hijos.map(item).join(''), esMio ? x.saga.id : null)
-      : item(x, i))).join('')}</div>`;
+    // Las horas, siempre junto a la nota (si hay). Las sagas valoradas, como un juego más.
+    return `<div class="rejilla" data-lista>${lista.map((v, i) => itemRejilla(v, i, horasItem(v) ?? undefined, esMio)).join('')}</div>`;
   };
 
   /** Bloque plegable (colección o saga agrupada) que ocupa toda la fila de la rejilla. */
@@ -292,10 +289,8 @@ function renderPerfil(el, id, alSalir) {
         x.coleccion.juegos.map((j, k) => itemDeColeccion(j, k, esMio, id)).join(''))
       : itemBiblioteca(x, i, esMio, vista.seleccionando, seleccion.has(x.clave)));
     const lista2 = metricas.agruparSagas(id, lista, (x) => x.igdbId);
-    return `<div class="rejilla${vista.seleccionando ? ' seleccionando' : ''}">${lista2.map((x, i) => (x.saga
-      ? bloqueGrupo(`saga:${x.saga.id}`, x.hijos.map((h) => h.juego), `${x.saga.nombre} (saga)`,
-        `${x.hijos.length} juegos · ${textoHoras(x.hijos.reduce((t, h) => t + h.horas, 0)) || 'sin horas'}`,
-        x.hijos.map(item).join(''), esMio ? x.saga.id : null)
+    return `<div class="rejilla${vista.seleccionando ? ' seleccionando' : ''}">${lista2.map((x, i) => (x.esSaga
+      ? itemSagaBib(x, i, esMio)
       : item(x, i))).join('')}</div>`;
   };
 
@@ -358,47 +353,57 @@ function renderPerfil(el, id, alSalir) {
     return [...bib.juegos, ...bib.ocultos].find((x) => x.clave === clave) ?? null;
   };
   const abrirMenuBib = (clave) => {
+    if (!esMio) return;
+    if (clave.startsWith('saga:')) {
+      const sagaId = clave.slice(5);
+      const bib = metricas.biblioteca(id);
+      const tarjeta = metricas.agruparSagas(id, [...bib.juegos], (x) => x.igdbId).find((x) => x.esSaga && x.saga.id === sagaId) ?? null;
+      abrirMenuSaga({ uid: yo.id, sagaId, bib: tarjeta });
+      return;
+    }
     const x = grupoBib(clave);
-    if (!x || !esMio) return;
-    // Su saga de IGDB (si tiene y aún no está agrupada).
-    const agrupadas = metricas.sagasAgrupadas(id);
-    const saga = (x.juego?.relaciones?.colecciones ?? []).find((c) => !agrupadas.has(Number(c.id))) ?? null;
+    if (!x) return;
+    if (x.igdbId == null) {
+      // Sin juego (colección): lo de la biblioteca nada más.
+      datos.ocultarBiblioteca(yo.id, x.titulos, true, aviso);
+      aviso('Oculto de tu biblioteca');
+      return;
+    }
+    abrirMenuJuego({ uid: yo.id, igdbId: x.igdbId, bib: x });
+  };
+  /** "Elegir otra saga" para una sugerencia: añade todos sus juegos a la que se elija. */
+  const elegirSagaParaVarios = (ids) => {
     abrirHoja({
-      titulo: x.nombre,
-      antetitulo: 'Tu biblioteca',
+      titulo: 'Elegir otra saga',
       html: `
-        <div class="menu-bib">
-          ${x.probado
-            ? '<button type="button" class="boton-secundario neutro" data-mis="1">Subir a «Mis juegos»</button>'
-            : '<button type="button" class="boton-secundario neutro" data-mis="0">Mandar a «Probados»</button>'}
-          ${x.enMisJuegos != null ? '<button type="button" class="enlace-discreto" data-mis="auto">Que lo decida el umbral</button>' : ''}
-          <button type="button" class="boton-secundario neutro" data-ocultar>Ocultar de mi biblioteca</button>
-          <p class="ajustes-nota">No se borra: deja de salir en tu biblioteca, en tus horas y en «Jugando ahora», también tras sincronizar. Lo recuperas abajo del todo, en «Ver ocultos».</p>
-          ${saga ? `<button type="button" class="boton-secundario neutro" data-agrupar-saga>Agrupar saga «${esc(saga.nombre)}»</button>
-          <p class="ajustes-nota">Junta en una sola entrada tus juegos de esta saga. Solo cambia cómo se ve tu perfil.</p>` : ''}
+        <div class="elegir-juegos">
+          ${datos.sagas().sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')).map((sg) => `
+            <button type="button" class="fila-elegir" data-a-saga="${esc(sg.id)}">
+              ${portada(datos.comoJuego(sg), { clase: 'portada-lista' })}
+              <span class="fila-elegir-texto"><strong>${esc(sg.nombre)}</strong><small>${datos.juegosDeSaga(sg.id).length} juegos</small></span>
+            </button>`).join('') || '<p class="ajustes-nota">Todavía no hay sagas.</p>'}
+          <span class="campo-titulo">O crea una con otro nombre</span>
+          <div class="psn-form">
+            <input class="psn-input" data-ref="nueva" maxlength="80" placeholder="Nombre de la saga" autocomplete="off">
+            <button type="button" class="boton-principal" data-ref="crear">Crear</button>
+          </div>
         </div>`,
       alMontar(cuerpo, cerrar) {
-        for (const b of cuerpo.querySelectorAll('[data-mis]')) {
-          b.addEventListener('click', () => {
-            const valor = b.dataset.mis === 'auto' ? null : b.dataset.mis === '1';
-            datos.ponerEnMisJuegos(yo.id, x.titulos, valor, aviso);
-            aviso(valor === true ? 'En «Mis juegos»' : valor === false ? 'En «Probados»' : 'Lo decide el umbral');
+        cuerpo.addEventListener('click', (e) => {
+          const b = e.target.closest('[data-a-saga]');
+          if (b) { cerrar(); datos.anadirASaga(b.dataset.aSaga, ids, aviso); aviso('Añadidos a la saga'); return; }
+          if (e.target.closest('[data-ref="crear"]')) {
+            const n = cuerpo.querySelector('[data-ref="nueva"]').value.trim();
+            if (!n) return;
             cerrar();
-          });
-        }
-        cuerpo.querySelector('[data-agrupar-saga]')?.addEventListener('click', () => {
-          datos.guardarSaga(yo.id, saga.id, saga.nombre, true, aviso);
-          aviso(`Agrupados: ${saga.nombre}`);
-          cerrar();
-        });
-        cuerpo.querySelector('[data-ocultar]').addEventListener('click', () => {
-          datos.ocultarBiblioteca(yo.id, x.titulos, true, aviso);
-          aviso('Oculto de tu biblioteca');
-          cerrar();
+            datos.crearSaga({ nombre: n, juegos: ids, usuarioId: yo.id }, aviso);
+            aviso(`Saga «${n}» creada`);
+          }
         });
       },
     });
   };
+
   let largo = null;
   let largaHecha = false;
   el.addEventListener('pointerdown', (e) => {
@@ -472,18 +477,28 @@ function renderPerfil(el, id, alSalir) {
       pintarBiblioteca(metricas.biblioteca(id));
       return;
     }
-    const sagaBtn = e.target.closest('[data-saga-si], [data-saga-no]');
+    const sagaBtn = e.target.closest('[data-saga-si], [data-saga-no], [data-saga-otra]');
     if (sagaBtn) {
-      const si = !!sagaBtn.dataset.sagaSi;
-      datos.guardarSaga(yo.id, Number(sagaBtn.dataset.sagaSi ?? sagaBtn.dataset.sagaNo), sagaBtn.dataset.nombre, si, aviso);
-      aviso(si ? `Agrupados: ${sagaBtn.dataset.nombre}` : 'No volveremos a sugerirlo');
+      const col = Number(sagaBtn.dataset.sagaSi ?? sagaBtn.dataset.sagaNo ?? sagaBtn.dataset.sagaOtra);
+      const sug = metricas.sugerenciasSaga(id).find((x) => Number(x.id) === col);
+      if (sagaBtn.dataset.sagaNo) {
+        datos.guardarSaga(yo.id, col, sagaBtn.dataset.nombre, false, aviso);
+        aviso('No volveremos a sugerirlo');
+      } else if (sagaBtn.dataset.sagaOtra && sug) {
+        // Elegir otra saga (o crear una con otro nombre): se añade el primero y los demás después.
+        elegirSagaParaVarios(sug.juegos);
+      } else if (sug) {
+        datos.crearSaga({ nombre: sug.nombre, juegos: sug.juegos, coleccionId: col, usuarioId: yo.id }, aviso);
+        aviso(`Saga «${sug.nombre}» creada`);
+      }
       return;
     }
-    const desag = e.target.closest('[data-desagrupar]');
-    if (desag) {
-      const sid = Number(desag.dataset.desagrupar);
-      datos.guardarSaga(yo.id, sid, metricas.sagasAgrupadas(id).get(sid) ?? '', false, aviso);
-      aviso('Desagrupados');
+    const menuHist = e.target.closest('[data-menu-item]');
+    if (menuHist) {
+      e.preventDefault();
+      const k = menuHist.dataset.menuItem;
+      if (k.startsWith('saga:')) abrirMenuSaga({ uid: yo.id, sagaId: k.slice(5) });
+      else abrirMenuJuego({ uid: yo.id, igdbId: Number(k) });
       return;
     }
     if (largaHecha && e.target.closest('[data-bib-celda]')) {
@@ -660,16 +675,40 @@ function textoVacio(estado, esMio, nombre) {
 }
 
 /** Juego del historial (o de "Juegos online"): portada, nota y, si se pasan, horas. */
-function itemRejilla(v, i, horas) {
-  const j = datos.juegoConocido(v.juego_id);
+function itemRejilla(v, i, horas, conMenu = false) {
+  const j = v.esSaga ? datos.comoJuego(datos.saga(v.saga_id)) : datos.juegoConocido(v.juego_id);
   if (!j) return '';
   const n = v.nota != null ? formatearNota(v.nota) : null;
   const h = horas !== undefined ? textoHoras(horas) : '';
+  const clave = v.esSaga ? `saga:${v.saga_id}` : String(j.igdb_id);
   return `
-    <a class="rejilla-item" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}" aria-label="${esc(j.nombre)}${n ? `, ${n}` : ''}${h ? `, ${h}` : ''}">
-      ${portada(j, { clase: 'portada-rejilla', titulo: 'arriba', prioridad: i < 6 })}
-      ${n || h ? `<span class="rejilla-nota">${n ? `${n}${chipLetra(notaLetra(v.nota), 'mini')}` : ''}${h ? `<span class="rejilla-horas">${h}</span>` : ''}</span>` : ''}
-    </a>`;
+    <div class="bib-celda">
+      <a class="rejilla-item" href="${metricas.rutaDe(j)}" data-precarga="${esc(j.cover_id ?? '')}" aria-label="${esc(j.nombre)}${v.esSaga ? ' (saga)' : ''}${n ? `, ${n}` : ''}${h ? `, ${h}` : ''}">
+        ${portada(j, { clase: 'portada-rejilla', titulo: 'arriba', prioridad: i < 6 })}
+        ${v.esSaga ? `<span class="sello-saga">Saga · ${datos.juegosDeSaga(v.saga_id).length}</span>` : ''}
+        ${n || h ? `<span class="rejilla-nota">${n ? `${n}${chipLetra(notaLetra(v.nota), 'mini')}` : ''}${h ? `<span class="rejilla-horas">${h}</span>` : ''}</span>` : ''}
+      </a>
+      ${conMenu ? `<button type="button" class="bib-menu" data-menu-item="${esc(clave)}" aria-label="Opciones de ${esc(j.nombre)}">${icono('opciones', { tam: 18, color: '#FFFFFF' })}</button>` : ''}
+    </div>`;
+}
+
+/** Biblioteca: tarjeta de una saga con los juegos que junta (los que no tienen valoración propia). */
+function itemSagaBib(x, i, esMio) {
+  const horas = textoHoras(x.horas);
+  const v = x.valoracion;
+  const n = v?.nota != null ? formatearNota(v.nota) : null;
+  return `
+    <div class="bib-celda" data-bib-celda="${esc(x.clave)}">
+      <a class="rejilla-item" href="#saga/${esc(x.saga.id)}" data-precarga="${esc(x.juego.cover_id ?? '')}" aria-label="${esc(x.saga.nombre)} (saga)${horas ? `, ${horas}` : ''}">
+        ${portada(x.juego, { clase: 'portada-rejilla', titulo: 'arriba', prioridad: i < 6 })}
+        <span class="sello-saga">Saga · ${x.hijos.length}</span>
+        <span class="rejilla-nota">
+          ${n ? `${n}${chipLetra(notaLetra(v.nota), 'mini')}` : ''}
+          ${horas ? `<span class="rejilla-horas">${horas}</span>` : (n ? '' : '<span class="rejilla-horas">Sin horas</span>')}
+        </span>
+      </a>
+      ${esMio ? `<button type="button" class="bib-menu" data-bib-menu="${esc(x.clave)}" aria-label="Opciones de ${esc(x.saga.nombre)}">${icono('opciones', { tam: 18, color: '#FFFFFF' })}</button>` : ''}
+    </div>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -700,12 +739,14 @@ function renderTiers(el, id) {
             <div class="tier-juegos">
               ${t.filas[l].length
                 ? t.filas[l].map((v) => {
-                    const j = datos.juegoConocido(v.juego_id);
+                    const j = v.esSaga ? datos.comoJuego(datos.saga(v.saga_id)) : datos.juegoConocido(v.juego_id);
                     if (!j) return '';
+                    const h = v.esSaga ? metricas.horasSaga(id, v.saga_id).total : metricas.horasDe(id, v.juego_id);
                     return `
-                      <a class="tier-item" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}" aria-label="${esc(j.nombre)}, ${formatearNota(v.nota)}">
+                      <a class="tier-item${v.esSaga ? ' es-saga' : ''}" href="${metricas.rutaDe(j)}" data-precarga="${esc(j.cover_id ?? '')}" aria-label="${esc(j.nombre)}${v.esSaga ? ' (saga)' : ''}, ${formatearNota(v.nota)}">
                         ${portada(j, { clase: 'portada-tier', titulo: 'arriba', prioridad: n++ < 12 })}
-                        <span class="tier-nota">${formatearNota(v.nota)}${(() => { const h = metricas.horasDe(id, v.juego_id); return h ? `<small class="tier-horas">${esc(textoHoras(h))}</small>` : ''; })()}</span>
+                        ${v.esSaga ? '<span class="sello-saga mini">Saga</span>' : ''}
+                        <span class="tier-nota">${formatearNota(v.nota)}${h ? `<small class="tier-horas">${esc(textoHoras(h))}</small>` : ''}</span>
                       </a>`;
                   }).join('')
                 : '<span class="tier-vacio">Ningún juego en este tier</span>'}

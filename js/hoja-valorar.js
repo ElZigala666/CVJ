@@ -23,6 +23,13 @@ const ESTADOS_ONLINE = [
   { id: 'pendiente', nombre: 'Pendiente', icono: 'pendiente' },
 ];
 
+// Sagas: se siguen o se dejan (no se "completan").
+const ESTADOS_SAGA = [
+  { id: 'jugando', nombre: 'La sigo', icono: 'jugando' },
+  { id: 'abandonado', nombre: 'La dejé', icono: 'abandonado' },
+  { id: 'pendiente', nombre: 'Pendiente', icono: 'pendiente' },
+];
+
 /** "42", "1,5", "12.5 h" → número con un decimal; vacío o raro → null. */
 export function leerHoras(texto) {
   const t = String(texto ?? '').trim().replace(/\s*h(oras?)?$/i, '').replace(',', '.');
@@ -51,17 +58,26 @@ export function cerrarValorar() {
  */
 export function abrirValorar(igdbId, op = {}) {
   const yo = usuarioActual();
-  const id = Number(igdbId);
-  const juego = datos.juegoConocido(id);
+  // Una saga se valora con la misma hoja (op.saga = id de la saga).
+  const saga = op.saga ? datos.saga(op.saga) : null;
+  const id = saga ? null : Number(igdbId);
+  const juego = saga ? datos.comoJuego(saga) : datos.juegoConocido(id);
   if (!yo || !juego) return;
   abierta?.cerrar(true);
 
-  const previa = datos.miValoracion(yo.id, id);
-  const online = datos.esOnline(id);
-  const estados = online ? ESTADOS_ONLINE : ESTADOS;
+  const previa = saga ? datos.miValoracionSaga(yo.id, saga.id) : datos.miValoracion(yo.id, id);
+  const online = saga ? true : datos.esOnline(id); // 3 estados
+  const estados = saga ? ESTADOS_SAGA : online ? ESTADOS_ONLINE : ESTADOS;
   // Horas: las sincronizadas (solo lectura, por plataforma y cuenta) + las extra a mano.
-  const horas = metricas.desgloseDe(yo.id, id);
-  const conHoras = Array.isArray(datos.estado.horasExtra); // migración 011
+  // En una saga: las totales de cada uno de sus juegos + las extra propias de la saga.
+  const horas = saga ? (() => {
+    const h = metricas.horasSaga(yo.id, saga.id);
+    return {
+      sinc: h.porJuego.filter((x) => x.horas > 0).map((x) => ({ plataforma: datos.juegoConocido(x.id)?.nombre ?? '', horas: x.horas })),
+      horasSinc: h.juegos, extra: h.extra, total: h.total,
+    };
+  })() : metricas.desgloseDe(yo.id, id);
+  const conHoras = saga ? true : Array.isArray(datos.estado.horasExtra); // migración 011
   const conSinc = horas.sinc.length > 0;
 
   // Plataformas del juego (si IGDB no trae ninguna, las de siempre).
@@ -148,7 +164,7 @@ export function abrirValorar(igdbId, op = {}) {
         </div>
 
         <div class="bloque-campo" data-bloque="rec">
-          <span class="campo-titulo">¿Lo recomiendas?</span>
+          <span class="campo-titulo">${saga ? "¿La recomiendas?" : "¿Lo recomiendas?"}</span>
           <div class="rec-botones">
             <button type="button" class="rec-btn" data-rec="si" aria-pressed="false">
               ${icono('recomendado', { tam: 22, color: 'currentColor', trazo: 'var(--fondo-btn)', grosor: 2.4 })}<span>Sí</span>
@@ -159,7 +175,7 @@ export function abrirValorar(igdbId, op = {}) {
           </div>
         </div>
 
-        <div class="bloque-campo">
+        <div class="bloque-campo"${saga ? ' hidden' : ''}>
           <span class="campo-titulo">Plataforma</span>
           <div class="chips-plataforma">
             ${plataformas.map((p) => `<button type="button" class="chip" data-plataforma="${esc(p)}">${esc(p)}</button>`).join('')}
@@ -173,7 +189,7 @@ export function abrirValorar(igdbId, op = {}) {
               <ul class="horas-desglose">
                 ${horas.sinc.map((p) => `<li><span>${esc(p.plataforma)}${p.cuenta ? ` <small>${esc(p.cuenta)}</small>` : ''}</span><span>${esc(metricas.textoHoras(p.horas))}</span></li>`).join('')}
               </ul>
-              <label for="hoja-horas" class="campo-titulo campo-sub">+ Horas extra <span class="campo-opcional">(otras plataformas o cuentas)</span></label>`
+              <label for="hoja-horas" class="campo-titulo campo-sub">+ Horas extra <span class="campo-opcional">(${saga ? 'de la saga, aparte de sus juegos' : 'otras plataformas o cuentas'})</span></label>`
             : `<label for="hoja-horas" class="campo-titulo">Horas jugadas <span class="campo-opcional">(opcional)</span></label>`}
             <div class="campo-horas">
               <input id="hoja-horas" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done"
@@ -196,7 +212,7 @@ export function abrirValorar(igdbId, op = {}) {
           <div class="quitar" data-ref="quitar">
             <button type="button" class="enlace-discreto" data-accion="pedir-quitar">Quitar de mi historial</button>
             <div class="quitar-confirmar">
-              <p>Se borrarán tu estado, tu nota y tu reseña de este juego.</p>
+              <p>Se borrarán tu estado, tu nota y tu reseña de ${saga ? 'esta saga' : 'este juego'}.</p>
               <div class="quitar-botones">
                 <button type="button" class="boton-secundario neutro" data-accion="cancelar-quitar">Cancelar</button>
                 <button type="button" class="boton-secundario peligro" data-accion="quitar">Quitar</button>
@@ -367,6 +383,16 @@ export function abrirValorar(igdbId, op = {}) {
         return;
       }
     }
+    if (saga) {
+      datos.guardarValoracionSaga({
+        usuarioId: yo.id, sagaId: saga.id, estado: s.estado,
+        nota: conNota ? s.nota : null, recomendado: conNota ? s.recomendado : null,
+        resena: resena.value.slice(0, MAX_RESENA), horasExtra: extra === undefined ? undefined : (extra ?? 0),
+      }, aviso);
+      cerrar();
+      aviso(s.estado === 'pendiente' ? 'Añadida a pendientes' : previa ? 'Valoración actualizada' : 'Valoración guardada');
+      return;
+    }
     escribir(CLAVE_PLATAFORMA, s.plataforma ?? '');
     datos.guardarValoracion({
       usuarioId: yo.id,
@@ -389,7 +415,8 @@ export function abrirValorar(igdbId, op = {}) {
   }
 
   function quitar() {
-    datos.quitarValoracion(yo.id, id, aviso);
+    if (saga) datos.quitarValoracionSaga(yo.id, saga.id, aviso);
+    else datos.quitarValoracion(yo.id, id, aviso);
     cerrar();
     aviso('Quitado de tu historial');
   }

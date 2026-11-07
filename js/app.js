@@ -17,6 +17,7 @@ import * as perfil from './pantallas/perfil.js';
 import * as estadisticas from './pantallas/estadisticas.js';
 import * as rankings from './pantallas/rankings.js';
 import * as revisar from './pantallas/revisar.js';
+import * as saga from './pantallas/saga.js';
 import * as xbox from './xbox.js';
 import { anotarNavegacion, corregirRuta } from './navegacion.js';
 import { olvidarGaleria } from './galeria.js';
@@ -34,6 +35,7 @@ const RUTAS = {
   estadisticas,      // #estadisticas/{id}
   juego,
   revisar,           // #revisar: "Revisa tu biblioteca"
+  saga,              // #saga/{id}: ficha de una saga
 };
 const PESTANAS = [
   ['inicio', 'Inicio'],
@@ -43,7 +45,7 @@ const PESTANAS = [
   ['perfil', 'Perfil'],
 ];
 // Rutas que se ven a pantalla completa, sin la barra inferior (la ficha tiene la suya).
-const SIN_BARRA = new Set(['juego', 'revisar']);
+const SIN_BARRA = new Set(['juego', 'revisar', 'saga']);
 const REFRESCO_MS = 60_000;
 
 let limpiar = null;

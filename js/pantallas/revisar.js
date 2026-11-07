@@ -161,11 +161,12 @@ function tarjetaSaga(s) {
     <div class="tarjeta-fusion">
       <div class="tarjeta-fusion-portadas">${juegos.slice(0, 3).map((j) => portada(j, { clase: 'portada-lista' })).join('')}</div>
       <div class="tarjeta-fusion-texto">
-        <strong>¿Agrupar tus ${esc(s.nombre)} en una sola entrada?</strong>
-        <span>Tienes ${juegos.length}. Solo cambia cómo se ven en tu perfil; tus notas no se tocan.</span>
+        <strong>¿Juntar tus ${esc(s.nombre)} en una saga?</strong>
+        <span>Tienes ${juegos.length}. Se verá como un juego más, con sus horas sumadas. Tus notas de cada juego no se tocan.</span>
         <div class="tarjeta-fusion-botones">
-          <button type="button" class="boton-secundario boton-pequeno" data-saga-si="${s.id}" data-nombre="${esc(s.nombre)}">Agrupar</button>
-          <button type="button" class="boton-secundario neutro boton-pequeno" data-saga-no="${s.id}" data-nombre="${esc(s.nombre)}">No, son juegos distintos</button>
+          <button type="button" class="boton-secundario boton-pequeno" data-saga-si="${s.id}" data-nombre="${esc(s.nombre)}">Crear saga «${esc(s.nombre)}»</button>
+          <button type="button" class="boton-secundario neutro boton-pequeno" data-saga-otra="${s.id}" data-nombre="${esc(s.nombre)}">Elegir otra saga</button>
+          <button type="button" class="enlace-discreto" data-saga-no="${s.id}" data-nombre="${esc(s.nombre)}">No, son juegos distintos</button>
         </div>
       </div>
     </div>`;

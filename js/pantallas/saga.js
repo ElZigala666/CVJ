@@ -82,12 +82,12 @@ export function render(el, { params }) {
       <span class="ficha-meta">${esc(meta)}</span>
       ${admin ? `
         <div class="ficha-online">
-          <span>Juego online / sin final</span>
-          <div class="conmutador" role="group" aria-label="Juego online / sin final">
+          <span>Sin final (online, competitivo...)</span>
+          <div class="conmutador" role="group" aria-label="Sin final (online, competitivo...)">
             <button type="button" data-online="si" class="${sg.es_online ? 'activo' : ''}" aria-pressed="${!!sg.es_online}">Sí</button>
             <button type="button" data-online="no" class="${sg.es_online ? '' : 'activo'}" aria-pressed="${!sg.es_online}">No</button>
           </div>
-        </div>` : sg.es_online ? '<div class="ficha-online"><span class="etiqueta-gris">Juego online / sin final</span></div>' : ''}
+        </div>` : sg.es_online ? '<div class="ficha-online"><span class="etiqueta-gris">Sin final (online, competitivo...)</span></div>' : ''}
       <div class="saga-editar-fila">
         <button type="button" class="boton-secundario boton-pequeno" data-accion="editar" aria-pressed="${vista.editando}">${vista.editando ? 'Hecho' : 'Editar saga'}</button>
       </div>`;
@@ -296,7 +296,7 @@ export function render(el, { params }) {
       const valor = on.dataset.online === 'si';
       if (valor !== datos.sagaOnline(id)) {
         datos.editarSaga(id, { es_online: valor }, aviso);
-        aviso(valor ? 'Saga online / sin final: va con los juegos online y no cuenta en la tier list ni en los rankings de nota' : 'Ya no es una saga online');
+        aviso(valor ? 'Saga sin final: va a «Juegos sin final» del perfil' : 'Ya no es una saga sin final');
       }
       return;
     }

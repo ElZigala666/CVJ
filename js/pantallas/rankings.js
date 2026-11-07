@@ -57,15 +57,15 @@ const VACIOS = {
   jugados: 'Todavía nadie ha empezado, completado ni abandonado ningún juego.',
   polemicos: 'Cuando al menos dos personas pongan nota a un mismo juego, aquí saldrán los que más dividen al grupo.',
   horas: 'Cuando alguien sincronice su biblioteca o apunte horas en un juego valorado, aparecerá aquí.',
-  online: 'Aquí saldrán los juegos online o sin final (Fortnite, Rocket League...) en cuanto alguien les ponga nota.',
+  online: 'Aquí saldrán los juegos sin final (Fortnite, Rocket League...) en cuanto alguien les ponga nota.',
 };
 const PIES = {
-  nota: 'Solo entran juegos con al menos 2 notas del grupo. Con una sola, el juego sale en su ficha como «Solo lo ha valorado…».',
+  nota: 'Solo entran juegos con al menos 2 notas del grupo que cuenten en los rankings (cada uno lo elige al valorar). Con una sola, el juego sale en su ficha como «Solo lo ha valorado…».',
   polemicos: 'Solo entran juegos con al menos 2 notas del grupo, ordenados por lo mucho que se separan sus notas.',
   recomendados: 'Solo entran juegos en los que al menos 2 personas han dicho si lo recomiendan.',
   jugados: 'Cuenta a quien lo está jugando, lo ha completado o lo ha abandonado (no los pendientes).',
   horas: 'Horas de todo el grupo: las sincronizadas de cada plataforma y cuenta más las horas extra apuntadas a mano.',
-  online: 'Juegos online o sin final, por nota media. No cuentan en Nota media ni en Más polémicos. Se marcan en su ficha.',
+  online: 'Juegos sin final (online, competitivos...) con todas sus notas. En Nota media y Más polémicos solo entran las notas que cada uno decide contar al valorar.',
 };
 
 function grupo() {

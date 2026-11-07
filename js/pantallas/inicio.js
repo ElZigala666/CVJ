@@ -292,17 +292,18 @@ function candidatos() {
     porJuego.get(id).push(v);
   }
   return [...porJuego.entries()].map(([id, vals]) => {
-    const m = mediaGrupo(vals);
+    // Nota y polémica: solo las notas que cada uno cuenta en los rankings.
+    const cuentan = vals.filter(metricas.cuentaEnRanking);
+    const m = mediaGrupo(cuentan);
     return {
       j: datos.juegoConocido(id),
       vals,
       media: m.media,
       letra: m.letra,
       votos: m.votos,
-      rec: recomendacionGrupo(vals),
+      rec: recomendacionGrupo(cuentan),
       jugadores: vals.filter((v) => v.estado !== 'pendiente').length,
-      desviacion: desviacionTipica(vals),
-      online: datos.esOnline(id),
+      desviacion: desviacionTipica(cuentan),
     };
   }).filter((x) => x.j);
 }
@@ -311,13 +312,13 @@ function destacados() {
   let lista = candidatos();
   let vacio = '';
   if (pestana === 'mejor') {
-    lista = lista.filter((x) => x.votos >= 2 && !x.online).sort((a, b) => b.media - a.media || b.votos - a.votos);
+    lista = lista.filter((x) => x.votos >= 2).sort((a, b) => b.media - a.media || b.votos - a.votos);
     vacio = 'Aquí saldrán los juegos con al menos 2 notas del grupo.';
   } else if (pestana === 'jugados') {
     lista = lista.filter((x) => x.jugadores > 0).sort((a, b) => b.jugadores - a.jugadores || (b.media ?? -1) - (a.media ?? -1));
     vacio = 'Aquí saldrán los juegos que más gente del grupo ha jugado.';
   } else {
-    lista = lista.filter((x) => x.desviacion !== null && !x.online).sort((a, b) => b.desviacion - a.desviacion || b.votos - a.votos);
+    lista = lista.filter((x) => x.desviacion !== null && x.votos >= 2).sort((a, b) => b.desviacion - a.desviacion || b.votos - a.votos);
     vacio = 'Cuando dos o más personas puntúen el mismo juego, aquí saldrán los que más dividen al grupo.';
   }
   lista = lista.slice(0, MAX_DESTACADOS);

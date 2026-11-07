@@ -41,7 +41,7 @@ export function abrirMenuJuego({ uid, igdbId, bib = null }) {
         ${opcion('fusionar', 'fusionar', 'Fusionar con otro juego…')}
         ${bib ? (bib.probado ? opcion('mis', 'probados', 'Mover a Mis juegos') : opcion('probados', 'probados', 'Mover a Probados')) : ''}
         ${bib ? opcion('ocultar', 'ocultar', 'Ocultar de mi biblioteca') : ''}
-        ${admin && datos.juego(id) ? opcion('online', 'online', online ? 'Quitar de online' : 'Marcar como juego online') : ''}
+        ${admin && datos.juego(id) ? opcion('online', 'online', online ? 'Quitar de «Sin final»' : 'Marcar como sin final') : ''}
       </div>`,
     alMontar(cuerpo, cerrar) {
       cuerpo.addEventListener('click', (e) => {
@@ -67,7 +67,7 @@ export function abrirMenuJuego({ uid, igdbId, bib = null }) {
           aviso('Oculto de tu biblioteca');
         } else if (o === 'online') {
           datos.marcarOnline(id, !online, aviso);
-          aviso(online ? 'Ya no es un juego online' : 'Marcado como juego online');
+          aviso(online ? 'Ya no es un juego sin final' : 'Marcado como sin final');
         }
       });
     },
@@ -93,7 +93,7 @@ export function abrirMenuSaga({ uid, sagaId, bib = null }) {
         ${opcion('anadir', 'saga', 'Añadir juegos a la saga…')}
         ${titulos.length ? (probada ? opcion('mis', 'probados', 'Mover a Mis juegos') : opcion('probados', 'probados', 'Mover a Probados')) : ''}
         ${titulos.length ? opcion('ocultar', 'ocultar', 'Ocultar de mi biblioteca') : ''}
-        ${datos.usuario(uid)?.es_admin ? opcion('online', 'online', sg.es_online ? 'Quitar de online' : 'Marcar como juego online') : ''}
+        ${datos.usuario(uid)?.es_admin ? opcion('online', 'online', sg.es_online ? 'Quitar de «Sin final»' : 'Marcar como sin final') : ''}
       </div>`,
     alMontar(cuerpo, cerrar) {
       cuerpo.addEventListener('click', (e) => {
@@ -112,7 +112,7 @@ export function abrirMenuSaga({ uid, sagaId, bib = null }) {
           aviso('Ocultos de tu biblioteca');
         } else if (o === 'online') {
           datos.editarSaga(sg.id, { es_online: !sg.es_online }, aviso);
-          aviso(sg.es_online ? 'Ya no es una saga online' : 'Marcada como juego online');
+          aviso(sg.es_online ? 'Ya no es una saga sin final' : 'Marcada como sin final');
         }
       });
     },

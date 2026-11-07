@@ -25,8 +25,16 @@ const tieneNota = (v) => nota(v) !== null;
 const usuarioValido = (v) => !!datos.usuario(v.usuario_id);
 const porFecha = (a, b) => new Date(b.actualizado_en || b.creado_en) - new Date(a.actualizado_en || a.creado_en);
 const porNota = (a, b) => nota(b) - nota(a) || porFecha(a, b);
-/** ¿Juego online / sin final? (no cuentan en la tier list ni en Nota media y Más polémicos) */
+/** ¿Juego sin final (online, competitivo...)? Solo decide su sección del perfil y "Jugando ahora". */
 const online = (v) => datos.esOnline(v.juego_id);
+/**
+ * ¿Esta nota cuenta en la tier list, las estadísticas de notas y los rankings de nota?
+ * Lo elige cada uno al valorar (cuenta_ranking). Si falta (datos antiguos): no en los
+ * juegos sin final, sí en los demás.
+ */
+export const cuentaEnRanking = (v) => (typeof v?.cuenta_ranking === 'boolean'
+  ? v.cuenta_ranking
+  : !(v?.esSaga ? datos.sagaOnline(v.saga_id) : datos.esOnline(v?.juego_id)));
 
 /** Valoraciones de todo el grupo agrupadas por usuario (solo usuarios existentes). */
 function porUsuario() {
@@ -88,7 +96,7 @@ export function perfil(uid) {
     historial.pendiente.sort(porFecha);
 
     const jugados = vals.filter((v) => v.estado !== 'pendiente');
-    const media = mediaGrupo(vals);
+    const media = mediaGrupo(vals.filter(cuentaEnRanking));
     const conteoPlat = new Map();
     for (const v of jugados) for (const pl of datos.plataformasDe(v)) conteoPlat.set(pl, (conteoPlat.get(pl) ?? 0) + 1);
     const plataformas = [...conteoPlat.entries()].sort((a, b) => b[1] - a[1]).map(([nombre, n]) => ({ nombre, n }));
@@ -116,7 +124,7 @@ export function perfil(uid) {
 export function tierList(uid) {
   return memoizar(`tiers:${uid}`, () => {
     const filas = Object.fromEntries(LETRAS.map((l) => [l, []]));
-    const conNota = [...valoracionesDe(uid).filter((v) => tieneNota(v) && !online(v)), ...valoracionesSagaComoItems(uid).filter((v) => tieneNota(v) && !datos.sagaOnline(v.saga_id))].sort(porNota);
+    const conNota = [...valoracionesDe(uid), ...valoracionesSagaComoItems(uid)].filter((v) => tieneNota(v) && cuentaEnRanking(v)).sort(porNota);
     for (const v of conNota) filas[notaALetra(v.nota)].push(v);
     return { filas, total: conNota.length };
   });
@@ -128,13 +136,14 @@ export function tierList(uid) {
 export function estadisticas(uid) {
   return memoizar(`stats:${uid}`, () => {
     const p = perfil(uid);
-    const vals = valoracionesDe(uid);
+    // Estadísticas de notas: solo las valoraciones que cuentan en la tier list y los rankings.
+    const vals = valoracionesDe(uid).filter(cuentaEnRanking);
 
     // "vs grupo": media de (mi nota − media de los DEMÁS en ese juego),
     // solo en juegos que también tienen nota de al menos otra persona.
     const difs = [];
     for (const v of vals.filter(tieneNota)) {
-      const otros = datos.valoracionesDeJuego(v.juego_id).filter((o) => o.usuario_id !== uid && usuarioValido(o) && tieneNota(o));
+      const otros = datos.valoracionesDeJuego(v.juego_id).filter((o) => o.usuario_id !== uid && usuarioValido(o) && tieneNota(o) && cuentaEnRanking(o));
       if (!otros.length) continue;
       const mediaOtros = otros.reduce((a, o) => a + nota(o), 0) / otros.length;
       difs.push(nota(v) - mediaOtros);
@@ -160,8 +169,31 @@ export const ORDENES = [
   { id: 'jugados', nombre: 'Más jugados' },
   { id: 'horas', nombre: 'Más horas' },
   { id: 'polemicos', nombre: 'Más polémicos' },
-  { id: 'online', nombre: 'Online' },
+  { id: 'online', nombre: 'Sin final' },
 ];
+
+/**
+ * Notas del grupo en un juego o saga. media/votos/rec/desviacion: solo las que cuentan
+ * en los rankings (Nota media, Polémicos, Recomendados; el mínimo de 2 notas va sobre
+ * esas). mediaTodas/votosTodas/recTodas: todas (chip "Sin final").
+ */
+function resumenNotas(vals) {
+  const cuentan = vals.filter(cuentaEnRanking);
+  const m = mediaGrupo(cuentan);
+  const t = mediaGrupo(vals);
+  return {
+    vals,
+    media: m.media,
+    letra: m.letra,
+    votos: m.votos,
+    rec: recomendacionGrupo(cuentan),
+    desviacion: desviacionTipica(cuentan),
+    mediaTodas: t.media,
+    votosTodas: t.votos,
+    recTodas: recomendacionGrupo(vals),
+    jugadores: vals.filter((v) => v.estado !== 'pendiente').length,
+  };
+}
 
 function juegosDelGrupo() {
   return memoizar('juegosDelGrupo', () => {
@@ -173,22 +205,13 @@ function juegosDelGrupo() {
       m.get(id).push(v);
     }
     return [...m.entries()]
-      .map(([id, vals]) => {
-        const media = mediaGrupo(vals);
-        return {
-          juego: datos.juegoConocido(id),
-          vals,
-          media: media.media,
-          letra: media.letra,
-          votos: media.votos,
-          rec: recomendacionGrupo(vals),
-          jugadores: vals.filter((v) => v.estado !== 'pendiente').length,
-          desviacion: desviacionTipica(vals),
-          online: datos.esOnline(id),
-          // Horas de todo el grupo (sincronizadas + extra de cada uno)
-          horas: Math.round(usuarios().reduce((t, u) => t + (horasDe(u.id, id) ?? 0), 0) * 10) / 10,
-        };
-      })
+      .map(([id, vals]) => ({
+        juego: datos.juegoConocido(id),
+        ...resumenNotas(vals),
+        online: datos.esOnline(id),
+        // Horas de todo el grupo (sincronizadas + extra de cada uno)
+        horas: Math.round(usuarios().reduce((t, u) => t + (horasDe(u.id, id) ?? 0), 0) * 10) / 10,
+      }))
       .filter((x) => x.juego)
       .concat(sagasDelGrupo());
   });
@@ -197,18 +220,11 @@ function juegosDelGrupo() {
 /** Sagas en los rankings: con sus valoraciones de saga y las horas de todos en sus juegos. */
 function sagasDelGrupo() {
   return datos.sagas().map((sg) => {
-    const vals = datos.valoracionesDeSaga(sg.id).filter(usuarioValido);
-    const media = mediaGrupo(vals);
+    const vals = datos.valoracionesDeSaga(sg.id).filter(usuarioValido).map((v) => ({ ...v, esSaga: true }));
     return {
       juego: datos.comoJuego(sg),
       saga: sg,
-      vals,
-      media: media.media,
-      letra: media.letra,
-      votos: media.votos,
-      rec: recomendacionGrupo(vals),
-      jugadores: vals.filter((v) => v.estado !== 'pendiente').length,
-      desviacion: desviacionTipica(vals),
+      ...resumenNotas(vals),
       online: !!sg.es_online,
       horas: Math.round(usuarios().reduce((t, u) => t + horasSaga(u.id, sg.id).total, 0) * 10) / 10,
     };
@@ -233,14 +249,16 @@ export function ranking(orden) {
         .sort((a, b) => b.horas - a.horas || (b.media ?? -1) - (a.media ?? -1) || nombre(a, b));
     }
     if (orden === 'online') {
-      return l.filter((x) => x.online && x.votos >= 1)
+      // "Sin final": esos juegos con TODAS sus notas (cuenten o no en los rankings).
+      return l.filter((x) => x.online && x.votosTodas >= 1)
+        .map((x) => ({ ...x, media: x.mediaTodas, votos: x.votosTodas, rec: x.recTodas, letra: notaALetra(x.mediaTodas) }))
         .sort((a, b) => b.media - a.media || b.votos - a.votos || nombre(a, b));
     }
     if (orden === 'polemicos') {
-      return l.filter((x) => x.votos >= 2 && !x.online)
+      return l.filter((x) => x.votos >= 2)
         .sort((a, b) => b.desviacion - a.desviacion || b.votos - a.votos || nombre(a, b));
     }
-    return l.filter((x) => x.votos >= 2 && !x.online).sort((a, b) => b.media - a.media || b.votos - a.votos || nombre(a, b));
+    return l.filter((x) => x.votos >= 2).sort((a, b) => b.media - a.media || b.votos - a.votos || nombre(a, b));
   });
 }
 

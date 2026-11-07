@@ -186,7 +186,7 @@ function renderPerfil(el, id, alSalir) {
         ${p.online.length ? `
           <section class="perfil-seccion">
             <div class="seccion-cab">
-              <h2 class="seccion-titulo">Juegos online</h2>
+              <h2 class="seccion-titulo">Juegos sin final</h2>
               <span class="seccion-extra">${p.online.length}</span>
             </div>
             <div class="rejilla" data-lista>${p.online.map((v, i) => itemRejilla(v, i, horasItem(v) ?? undefined, esMio)).join('')}</div>

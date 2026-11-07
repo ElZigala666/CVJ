@@ -101,11 +101,11 @@ export function render(el, { params }) {
       ${meta ? `<span class="ficha-meta">${esc(meta)}</span>` : (pidiendo ? '<div class="sk sk-linea" style="width:55%;height:14px"></div>' : '')}
       ${j.plataformas?.length ? `<div class="ficha-chips">${j.plataformas.map((p) => `<span class="ficha-chip">${esc(p)}</span>`).join('')}</div>` : ''}
       ${'es_online' in j && datos.juego(id) && !esAdmin() && j.es_online ? `
-        <div class="ficha-online"><span class="etiqueta-gris">Juego online / sin final</span></div>` : ''}
+        <div class="ficha-online"><span class="etiqueta-gris">Sin final (online, competitivo...)</span></div>` : ''}
       ${'es_online' in j && datos.juego(id) && esAdmin() ? `
         <div class="ficha-online">
-          <span>Juego online / sin final</span>
-          <div class="conmutador" role="group" aria-label="Juego online / sin final">
+          <span>Sin final (online, competitivo...)</span>
+          <div class="conmutador" role="group" aria-label="Sin final (online, competitivo...)">
             <button type="button" data-online="si" class="${j.es_online ? 'activo' : ''}" aria-pressed="${!!j.es_online}">Sí</button>
             <button type="button" data-online="no" class="${j.es_online ? '' : 'activo'}" aria-pressed="${!j.es_online}">No</button>
           </div>
@@ -441,7 +441,7 @@ export function render(el, { params }) {
       const valor = on.dataset.online === 'si';
       if (valor !== datos.esOnline(id)) {
         datos.marcarOnline(id, valor, aviso);
-        aviso(valor ? 'Marcado como juego online: no cuenta en la tier list ni en los rankings de nota' : 'Ya no es un juego online');
+        aviso(valor ? 'Marcado como sin final: fuera de «Jugando ahora» y en «Juegos sin final»' : 'Ya no es un juego sin final');
       }
       return;
     }

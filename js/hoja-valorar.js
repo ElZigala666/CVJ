@@ -103,6 +103,8 @@ export function abrirValorar(igdbId, op = {}) {
     nota: previa?.nota != null ? redondear(previa.nota) : null,
     recomendado: previa?.recomendado ?? null,
     plataformas: new Set(iniciales),
+    // ¿Cuenta en mi tier list y rankings? Por defecto sí, salvo en juegos sin final.
+    cuenta: typeof previa?.cuenta_ranking === 'boolean' ? previa.cuenta_ranking : !online || (saga ? !saga.es_online : false),
     confirmandoQuitar: false,
   };
 
@@ -168,6 +170,11 @@ export function abrirValorar(igdbId, op = {}) {
             <button type="button" class="enlace-discreto" data-accion="quitar-nota">Quitar nota</button>
           </div>
         </div>
+
+        <label class="interruptor" data-bloque="cuenta">
+          <input type="checkbox" data-cuenta>
+          <span class="interruptor-texto"><strong>Contar en mi tier list y rankings</strong><small>${online ? 'Es un juego sin final: por defecto no cuenta, pero puedes meterlo si quieres.' : 'Apágalo si no quieres que esta nota entre en tu tier list ni en los rankings del grupo.'}</small></span>
+        </label>
 
         <div class="bloque-campo" data-bloque="rec">
           <span class="campo-titulo">${saga ? "¿La recomiendas?" : "¿Lo recomiendas?"}</span>
@@ -247,6 +254,9 @@ export function abrirValorar(igdbId, op = {}) {
     const conNota = s.estado !== 'pendiente';
     $('[data-bloque="nota"]').hidden = !conNota;
     $('[data-bloque="rec"]').hidden = !conNota;
+    const ck = $('[data-cuenta]');
+    if (ck) ck.checked = s.cuenta;
+    $('[data-bloque="cuenta"]').hidden = !conNota;
     const bh = $('[data-bloque="horas"]');
     if (bh) bh.hidden = s.estado === 'pendiente';
 
@@ -327,6 +337,7 @@ export function abrirValorar(igdbId, op = {}) {
     pintarNota();
   });
   resena.addEventListener('input', pintarContador);
+  $('[data-cuenta]')?.addEventListener('change', (e) => { s.cuenta = e.target.checked; });
   // Total de horas en vivo (sincronizadas + extra).
   $('#hoja-horas')?.addEventListener('input', (e) => {
     const t = $('[data-ref="horas-total"]');
@@ -394,7 +405,7 @@ export function abrirValorar(igdbId, op = {}) {
     if (saga) {
       datos.guardarValoracionSaga({
         usuarioId: yo.id, sagaId: saga.id, estado: s.estado,
-        nota: conNota ? s.nota : null, recomendado: conNota ? s.recomendado : null,
+        nota: conNota ? s.nota : null, recomendado: conNota ? s.recomendado : null, cuentaRanking: s.cuenta,
         resena: resena.value.slice(0, MAX_RESENA), horasExtra: extra === undefined ? undefined : (extra ?? 0),
       }, aviso);
       cerrar();
@@ -411,6 +422,7 @@ export function abrirValorar(igdbId, op = {}) {
       nota: conNota ? s.nota : null,
       recomendado: conNota ? s.recomendado : null,
       plataformas: elegidas,
+      cuentaRanking: s.cuenta,
       resena: resena.value.slice(0, MAX_RESENA),
     }, aviso).then((ok) => {
       // Si el juego solo se conocía por Buscar, completar su ficha en la tabla.

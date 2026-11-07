@@ -406,6 +406,9 @@ export function guardarValoracion(v, onError) {
     recomendado: pendiente ? null : (v.recomendado ?? null),
     plataformas: (v.plataformas ?? []).length ? [...new Set(v.plataformas)] : null,
     resena: (v.resena || '').trim() || null,
+    // ¿Cuenta en mi tier list y los rankings? Por defecto sí, salvo en juegos sin final.
+    cuenta_ranking: typeof v.cuentaRanking === 'boolean' ? v.cuentaRanking
+      : typeof antes?.cuenta_ranking === 'boolean' ? antes.cuenta_ranking : !esOnline(id),
     creado_en: antes?.creado_en ?? ahora,
     actualizado_en: ahora,
   };
@@ -490,7 +493,7 @@ export async function guardarColorDominante(igdbId, hex) {
   }
 }
 
-/** ¿Es un juego online / sin final? (lo elegido a mano manda sobre lo automático) */
+/** ¿Juego sin final (online, competitivo...)? Lo marca el admin; lo manual manda sobre lo automático. */
 export const esOnline = (igdbId) => juego(igdbId)?.es_online === true;
 
 /** Marca o desmarca un juego como online / sin final (para todo el grupo). */
@@ -851,6 +854,8 @@ export function guardarValoracionSaga(v, onError) {
     recomendado: pendiente ? null : (v.recomendado ?? null),
     resena: (v.resena || '').trim() || null,
     horas_extra: v.horasExtra !== undefined ? (v.horasExtra > 0 ? Math.round(v.horasExtra * 10) / 10 : null) : (antes?.horas_extra ?? null),
+    cuenta_ranking: typeof v.cuentaRanking === 'boolean' ? v.cuentaRanking
+      : typeof antes?.cuenta_ranking === 'boolean' ? antes.cuenta_ranking : !saga(v.sagaId)?.es_online,
     creado_en: antes?.creado_en ?? ahora,
     actualizado_en: ahora,
   };

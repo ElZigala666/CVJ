@@ -93,6 +93,7 @@ export function abrirMenuSaga({ uid, sagaId, bib = null }) {
         ${opcion('anadir', 'saga', 'Añadir juegos a la saga…')}
         ${titulos.length ? (probada ? opcion('mis', 'probados', 'Mover a Mis juegos') : opcion('probados', 'probados', 'Mover a Probados')) : ''}
         ${titulos.length ? opcion('ocultar', 'ocultar', 'Ocultar de mi biblioteca') : ''}
+        ${datos.usuario(uid)?.es_admin ? opcion('online', 'online', sg.es_online ? 'Quitar de online' : 'Marcar como juego online') : ''}
       </div>`,
     alMontar(cuerpo, cerrar) {
       cuerpo.addEventListener('click', (e) => {
@@ -109,6 +110,9 @@ export function abrirMenuSaga({ uid, sagaId, bib = null }) {
         } else if (o === 'ocultar') {
           datos.ocultarBiblioteca(uid, titulos, true, aviso);
           aviso('Ocultos de tu biblioteca');
+        } else if (o === 'online') {
+          datos.editarSaga(sg.id, { es_online: !sg.es_online }, aviso);
+          aviso(sg.es_online ? 'Ya no es una saga online' : 'Marcada como juego online');
         }
       });
     },

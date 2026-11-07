@@ -252,7 +252,9 @@ export function portadaSaga(s) {
   return null;
 }
 /** Una saga "como un juego" para pintarla con las mismas piezas (portada, nombre...). */
-export const comoJuego = (s) => (s ? { igdb_id: null, saga_id: s.id, nombre: s.nombre, cover_id: portadaSaga(s), anio: null, plataformas: [] } : null);
+export const comoJuego = (s) => (s ? { igdb_id: null, saga_id: s.id, nombre: s.nombre, cover_id: portadaSaga(s), anio: null, plataformas: [], es_online: !!s.es_online } : null);
+/** ¿Saga online / sin final? (FIFA...: no se juega "hasta el final") */
+export const sagaOnline = (sagaId) => !!saga(sagaId)?.es_online;
 
 /** Juego principal de un juego (el mismo si no está fusionado con otro). */
 export const canonico = (igdbId) => indices.canon(igdbId);

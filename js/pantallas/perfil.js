@@ -189,7 +189,7 @@ function renderPerfil(el, id, alSalir) {
               <h2 class="seccion-titulo">Juegos online</h2>
               <span class="seccion-extra">${p.online.length}</span>
             </div>
-            <div class="rejilla" data-lista>${p.online.map((v, i) => itemRejilla(v, i, metricas.horasDe(id, v.juego_id) ?? undefined, esMio)).join('')}</div>
+            <div class="rejilla" data-lista>${p.online.map((v, i) => itemRejilla(v, i, horasItem(v) ?? undefined, esMio)).join('')}</div>
           </section>` : ''}
 
         ${hayBiblioteca ? `

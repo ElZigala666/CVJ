@@ -71,7 +71,12 @@ export function perfil(uid) {
       ];
     }
     // Sagas valoradas: una tarjeta más en su pestaña (La sigo → Jugando, La dejé → Abandonados).
-    for (const v of valoracionesSagaComoItems(uid)) historial[v.estado]?.push(v);
+    // Las sagas online / sin final van con los juegos online.
+    for (const v of valoracionesSagaComoItems(uid)) {
+      if (datos.sagaOnline(v.saga_id)) juegosOnline.push(v);
+      else historial[v.estado]?.push(v);
+    }
+    juegosOnline.sort((a, b) => (nota(b) ?? -1) - (nota(a) ?? -1) || porFecha(a, b));
     for (const e of ['abandonado']) {
       historial[e] = [...historial[e].filter(tieneNota).sort(porNota), ...historial[e].filter((v) => !tieneNota(v)).sort(porFecha)];
     }
@@ -108,7 +113,7 @@ export function perfil(uid) {
 export function tierList(uid) {
   return memoizar(`tiers:${uid}`, () => {
     const filas = Object.fromEntries(LETRAS.map((l) => [l, []]));
-    const conNota = [...valoracionesDe(uid).filter((v) => tieneNota(v) && !online(v)), ...valoracionesSagaComoItems(uid).filter(tieneNota)].sort(porNota);
+    const conNota = [...valoracionesDe(uid).filter((v) => tieneNota(v) && !online(v)), ...valoracionesSagaComoItems(uid).filter((v) => tieneNota(v) && !datos.sagaOnline(v.saga_id))].sort(porNota);
     for (const v of conNota) filas[notaALetra(v.nota)].push(v);
     return { filas, total: conNota.length };
   });
@@ -201,7 +206,7 @@ function sagasDelGrupo() {
       rec: recomendacionGrupo(vals),
       jugadores: vals.filter((v) => v.estado !== 'pendiente').length,
       desviacion: desviacionTipica(vals),
-      online: false,
+      online: !!sg.es_online,
       horas: Math.round(usuarios().reduce((t, u) => t + horasSaga(u.id, sg.id).total, 0) * 10) / 10,
     };
   });

@@ -218,17 +218,28 @@ function construirIndices(s) {
     const l = juegosDeSaga.get(x.saga_id);
     if (!l.includes(id)) l.push(id);
   }
-  for (const [sid, l] of juegosDeSaga) {
+  for (const l of juegosDeSaga.values()) {
     // En orden de salida.
     l.sort((a, b) => (juegos.get(a)?.anio ?? 9999) - (juegos.get(b)?.anio ?? 9999) || (juegos.get(a)?.nombre ?? '').localeCompare(juegos.get(b)?.nombre ?? ''));
+  }
+  // Una saga cuyos juegos están todos en otra más grande (IGDB tiene "Persona 3" dentro
+  // de "Persona") no sale aparte en las fichas: se ve la grande.
+  const contenidas = new Set();
+  const visibles = [...juegosDeSaga.entries()].filter(([sid, l]) => !sagas.get(sid).oculta && !sagas.get(sid).fusionada_en && l.length >= 2);
+  for (const [a, la] of visibles) {
+    for (const [b, lb] of visibles) {
+      if (a !== b && la.length < lb.length && la.every((x) => lb.includes(x))) { contenidas.add(a); break; }
+    }
+  }
+  for (const [sid, l] of juegosDeSaga) {
     const sg = sagas.get(sid);
-    if (sg.oculta || sg.fusionada_en || l.length < 2) continue;
+    if (sg.oculta || sg.fusionada_en || l.length < 2 || contenidas.has(sid)) continue;
     for (const id of l) {
       if (!sagasDeJuego.has(id)) sagasDeJuego.set(id, []);
       sagasDeJuego.get(id).push(sid);
     }
   }
-  return { usuarios, juegos, porJuego, psnIgdb, bibUsuario, bibJuego, canon, vals, aliasA, extraHoras, colecciones, coleccionDeJuego, juegosDeColeccion, valsColeccion, sagas, juegosDeSaga, sagasDeJuego };
+  return { usuarios, juegos, porJuego, psnIgdb, bibUsuario, bibJuego, canon, vals, aliasA, extraHoras, colecciones, coleccionDeJuego, juegosDeColeccion, valsColeccion, sagas, juegosDeSaga, sagasDeJuego, contenidas };
 }
 
 /** Juego (principal) de una fila de biblioteca: lo de psn_igdb manda; colecciones y no-juegos, ninguno. */
@@ -288,7 +299,7 @@ export const juegosDeSaga = (sagaId) => indices.juegosDeSaga?.get(sagaId) ?? [];
 /** ¿Se ve? (no oculta, no fusionada con otra y con 2 juegos o más) */
 export const sagaVisible = (sg) => !!sg && !sg.oculta && !sg.fusionada_en && juegosDeSaga(sg.id).length >= 2;
 /** Sagas que se ven (las ocultas solo las ve el admin, en Gestionar grupo). */
-export const sagas = () => [...(indices.sagas?.values() ?? [])].filter(sagaVisible);
+export const sagas = () => [...(indices.sagas?.values() ?? [])].filter((x) => sagaVisible(x) && !indices.contenidas?.has(x.id));
 export const sagasOcultas = () => [...(indices.sagas?.values() ?? [])].filter((x) => x.oculta && !x.fusionada_en);
 /** Sagas (visibles) de un juego. */
 export const sagasDeJuego = (igdbId) => (indices.sagasDeJuego?.get(canonico(igdbId)) ?? []).map(saga).filter(Boolean);

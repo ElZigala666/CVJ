@@ -890,8 +890,11 @@ async function porAppidSteam(appids: string[]) {
 const SAGAS_POR_VUELTA = 30;
 const TIPOS_SAGA = [0, 4, 8]; // juego principal, expansión independiente, remake
 const REFRESCAR_SAGAS_MS = 7 * 86400000;
+// Fuera lo menor que IGDB mete en sus colecciones (tragaperras, móviles de Japón...):
+// solo lo ya publicado y con algo de relevancia, o lo que alguien del grupo tiene.
+const MIN_VALORACIONES_SAGA = 15;
 
-async function generarSagas() {
+async function generarSagas(todas = false) {
   // 1) Juegos que alguien tiene.
   const tenidos = new Set<number>();
   const leer = async (tabla: string, campo: string) => {
@@ -920,18 +923,22 @@ async function generarSagas() {
   const limite = Date.now() - REFRESCAR_SAGAS_MS;
   const nuevas = [...colecciones.keys()].filter((c) => !porColeccion.has(c));
   const viejas = [...colecciones.keys()].filter((c) => porColeccion.has(c) && new Date(porColeccion.get(c)!.actualizado_en).getTime() < limite);
-  const tanda = [...nuevas, ...viejas].slice(0, SAGAS_POR_VUELTA);
+  const viejasOTodas = todas ? [...colecciones.keys()].filter((c) => porColeccion.has(c)) : viejas;
+  const tanda = [...nuevas, ...viejasOTodas].slice(0, SAGAS_POR_VUELTA);
 
   let creadas = 0, juegosNuevos = 0;
   for (const cid of tanda) {
     let lista: JuegoIGDB[] = [];
     try {
-      lista = await igdb<JuegoIGDB[]>("games", `fields id,name,game_type,version_parent,first_release_date; where collections = (${cid}); limit 200;`);
+      lista = await igdb<JuegoIGDB[]>("games", `fields id,name,slug,game_type,version_parent,first_release_date,total_rating_count,cover.image_id,platforms.abbreviation; where collections = (${cid}); limit 200;`);
     } catch (e) {
       console.warn("Saga", cid, (e as Error).message);
       continue;
     }
-    const principales = lista.filter((j) => !j.version_parent && TIPOS_SAGA.includes(Number(idTipo(j) ?? 0)));
+    const hoy = Date.now() / 1000;
+    const principales = lista.filter((j) => !j.version_parent && TIPOS_SAGA.includes(Number(idTipo(j) ?? 0))
+      && j.first_release_date && j.first_release_date <= hoy
+      && (tenidos.has(j.id) || (j.total_rating_count ?? 0) >= MIN_VALORACIONES_SAGA));
     const ahora = new Date().toISOString();
     let saga = porColeccion.get(cid);
     const nombre = (colecciones.get(cid) || "").trim() || principales[0]?.name || `Saga ${cid}`;
@@ -946,18 +953,34 @@ async function generarSagas() {
       if (!saga.nombre_manual && nombre && nombre !== saga.nombre) cambios.nombre = nombre.slice(0, 80);
       await sb.from("sagas").update(cambios).eq("id", saga.id);
     }
-    if (principales.length < 2) continue; // con uno solo no es una saga (la fila queda para no repetir)
+    if (principales.length < 2) { // con uno solo no es una saga (la fila queda para no repetir)
+      if (!saga.fusionada_en) await sb.from("sagas_juegos").delete().eq("saga_id", saga.id).eq("manual", false).eq("excluido", false);
+      continue;
+    }
     // Los juegos que falten en la tabla (con su ficha), y la relación con la saga.
     const ids = principales.map((j) => j.id);
     const { data: ya } = await sb.from("juegos").select("igdb_id").in("igdb_id", ids);
     const hay = new Set((ya ?? []).map((x) => Number(x.igdb_id)));
-    const faltan = ids.filter((id) => !hay.has(id));
-    for (let i = 0; i < faltan.length; i += 100) await guardarVarios(faltan.slice(i, i + 100));
+    // Los que solo están por la saga, en versión ligera (sin resumen ni relaciones): su
+    // ficha completa se pide al abrirlos. Así la app no descarga cientos de fichas.
+    const faltan = principales.filter((j) => !hay.has(j.id)).map((j) => ({
+      igdb_id: j.id, nombre: j.name, slug: j.slug ?? null, cover_id: j.cover?.image_id ?? null,
+      anio: anio(j.first_release_date), plataformas: normalizarPlataformas(j.platforms), es_online: false, relaciones: {},
+      actualizado_en: ahora,
+    }));
+    if (faltan.length) {
+      const { error: e1 } = await sb.from("juegos").upsert(faltan, { onConflict: "igdb_id", ignoreDuplicates: true });
+      if (e1) console.warn("Juegos de saga:", e1.message);
+    }
     juegosNuevos += faltan.length;
     // Si el admin la fusionó con otra, sus juegos van a esa.
     const destino = saga.fusionada_en ?? saga.id;
     const { error } = await sb.from("sagas_juegos").upsert(ids.map((id) => ({ saga_id: destino, juego_id: id })), { onConflict: "saga_id,juego_id", ignoreDuplicates: true });
     if (error) console.warn("sagas_juegos:", error.message);
+    // Lo que IGDB ya no pone (o no pasa el filtro) sale, salvo lo que el admin añadió o quitó a mano.
+    if (!saga.fusionada_en) {
+      await sb.from("sagas_juegos").delete().eq("saga_id", saga.id).eq("manual", false).eq("excluido", false).not("juego_id", "in", `(${ids.join(",")})`);
+    }
   }
   return { ok: true, colecciones: colecciones.size, repasadas: tanda.length, creadas, juegos_nuevos: juegosNuevos, quedan: Math.max(0, nuevas.length + viejas.length - tanda.length) };
 }
@@ -1157,7 +1180,7 @@ Deno.serve(async (req) => {
       case "revisar_online":
         return json(await revisarJuegos());
       case "generar_sagas":
-        return json(await generarSagas());
+        return json(await generarSagas(cuerpo.todas === true));
       case "steam_appids":
         return json(await porAppidSteam(Array.isArray(cuerpo.appids) ? cuerpo.appids.map(String) : []));
       case "fusionar_versiones":

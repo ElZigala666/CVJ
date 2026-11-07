@@ -478,8 +478,11 @@ export function render(el, { params }) {
   const desuscribir = datos.suscribir(pintarTodo);
   pintarTodo();
 
-  // Si el juego no está en la tabla, pedir la ficha (la función también la guarda).
-  if (!datos.juego(id)) {
+  // Si el juego no está en la tabla, o solo está "ligero" (los de las sagas: sin resumen
+  // ni relaciones), pedir la ficha completa (la función también la guarda).
+  const enTabla = datos.juego(id);
+  const ligero = enTabla && !enTabla.resumen && !enTabla.desarrolladora && !Object.keys(enTabla.relaciones ?? {}).length;
+  if (!enTabla || ligero) {
     pidiendo = true;
     pintarInfo(datos.juegoConocido(id));
     fichaJuego(id, controlador.signal)

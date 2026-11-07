@@ -19,6 +19,9 @@ import * as rankings from './pantallas/rankings.js';
 import * as revisar from './pantallas/revisar.js';
 import * as coleccion from './pantallas/coleccion.js';
 import * as saga from './pantallas/saga.js';
+import * as escribir from './pantallas/escribir.js';
+import * as lectura from './pantallas/lectura.js';
+import * as columna from './pantallas/columna.js';
 import * as xbox from './xbox.js';
 import * as steam from './steam.js';
 import { anotarNavegacion, corregirRuta } from './navegacion.js';
@@ -39,6 +42,9 @@ const RUTAS = {
   revisar,           // #revisar: "Revisa tu biblioteca"
   coleccion,              // #coleccion/{id}: ficha de una colección
   saga,                   // #saga/{id}: página de una saga (Persona, Zelda...)
+  escribir,               // #escribir/{id} o #escribir/nueva[/juego|coleccion|saga/{id}]: editor de columna
+  entrada: lectura,       // #entrada/{id}: leer una entrada de columna
+  columna,                // #columna/{id}: página de una columna
 };
 const PESTANAS = [
   ['inicio', 'Inicio'],
@@ -48,7 +54,7 @@ const PESTANAS = [
   ['perfil', 'Perfil'],
 ];
 // Rutas que se ven a pantalla completa, sin la barra inferior (la ficha tiene la suya).
-const SIN_BARRA = new Set(['juego', 'revisar', 'coleccion', 'saga']);
+const SIN_BARRA = new Set(['juego', 'revisar', 'coleccion', 'saga', 'escribir', 'entrada', 'columna']);
 const REFRESCO_MS = 60_000;
 
 let limpiar = null;

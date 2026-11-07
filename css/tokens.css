@@ -55,6 +55,7 @@
   /* Tipografía */
   --fuente-titulos: "Space Grotesk", system-ui, sans-serif;
   --fuente-texto: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --fuente-lectura: Newsreader, "Iowan Old Style", Georgia, "Times New Roman", serif; /* columnas de opinión */
 
   /* Movimiento: 120-160 ms, solo opacidad y posición */
   --t-rapida: 120ms;

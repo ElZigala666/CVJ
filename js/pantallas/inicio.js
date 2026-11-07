@@ -6,6 +6,7 @@ import * as psn from '../psn.js';
 import * as xbox from '../xbox.js';
 import * as metricas from '../metricas.js';
 import { tarjetaSugerenciaColeccion, clicSugerenciaColeccion } from '../colecciones-ui.js';
+import { logoColumna, textoLectura } from '../columnas-ui.js';
 import { usuarioActual } from '../sesion.js';
 import { mediaGrupo, recomendacionGrupo, desviacionTipica } from '../notas.js';
 import {
@@ -95,6 +96,7 @@ function html() {
     ${avisoRevisar()}
     ${avisosPersonales()}
     ${bienvenida()}
+    ${nuevoEnColumna()}
     ${yo ? `<div class="inicio-sugerencias">${metricas.sugerenciasColeccion(yo.id).map(tarjetaSugerenciaColeccion).join('')}</div>` : ''}
     <div class="inicio">
       ${jugandoAhora()}
@@ -221,6 +223,25 @@ function avisoRevisar() {
       ${icono('jugando', { tam: 20, color: 'var(--acento)', trazo: 'var(--acento-suave)' })}
       <span>Revisa ${n} ${n === 1 ? 'juego nuevo' : 'juegos nuevos'} de tu biblioteca</span>
       ${icono('adelante', { tam: 16, color: 'var(--texto-2)' })}
+    </a>`;
+}
+
+/** "Nuevo en El Diario de Mateo": la última entrada que no he leído (de otro). Se va al leerla. */
+function nuevoEnColumna() {
+  const yo = usuarioActual();
+  if (!yo || !Array.isArray(datos.estado.columnas)) return '';
+  const e = datos.entradasPublicadas().find((x) => x.usuario_id !== yo.id && !datos.leida(yo.id, x.id)
+    && Date.now() - new Date(x.publicada_en).getTime() < 30 * 86400000);
+  if (!e) return '';
+  const c = datos.columna(e.columna_id);
+  return `
+    <a class="col-nuevo" href="#entrada/${esc(e.id)}" style="${c?.color ? `--col:${esc(c.color)}` : ''}">
+      ${logoColumna(c, 40)}
+      <span class="col-tarjeta-texto">
+        <small>Nuevo en ${esc(c?.nombre ?? '')}</small>
+        <strong>${esc(e.titulo || 'Sin título')}</strong>
+        <small>${esc(textoLectura(e.palabras))}</small>
+      </span>
     </a>`;
 }
 
@@ -362,15 +383,19 @@ function tarjetaDestacado(x, i) {
 // ---------------------------------------------------------------------------
 function actividad() {
   const ahora = new Date();
+  // Lo publicado en las columnas también sale aquí ("Mateo publicó en …").
+  const deColumnas = datos.entradasPublicadas().slice(0, MAX_ACTIVIDAD).map((e) => ({ columna: e, creado_en: e.publicada_en, u: datos.usuario(e.usuario_id) })).filter((x) => x.u);
   const filas = datos.estado.actividad
     .slice()
     .sort((a, b) => new Date(b.creado_en) - new Date(a.creado_en))
     .map((a) => ({ a, u: datos.usuario(a.usuario_id), j: datos.juegoConocido(a.juego_id) }))
     .filter((x) => x.u && x.j)
+    .concat(deColumnas)
+    .sort((a, b) => new Date(b.a?.creado_en ?? b.creado_en) - new Date(a.a?.creado_en ?? a.creado_en))
     .slice(0, MAX_ACTIVIDAD);
 
   const contenido = filas.length
-    ? filas.map(({ a, u, j }) => { const h = metricas.horasDe(u.id, j.igdb_id); return `
+    ? filas.map(({ a, u, j, columna: ce }) => { if (ce) return filaColumna(ce, u, ahora); const h = metricas.horasDe(u.id, j.igdb_id); return `
         <a class="actividad-fila" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}">
           ${avatarPerfil(u, 36)}
           <div class="actividad-texto">
@@ -393,4 +418,19 @@ function actividad() {
       <h2 class="seccion-titulo">Actividad reciente</h2>
       ${contenido}
     </section>`;
+}
+
+
+/** Actividad: "Mateo publicó en El Diario de Mateo: {título}". */
+function filaColumna(e, u, ahora) {
+  const c = datos.columna(e.columna_id);
+  return `
+    <a class="actividad-fila" href="#entrada/${esc(e.id)}">
+      ${avatarPerfil(u, 36)}
+      <div class="actividad-texto">
+        <span class="actividad-frase">${nombrePerfil(u, 'strong')} publicó en <strong>${esc(c?.nombre ?? '')}</strong>: ${esc(e.titulo || 'Sin título')}</span>
+        <span class="actividad-tiempo" data-fecha="${esc(e.publicada_en)}">${tiempoRelativo(e.publicada_en, ahora)} · ${esc(textoLectura(e.palabras))}</span>
+      </div>
+      ${logoColumna(c, 48)}
+    </a>`;
 }

@@ -8,7 +8,7 @@ const CLAVE = 'cvj.datos.v1';
 const LIMITE_ACTIVIDAD = 60;
 const VENTANA_ACTIVIDAD_MS = 10 * 60 * 1000; // agrupar cambios del mismo juego en 10 min
 
-const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sugRechazadas: [], servicios: [], cuentas: [], horasExtra: [], avisos: [], coleccionesG: [], coleccionesJuegos: [], valColecciones: [], sagas: [], sagasJuegos: [], cargadoEn: null });
+const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sugRechazadas: [], servicios: [], cuentas: [], horasExtra: [], avisos: [], coleccionesG: [], coleccionesJuegos: [], valColecciones: [], sagas: [], sagasJuegos: [], columnas: [], entradas: [], lecturas: [], cargadoEn: null });
 
 // Versión de los datos: sube cada vez que cambian (refresco, escritura o reversión).
 // metricas.js la usa para memoizar los cálculos.
@@ -40,7 +40,7 @@ function guardarCache() {
   } catch { /* sin espacio o modo privado */ }
 }
 
-const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sugRechazadas, s.servicios, s.cuentas, s.horasExtra, s.avisos, s.coleccionesG, s.coleccionesJuegos, s.valColecciones, s.sagas, s.sagasJuegos]);
+const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sugRechazadas, s.servicios, s.cuentas, s.horasExtra, s.avisos, s.coleccionesG, s.coleccionesJuegos, s.valColecciones, s.sagas, s.sagasJuegos, s.columnas, s.entradas, s.lecturas]);
 
 /** Pinta desde caché (síncrono) y lanza el refresco en segundo plano. */
 export function iniciar() {
@@ -61,7 +61,7 @@ export function refrescar() {
     const sb = await cliente();
     // Extras que pueden no existir aún (migraciones): si fallan, se sigue con lo de antes.
     const extra = (q, previo) => q.then((r) => (r.error ? { data: previo } : r), () => ({ data: previo }));
-    const [u, v, j, a, bib, emp, ali, rech, sag, serv, cue, hex, avi, sg, sgj, vsg, sa, saj] = await Promise.all([
+    const [u, v, j, a, bib, emp, ali, rech, sag, serv, cue, hex, avi, sg, sgj, vsg, sa, saj, col, ent, lec] = await Promise.all([
       leerUsuarios(sb),
       sb.from('valoraciones').select('*'),
       sb.from('juegos').select('*'),
@@ -81,6 +81,11 @@ export function refrescar() {
       extra(sb.from('valoraciones_coleccion').select('*'), estado.valColecciones),
       extra(sb.from('sagas').select('*'), estado.sagas),
       extra(sb.from('sagas_juegos').select('*'), estado.sagasJuegos),
+      extra(sb.from('columnas').select('*'), estado.columnas),
+      // Entradas de las columnas: sin el texto (puede ser larguísimo; se pide al leer).
+      // Las publicadas de todos y los borradores propios.
+      extra(sb.from('entradas').select(COLUMNAS_ENTRADA).or(`estado.eq.publicada,usuario_id.eq.${usuarioDeSesion() ?? '00000000-0000-0000-0000-000000000000'}`), estado.entradas),
+      extra(sb.from('lecturas').select('*').eq('usuario_id', usuarioDeSesion() ?? '00000000-0000-0000-0000-000000000000'), estado.lecturas),
     ]);
     const error = u.error || v.error || j.error || a.error;
     if (error) throw new Error(error.message);
@@ -89,7 +94,7 @@ export function refrescar() {
       usuarios: u.data, valoraciones: v.data, juegos: j.data, actividad: a.data, biblioteca: bib.data ?? [], psnIgdb: emp.data ?? [],
       alias: ali.data ?? [], rechazadas: rech.data ?? [], sugRechazadas: sag.data ?? [], servicios: serv.data ?? [], cuentas: cue.data ?? [], horasExtra: hex.data ?? [], avisos: avi.data ?? [],
       coleccionesG: sg.data ?? [], coleccionesJuegos: sgj.data ?? [], valColecciones: vsg.data ?? [],
-      sagas: sa.data ?? [], sagasJuegos: saj.data ?? [],
+      sagas: sa.data ?? [], sagasJuegos: saj.data ?? [], columnas: col.data ?? [], entradas: ent.data ?? [], lecturas: lec.data ?? [],
     };
     const cambia = firma(nuevo) !== firma(estado);
     Object.assign(estado, nuevo, { cargadoEn: new Date().toISOString() });
@@ -109,6 +114,11 @@ export function refrescar() {
 }
 
 const COLUMNAS_USUARIO = 'id, nombre, inicial, color, acento, creado_en';
+const COLUMNAS_ENTRADA = 'id, columna_id, usuario_id, juego_id, coleccion_id, saga_id, titulo, subtitulo, palabras, estado, publicada_en, creado_en, actualizado_en';
+/** Usuario con sesión (de localStorage, sin importar sesion.js para no crear un ciclo). */
+function usuarioDeSesion() {
+  try { return JSON.parse(localStorage.getItem('cvj.sesion') || 'null')?.usuario?.id ?? null; } catch { return null; }
+}
 /**
  * Usuarios con su foto y sus preferencias. Las cuentas de PSN, Xbox y Steam están en
  * cuentas_plataforma (los usuarios ya no guardan un resumen, migración 017).
@@ -368,6 +378,112 @@ export function fusionarSagas(destino, origen, onError) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Columnas de opinión ("El Diario de Mateo")
+// ---------------------------------------------------------------------------
+export const columnas = () => (estado.columnas ?? []).filter((c) => c.activa !== false);
+export const columna = (id) => (estado.columnas ?? []).find((c) => c.id === id) ?? null;
+/** La columna de un usuario (si es columnista). */
+export const columnaDe = (usuarioId) => (estado.columnas ?? []).find((c) => c.usuario_id === usuarioId && c.activa !== false) ?? null;
+export const entrada = (id) => (estado.entradas ?? []).find((e) => e.id === id) ?? null;
+const porFechaPub = (a, b) => (b.publicada_en ?? b.actualizado_en ?? '').localeCompare(a.publicada_en ?? a.actualizado_en ?? '');
+/** Entradas publicadas (de una columna, o de todas), de la más reciente a la más antigua. */
+export const entradasPublicadas = (columnaId = null) => (estado.entradas ?? [])
+  .filter((e) => e.estado === 'publicada' && (!columnaId || e.columna_id === columnaId) && columna(e.columna_id)?.activa !== false)
+  .sort(porFechaPub);
+/** Borradores de un usuario. */
+export const borradoresDe = (usuarioId) => (estado.entradas ?? []).filter((e) => e.estado === 'borrador' && e.usuario_id === usuarioId).sort(porFechaPub);
+/** Entradas publicadas sobre un juego (o su versión principal), una colección o una saga. */
+export function entradasSobre({ juego = null, coleccion = null, saga = null }) {
+  const c = juego != null ? canonico(juego) : null;
+  return entradasPublicadas().filter((e) => (c != null && e.juego_id != null && canonico(e.juego_id) === c)
+    || (coleccion && e.coleccion_id === coleccion) || (saga && e.saga_id === saga));
+}
+export const leida = (usuarioId, entradaId) => (estado.lecturas ?? []).some((l) => l.usuario_id === usuarioId && l.entrada_id === entradaId);
+
+/** El texto de una entrada (no se carga con lo demás). */
+export async function cuerpoDe(entradaId) {
+  const sb = await cliente();
+  const r = await sb.from('entradas').select('cuerpo').eq('id', entradaId).maybeSingle();
+  if (r.error) throw r.error;
+  return r.data?.cuerpo ?? '';
+}
+
+/** Admin: crear o cambiar la columna de alguien (nombre, logo, color, activa). */
+export function guardarColumna(fila, onError) {
+  const f = { ...fila, nombre: String(fila.nombre ?? '').trim().slice(0, 60) };
+  if (!f.id) f.id = crypto.randomUUID();
+  return escribirOptimista(
+    (s) => { s.columnas = [...(s.columnas ?? []).filter((c) => c.id !== f.id), { ...(columna(f.id) ?? {}), ...f }]; },
+    async (sb) => { comprobar(await sb.from('columnas').upsert(f, { onConflict: 'id' })); },
+    onError,
+    'No se ha podido guardar la columna. Se ha deshecho el cambio.',
+  ).then((ok) => (ok === false ? null : f.id));
+}
+
+/**
+ * Guarda una entrada (borrador o publicada) con su texto. Sin aviso optimista de
+ * error repetido: el editor guarda cada pocos segundos y avisa él si falla.
+ */
+export async function guardarEntrada(e) {
+  const ahora = new Date().toISOString();
+  const antes = entrada(e.id);
+  const meta = {
+    id: e.id, columna_id: e.columna_id, usuario_id: e.usuario_id,
+    juego_id: e.juego_id ?? null, coleccion_id: e.coleccion_id ?? null, saga_id: e.saga_id ?? null,
+    titulo: String(e.titulo ?? '').slice(0, 200), subtitulo: String(e.subtitulo ?? '').trim().slice(0, 300) || null,
+    palabras: e.palabras ?? 0, estado: e.estado ?? antes?.estado ?? 'borrador',
+    publicada_en: e.estado === 'publicada' ? (antes?.publicada_en ?? ahora) : (e.estado === 'borrador' ? null : antes?.publicada_en ?? null),
+    creado_en: antes?.creado_en ?? ahora, actualizado_en: ahora,
+  };
+  const sb = await cliente();
+  const r = await sb.from('entradas').upsert({ ...meta, cuerpo: String(e.cuerpo ?? '').slice(0, 100000) }, { onConflict: 'id' });
+  if (r.error) throw r.error;
+  estado.entradas = [...(estado.entradas ?? []).filter((x) => x.id !== meta.id), meta];
+  indices = construirIndices(estado);
+  guardarCache();
+  avisar();
+  return meta;
+}
+
+/** Borra una entrada (borrador o publicada). */
+export function borrarEntrada(id, onError) {
+  return escribirOptimista(
+    (s) => { s.entradas = (s.entradas ?? []).filter((x) => x.id !== id); },
+    async (sb) => { comprobar(await sb.from('entradas').delete().eq('id', id)); },
+    onError,
+    'No se ha podido borrar. Se ha deshecho el cambio.',
+  );
+}
+
+/** Despublicar: vuelve a borrador (deja de verse). */
+export function despublicarEntrada(id, onError) {
+  return escribirOptimista(
+    (s) => { s.entradas = (s.entradas ?? []).map((x) => (x.id === id ? { ...x, estado: 'borrador', publicada_en: null } : x)); },
+    async (sb) => { comprobar(await sb.from('entradas').update({ estado: 'borrador', publicada_en: null, actualizado_en: new Date().toISOString() }).eq('id', id)); },
+    onError,
+    'No se ha podido despublicar. Se ha deshecho el cambio.',
+  );
+}
+
+/** Marca una entrada como leída (quita el aviso "Nuevo en …" de Inicio). Sin avisos. */
+export function marcarLeida(usuarioId, entradaId) {
+  if (!usuarioId || leida(usuarioId, entradaId)) return;
+  const fila = { usuario_id: usuarioId, entrada_id: entradaId, leida_en: new Date().toISOString() };
+  escribirOptimista(
+    (s) => { s.lecturas = [...(s.lecturas ?? []), fila]; },
+    async (sb) => { comprobar(await sb.from('lecturas').upsert(fila, { onConflict: 'usuario_id,entrada_id', ignoreDuplicates: true })); },
+  );
+}
+
+/** Sube una imagen al Storage de las columnas. Devuelve su URL pública. */
+export async function subirImagenColumna(ruta, blob) {
+  const sb = await cliente();
+  const r = await sb.storage.from('columnas').upload(ruta, blob, { contentType: blob.type, cacheControl: '31536000', upsert: false });
+  if (r.error) throw r.error;
+  return sb.storage.from('columnas').getPublicUrl(ruta).data.publicUrl;
+}
+
 /** Plataformas de una valoración ("PS5", "PC"...): la lista nueva o, si es antigua, la única que tenía. */
 export const plataformasDe = (v) => (v?.plataformas?.length ? v.plataformas : v?.plataforma ? [v.plataforma] : []);
 
@@ -449,7 +565,7 @@ async function escribirOptimista(aplicar, guardar, onError, mensajeError = 'No s
     psnIgdb: estado.psnIgdb, biblioteca: estado.biblioteca, alias: estado.alias, rechazadas: estado.rechazadas, sugRechazadas: estado.sugRechazadas,
     horasExtra: estado.horasExtra, cuentas: estado.cuentas, avisos: estado.avisos,
     coleccionesG: estado.coleccionesG, coleccionesJuegos: estado.coleccionesJuegos, valColecciones: estado.valColecciones,
-    sagas: estado.sagas, sagasJuegos: estado.sagasJuegos,
+    sagas: estado.sagas, sagasJuegos: estado.sagasJuegos, columnas: estado.columnas, entradas: estado.entradas, lecturas: estado.lecturas,
   };
   escriturasEnCurso++;
   aplicar(estado);

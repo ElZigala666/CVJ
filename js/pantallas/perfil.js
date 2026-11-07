@@ -18,6 +18,7 @@ import { textoHoras } from '../metricas.js';
 import { volver, rutaPerfil } from '../navegacion.js';
 import { abrirAjustes } from '../ajustes.js';
 import { abrirMenuJuego, abrirMenuColeccion } from '../menu-juego.js';
+import { logoColumna } from '../columnas-ui.js';
 
 const PESTANAS = [
   { id: 'jugando', nombre: 'Jugando' },
@@ -162,6 +163,12 @@ function renderPerfil(el, id, alSalir) {
             <span class="enlace-fila-texto">${esMio ? 'Mi tier list' : `Tier list de ${esc(u.nombre)}`}</span>
             ${icono('adelante', { tam: 18, color: 'var(--texto-2)' })}
           </a>
+          ${datos.columnaDe(id) ? `
+          <a class="enlace-fila enlace-columna" href="#columna/${esc(datos.columnaDe(id).id)}">
+            ${logoColumna(datos.columnaDe(id), 28)}
+            <span class="enlace-fila-texto">${esc(datos.columnaDe(id).nombre)}<small>${datos.entradasPublicadas(datos.columnaDe(id).id).length} entradas${esMio ? ' · escribir' : ''}</small></span>
+            ${icono('adelante', { tam: 18, color: 'var(--texto-2)' })}
+          </a>` : ''}
           <a class="enlace-fila" href="#estadisticas/${esc(id)}">
             ${icono('rankings', { tam: 22, color: 'var(--acento)' })}
             <span class="enlace-fila-texto">Estadísticas</span>

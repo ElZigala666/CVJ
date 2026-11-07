@@ -11,6 +11,7 @@ import { usuarioActual } from './sesion.js';
 import { PALETA } from './acento.js';
 import { codigoAleatorio, hashCodigo } from './codigo.js';
 import { botonFoto } from './foto-perfil.js';
+import { logoColumna, logoCuadrado } from './columnas-ui.js';
 
 const URL_ADMIN = `${SUPABASE_BASE}/functions/v1/admin`;
 const FECHA = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -146,6 +147,9 @@ export function montarGrupo(cont) {
                     <button type="button" class="boton-secundario boton-pequeno" data-codigo="${esc(u.id)}">Generar código nuevo</button>
                     <button type="button" class="boton-secundario neutro boton-pequeno" data-editar="${esc(u.id)}">Editar nombre y color</button>
                     ${'foto_url' in u ? botonFoto(u) : ''}
+                    ${Array.isArray(datos.estado.columnas) ? (datos.columnaDe(u.id)
+                      ? `<button type="button" class="boton-secundario neutro boton-pequeno con-icono" data-columna="${esc(u.id)}">${logoColumna(datos.columnaDe(u.id), 20)}<span>Columna: ${esc(datos.columnaDe(u.id).nombre)}</span></button>`
+                      : `<button type="button" class="boton-secundario neutro boton-pequeno" data-columna="${esc(u.id)}">Hacer columnista</button>`) : ''}
                     ${u.id === yo.id ? '' : vista.confirmar === u.id ? `
                       <div class="psn-confirmar" role="group" aria-label="Confirmar">
                         <p>${inactivo ? `¿Reactivar a ${esc(u.nombre)}? Podrá volver a entrar con su código.` : `¿Desactivar a ${esc(u.nombre)}? No podrá entrar ni saldrá en las listas, pero sus valoraciones siguen contando. Se puede reactivar.`}</p>
@@ -174,6 +178,8 @@ export function montarGrupo(cont) {
 
   cont.addEventListener('click', async (e) => {
     const t = e.target;
+    const colu = t.closest('[data-columna]');
+    if (colu) { hojaColumna(datos.usuario(colu.dataset.columna)); return; }
     const ms = t.closest('[data-mostrar-saga]');
     if (ms) { datos.editarSaga(ms.dataset.mostrarSaga, { oculta: false }, aviso); aviso('La saga vuelve a verse'); return; }
     const abrir = t.closest('[data-abrir]');
@@ -238,4 +244,90 @@ export function montarGrupo(cont) {
   const desuscribir = datos.suscribir(pintar);
   pintar();
   return desuscribir;
+}
+
+/**
+ * Columna de opinión de alguien (solo admin): nombre ("El Diario de {nombre}" por
+ * defecto), logo (subido, recortado a cuadrado; sin él, monograma con las iniciales)
+ * y color propio opcional. "Quitar columna" la desactiva (sus entradas no se borran).
+ */
+function hojaColumna(u) {
+  if (!u) return;
+  const actual = (datos.estado.columnas ?? []).find((c) => c.usuario_id === u.id) ?? null;
+  const c = { id: actual?.id ?? null, usuario_id: u.id, nombre: actual?.nombre ?? `El Diario de ${u.nombre}`, logo_url: actual?.logo_url ?? null, color: actual?.color ?? null, activa: true };
+  let logoNuevo = null; // blob recortado, pendiente de subir
+  abrirHoja({
+    titulo: actual?.activa !== false && actual ? 'Columna de opinión' : `${u.nombre}, columnista`,
+    html: `
+      <div class="elegir-juegos columna-ajustes">
+        <div class="columna-vista" data-ref="vista"></div>
+        <label class="campo-titulo" for="col-nombre">Nombre de la columna</label>
+        <input id="col-nombre" class="psn-input" maxlength="60" value="${esc(c.nombre)}" autocomplete="off">
+        <span class="campo-titulo">Logo</span>
+        <div class="columna-logo-fila">
+          <label class="boton-secundario boton-pequeno">Subir imagen<input type="file" accept="image/*" data-ref="archivo" hidden></label>
+          <button type="button" class="enlace-discreto" data-ref="sin-logo">Usar las iniciales</button>
+        </div>
+        <span class="campo-titulo">Color <span class="campo-opcional">(opcional)</span></span>
+        <div class="paleta" data-ref="paleta">
+          <button type="button" class="muestra-libre" data-color="">Ninguno</button>
+          ${PALETA.map((p) => `<button type="button" class="muestra" style="--muestra:${p.hex}" data-color="${p.hex}" aria-label="${esc(p.nombre)}"></button>`).join('')}
+        </div>
+        <p class="psn-mensaje error" data-ref="error" hidden></p>
+        <button type="button" class="boton-principal" data-ref="guardar">${actual && actual.activa !== false ? 'Guardar' : 'Crear columna'}</button>
+        ${actual && actual.activa !== false ? '<button type="button" class="enlace-discreto peligro-texto" data-ref="quitar">Quitar la columna (sus textos no se borran)</button>' : ''}
+      </div>`,
+    alMontar(cuerpo, cerrar) {
+      const $ = (r) => cuerpo.querySelector(`[data-ref="${r}"]`);
+      let previa = null;
+      const pintar = () => {
+        const vista = { ...c, nombre: $('nombre')?.value ?? cuerpo.querySelector('#col-nombre').value, logo_url: previa ?? c.logo_url };
+        $('vista').innerHTML = `${logoColumna(vista, 72)}<strong class="columna-vista-nombre">${esc(vista.nombre || '…')}</strong>`;
+        for (const b of cuerpo.querySelectorAll('[data-color]')) b.classList.toggle('activa', (b.dataset.color || null) === c.color);
+      };
+      cuerpo.querySelector('#col-nombre').addEventListener('input', pintar);
+      $('archivo').addEventListener('change', async (e) => {
+        const f = e.target.files?.[0];
+        if (!f) return;
+        try {
+          logoNuevo = await logoCuadrado(f, 512);
+          if (previa) URL.revokeObjectURL(previa);
+          previa = URL.createObjectURL(logoNuevo);
+          pintar();
+        } catch { aviso('No se ha podido leer la imagen'); }
+      });
+      $('sin-logo').addEventListener('click', () => { logoNuevo = null; previa = null; c.logo_url = null; pintar(); });
+      $('paleta').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-color]');
+        if (!b) return;
+        c.color = b.dataset.color || null;
+        pintar();
+      });
+      $('guardar').addEventListener('click', async () => {
+        const nombre = cuerpo.querySelector('#col-nombre').value.trim();
+        const err = $('error');
+        if (!nombre) { err.textContent = 'Escribe un nombre.'; err.hidden = false; return; }
+        $('guardar').disabled = true;
+        try {
+          if (logoNuevo) {
+            const ext = logoNuevo.type === 'image/webp' ? 'webp' : 'png';
+            c.logo_url = await datos.subirImagenColumna(`logos/${u.id}-${Date.now()}.${ext}`, logoNuevo);
+          }
+          const id = await datos.guardarColumna({ ...c, nombre, activa: true, ...(c.id ? {} : { creado_en: new Date().toISOString() }) }, aviso);
+          if (id) { aviso(actual ? 'Columna guardada' : `${u.nombre} ya es columnista`); cerrar(); }
+        } catch (e2) {
+          err.textContent = 'No se ha podido subir el logo. Prueba otra vez.';
+          err.hidden = false;
+          console.warn('[columna]', e2?.message || e2);
+        }
+        $('guardar').disabled = false;
+      });
+      $('quitar')?.addEventListener('click', async () => {
+        await datos.guardarColumna({ ...actual, activa: false }, aviso);
+        aviso('Columna quitada');
+        cerrar();
+      });
+      pintar();
+    },
+  });
 }

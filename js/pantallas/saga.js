@@ -13,6 +13,7 @@ import { formatearNota } from '../notas.js';
 import { abrirHoja } from '../hoja.js';
 import { colorDominante, hexAHsl } from '../color-dominante.js';
 import { elegirJuegos } from '../colecciones-ui.js';
+import { bloqueColumnas } from '../columnas-ui.js';
 
 export function render(el, { params }) {
   const id = params[0];
@@ -75,6 +76,8 @@ export function render(el, { params }) {
               <span class="saga-dato-sub">${r.masJugador.n} de ${r.juegos.length} juegos</span>
             </div>` : ''}
         </section>
+
+        <div class="saga-bloque">${bloqueColumnas({ saga: id })}</div>
 
         ${r.ranking.length >= 2 ? `
           <section class="saga-bloque">

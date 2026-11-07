@@ -1635,3 +1635,136 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 .saga-juego-texto small { font-size: 12px; color: var(--texto-2); }
 .saga-juego-mio { color: var(--acento-texto) !important; font-weight: 600; }
 .saga-admin { gap: 10px; }
+
+/* ===========================================================================
+   Columnas de opinión ("El Diario de Mateo")
+   =========================================================================== */
+.col-logo {
+  width: var(--tam); height: var(--tam); flex: none; border-radius: calc(var(--tam) * .22); overflow: hidden;
+  display: inline-grid; place-items: center; background: var(--superficie);
+}
+.col-logo img { width: 100%; height: 100%; object-fit: cover; }
+.col-logo-letras { background: var(--col, var(--acento)); color: #FFFFFF; box-shadow: inset 0 0 0 calc(var(--tam) * .05) rgba(255, 255, 255, .25); }
+.col-logo-letras span { font: 800 calc(var(--tam) * .42)/1 var(--fuente-lectura); letter-spacing: -.02em; font-style: italic; }
+
+/* Tarjeta compacta (ficha del juego, Inicio) */
+.ficha-columnas { display: grid; gap: 10px; margin: 16px 0 0; padding: 0 20px; }
+.saga-bloque .ficha-columnas { padding: 0; margin: 0; }
+.col-tarjeta, .col-nuevo {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px;
+  background: var(--superficie); color: var(--texto); text-decoration: none;
+  border-left: 4px solid var(--col, var(--acento));
+}
+.col-tarjeta-texto { display: grid; gap: 2px; min-width: 0; }
+.col-tarjeta-texto strong { font: 700 17px/1.25 var(--fuente-lectura); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.col-tarjeta-texto small { font-size: 12px; color: var(--texto-2); }
+.col-nuevo { margin: 0 16px 12px; }
+.col-escribir { display: inline-flex; align-items: center; gap: 8px; justify-self: start; }
+.enlace-columna .enlace-fila-texto { display: grid; }
+.enlace-columna .enlace-fila-texto small { font-size: 12px; color: var(--texto-2); font-weight: 400; }
+
+/* Lectura */
+.lectura { min-height: 100vh; background: var(--fondo); padding-bottom: 60px; }
+.lectura-progreso { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 30; pointer-events: none; }
+.lectura-progreso span { display: block; height: 100%; background: var(--col, var(--acento)); transform: scaleX(0); transform-origin: left; }
+.lectura-barra {
+  position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px; background: color-mix(in srgb, var(--fondo) 92%, transparent);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border-bottom: 1px solid var(--borde);
+}
+.lectura-cabecera-col { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--texto); text-decoration: none; font: 700 15px var(--fuente-lectura); }
+.lectura-cabecera-col span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lectura-articulo { max-width: 680px; margin: 0 auto; padding: 28px 22px 0; }
+.lectura-borrador { margin: 0 0 14px; font-size: 13px; font-weight: 700; color: var(--peligro); }
+.lectura-tema { display: inline-flex; align-items: center; gap: 10px; color: var(--texto-2); text-decoration: none; font-size: 14px; margin-bottom: 18px; }
+.portada-lectura { width: 40px; border-radius: 6px; }
+.lectura-titulo { margin: 0 0 10px; font: 800 clamp(30px, 8vw, 42px)/1.08 var(--fuente-lectura); letter-spacing: -.015em; color: var(--texto); }
+.lectura-subtitulo { margin: 0 0 18px; font: italic 400 21px/1.4 var(--fuente-lectura); color: var(--texto-2); }
+.lectura-firma { display: flex; align-items: center; gap: 10px; padding: 14px 0 22px; border-bottom: 1px solid var(--borde); margin-bottom: 26px; }
+.lectura-firma div { display: grid; gap: 2px; }
+.lectura-firma span { font-size: 13px; color: var(--texto-2); }
+.lectura-cuerpo { font: 400 20px/1.7 var(--fuente-lectura); color: var(--texto); overflow-wrap: anywhere; }
+.lectura-cuerpo p { margin: 0 0 1.1em; }
+.lectura-cuerpo > p:first-of-type::first-letter {
+  float: left; font: 800 3.4em/.82 var(--fuente-lectura); margin: .06em .1em 0 0; color: var(--col, var(--acento-texto));
+}
+.lectura-cuerpo h2 { margin: 1.6em 0 .5em; font: 800 26px/1.2 var(--fuente-lectura); }
+.lectura-cuerpo h3 { margin: 1.4em 0 .4em; font: 700 21px/1.25 var(--fuente-lectura); }
+.lectura-cuerpo blockquote { margin: 1.4em 0; padding: .2em 0 .2em 1em; border-left: 3px solid var(--col, var(--acento)); font-style: italic; font-size: 1.12em; }
+.lectura-cuerpo blockquote p { margin: 0 0 .5em; }
+.lectura-cuerpo ul, .lectura-cuerpo ol { margin: 0 0 1.1em; padding-left: 1.3em; }
+.lectura-cuerpo li { margin-bottom: .35em; }
+.lectura-cuerpo figure { margin: 1.6em -22px; }
+.lectura-cuerpo img { display: block; max-width: 100%; height: auto; border-radius: 4px; margin: 0 auto; }
+.lectura-cuerpo figcaption { padding: 8px 22px 0; font: italic 15px/1.4 var(--fuente-lectura); color: var(--texto-2); text-align: center; }
+.lectura-cuerpo hr { border: 0; text-align: center; margin: 2em 0; }
+.lectura-cuerpo hr::after { content: "· · ·"; letter-spacing: .6em; color: var(--texto-2); }
+.lectura-cuerpo a { color: var(--col, var(--acento-texto)); }
+.lectura-fin { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 34px; padding-top: 22px; border-top: 1px solid var(--borde); }
+.lectura-fin div { display: grid; flex: 1; min-width: 140px; }
+.lectura-fin strong { font: 800 18px var(--fuente-lectura); }
+.lectura-fin span { font-size: 13px; color: var(--texto-2); }
+
+/* Página de la columna */
+.columna { min-height: 100vh; padding-bottom: 50px; }
+.columna-portada {
+  position: relative; display: grid; justify-items: center; gap: 10px; text-align: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 56px) 22px 26px; border-bottom: 3px double var(--texto); margin: 0 16px;
+}
+.columna-volver { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 12px); left: 0; }
+.columna-nombre { margin: 6px 0 0; font: 800 clamp(30px, 9vw, 46px)/1.02 var(--fuente-lectura); letter-spacing: -.02em; }
+.columna-autor { margin: 0; font: italic 16px var(--fuente-lectura); color: var(--texto-2); }
+.columna-autor a { color: inherit; }
+.columna-seccion { display: grid; gap: 12px; padding: 20px 16px 0; }
+.columna-seccion-titulo { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--texto-2); }
+.columna-lista .col-entrada { border-top: 1px solid var(--borde); padding: 14px 0; }
+.col-entrada { display: flex; gap: 14px; align-items: center; color: var(--texto); text-decoration: none; }
+.col-entrada-texto { display: grid; gap: 4px; min-width: 0; }
+.col-entrada-texto strong { font: 700 19px/1.25 var(--fuente-lectura); }
+.col-entrada-texto small { font-size: 12px; color: var(--texto-2); }
+.col-entrada-tema { text-transform: uppercase; letter-spacing: .08em; font-weight: 700; color: var(--col, var(--acento-texto)) !important; }
+.col-entrada.destacada { flex-direction: column; align-items: stretch; gap: 12px; padding-bottom: 18px; }
+.col-entrada.destacada strong { font: 800 30px/1.1 var(--fuente-lectura); }
+.col-entrada-sub { font: italic 17px/1.4 var(--fuente-lectura); color: var(--texto-2); }
+.portada-col-grande { width: 100%; max-width: 220px; border-radius: 10px; }
+.col-borrador { display: grid; gap: 2px; padding: 12px 14px; border-radius: 12px; border: 1px dashed var(--borde); color: var(--texto); text-decoration: none; }
+.col-borrador strong { font: 700 17px var(--fuente-lectura); }
+.col-borrador small { font-size: 12px; color: var(--texto-2); }
+.columna-vacia { margin: 30px 22px; text-align: center; font: italic 18px var(--fuente-lectura); color: var(--texto-2); }
+
+/* Editor */
+.editor { min-height: 100vh; padding-bottom: 120px; max-width: 720px; margin: 0 auto; }
+.editor-barra {
+  position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 14px 10px; background: var(--fondo); border-bottom: 1px solid var(--borde);
+}
+.editor-estado { flex: 1; font-size: 12px; color: var(--texto-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor-columna { display: flex; align-items: center; gap: 8px; padding: 16px 20px 0; font: 700 14px var(--fuente-lectura); color: var(--texto-2); }
+.editor-tema { display: flex; align-items: center; gap: 8px; padding: 8px 20px 0; font-size: 13px; color: var(--texto-2); }
+.portada-mini { width: 22px; border-radius: 4px; }
+.editor textarea {
+  display: block; width: 100%; border: 0; outline: none; resize: none; background: none; color: var(--texto);
+  padding: 0 20px; overflow: hidden; -webkit-user-select: text; user-select: text;
+}
+.editor-titulo { margin-top: 18px; font: 800 32px/1.12 var(--fuente-lectura); }
+.editor-subtitulo { margin-top: 8px; font: italic 20px/1.4 var(--fuente-lectura); }
+.editor-cuerpo { margin-top: 18px; min-height: 50vh; font: 400 19px/1.7 var(--fuente-lectura); }
+.editor textarea::placeholder { color: var(--texto-2); opacity: .55; }
+.editor-previa { padding: 18px 20px 0; }
+.editor-cuenta { margin: 10px 20px 0; font-size: 12px; color: var(--texto-2); }
+.editor-mas { display: grid; gap: 10px; justify-items: start; padding: 24px 20px 0; }
+.editor-formato {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; justify-content: center; gap: 4px;
+  padding: 8px 10px calc(env(safe-area-inset-bottom, 0px) + 8px); background: var(--superficie); border-top: 1px solid var(--borde);
+}
+.editor-formato[hidden] { display: none; }
+.editor-formato button, .editor-formato label {
+  min-width: 44px; height: 40px; padding: 0 8px; border: 0; border-radius: 10px; background: none; color: var(--texto);
+  display: grid; place-items: center; font: 700 16px var(--fuente-lectura); cursor: pointer;
+}
+.editor-formato button:active, .editor-formato label:active { background: var(--fondo); }
+
+/* Ajustes: columnista */
+.columna-vista { display: flex; align-items: center; gap: 14px; padding: 6px 0 4px; }
+.columna-vista-nombre { font: 800 22px/1.15 var(--fuente-lectura); }
+.columna-logo-fila { display: flex; align-items: center; gap: 14px; }

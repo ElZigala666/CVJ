@@ -16,6 +16,7 @@ import { colorDominante, hexAHsl } from '../color-dominante.js';
 import { tarjetaFusion, clicFusion } from '../fusiones.js';
 import { activarDeslizar } from '../galeria.js';
 import { anadirAColeccionUI } from '../colecciones-ui.js';
+import { bloqueColumnas } from '../columnas-ui.js';
 
 export function render(el, { params }) {
   const id = Number(params[0]);
@@ -311,6 +312,7 @@ export function render(el, { params }) {
           ${soloBiblioteca.map(([uid, b]) => filaBiblioteca(uid, b)).join('')}
           ${corregirEmparejamiento()}
         </section>` : ''}
+      ${bloqueColumnas({ juego: id })}
       ${bloqueVersiones()}
       ${bloqueSagas()}`;
   }

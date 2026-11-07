@@ -18,6 +18,7 @@ import { abrirValorar } from '../hoja-valorar.js';
 import { abrirHoja } from '../hoja.js';
 import { colorDominante, hexAHsl } from '../color-dominante.js';
 import { anadirJuegosUI } from '../menu-juego.js';
+import { bloqueColumnas } from '../columnas-ui.js';
 
 const ESTADO_COLECCION = { jugando: 'La sigue', abandonado: 'La dejó', pendiente: 'Pendiente' };
 
@@ -216,6 +217,7 @@ export function render(el, { params }) {
           ${filas.map((v) => filaGrupo(v.usuario_id, v)).join('')}
           ${resto.map((u) => filaGrupo(u.id, null)).join('')}
         </section>` : ''}
+      ${bloqueColumnas({ coleccion: sg.id })}
       ${bloqueIncluye(sg)}`;
   }
 

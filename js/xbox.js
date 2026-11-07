@@ -1,7 +1,7 @@
-// Xbox (OpenXBL): conectar con la cuenta de Microsoft, sincronizar y desconectar.
-// Igual que PlayStation, es un extra: si falla, la app sigue igual.
-// Límite gratuito de OpenXBL (~150 peticiones/hora): sincronización automática como
-// mucho cada 12 h y "Sincronizar ahora" con 10 minutos de espera entre usos.
+// Xbox (OpenXBL): vincular por gamertag (con la clave de API del grupo), sincronizar y
+// desvincular. Igual que PlayStation, es un extra: si falla, la app sigue igual.
+// Límite gratuito de OpenXBL (~150 peticiones/hora PARA TODO EL GRUPO): sincronización
+// automática como mucho cada 12 h y "Sincronizar ahora" con 10 minutos de espera.
 import { SUPABASE_BASE, SUPABASE_KEY } from './config.js';
 import * as datos from './datos.js';
 import { usuarioActual } from './sesion.js';
@@ -10,14 +10,15 @@ const URL_XBOX = `${SUPABASE_BASE}/functions/v1/xbox`;
 const AUTO_CADA_MS = 12 * 60 * 60 * 1000;
 export const ESPERA_MS = 10 * 60 * 1000;
 const CLAVE_INTENTO = 'cvj.xbox.intento';
-const CLAVE_CODIGO = 'cvj.xbox.codigo';
 
 const MENSAJES = {
-  codigo_no_valido: 'Xbox no ha aceptado el inicio de sesión. Vuelve a pulsar «Conectar Xbox».',
-  reconectar: 'Tu conexión con Xbox ha caducado. Vuelve a conectarla.',
-  sin_conectar: 'Primero conecta tu cuenta de Xbox.',
+  no_existe: 'No hay ningún jugador de Xbox con ese gamertag. Revisa que esté bien escrito.',
+  gamertag_no_valido: 'Ese gamertag no parece válido. Escríbelo tal cual sale en tu perfil de Xbox.',
+  privado: 'No se ve tu historial de juegos de Xbox: es privado. Mira cómo hacerlo visible aquí debajo.',
+  clave_api: 'La conexión del grupo con Xbox no funciona ahora mismo. Ya le sale el aviso al admin.',
+  sin_vincular: 'Primero vincula tu gamertag de Xbox.',
   sin_funcion: 'La conexión con Xbox aún no está activada.',
-  falta_clave: 'La conexión con Xbox aún no está configurada (falta la clave de la app de OpenXBL).',
+  falta_clave: 'La conexión con Xbox aún no está configurada.',
   limite: 'Xbox ha llegado a su límite de peticiones por hora. Prueba más tarde.',
   red: 'Sin conexión. Prueba otra vez en un momento.',
   xbox_error: 'Xbox no ha respondido bien. Prueba más tarde.',
@@ -43,33 +44,6 @@ export async function llamarXbox(accion, extra = {}) {
   }
 }
 
-/** "Conectar Xbox": pide la URL de inicio de sesión y va a ella (vuelve por xbox.html). */
-export async function irAIniciarSesion() {
-  const r = await llamarXbox('login');
-  if (!r.ok || !r.url) return r;
-  location.href = r.url;
-  return { ok: true };
-}
-
-/** Código que dejó xbox.html al volver del inicio de sesión (y se borra). */
-export function tomarCodigo() {
-  try {
-    const c = localStorage.getItem(CLAVE_CODIGO);
-    localStorage.removeItem(CLAVE_CODIGO);
-    return c;
-  } catch { return null; }
-}
-
-/** Por si la URL de vuelta se configuró a la raíz de la web: ?code=... en la propia app. */
-export function codigoEnLaUrl() {
-  const q = new URLSearchParams(location.search);
-  const code = q.get('code');
-  if (!code) return false;
-  try { localStorage.setItem(CLAVE_CODIGO, code); } catch { /* nada */ }
-  history.replaceState(history.state, '', location.pathname + '#conectar-xbox');
-  return true;
-}
-
 let ultimaRespuesta = null;
 /** Respuesta de la última sincronización (para refrescar luego si queda emparejado pendiente). */
 function refrescarLuego(r) {
@@ -78,15 +52,16 @@ function refrescarLuego(r) {
   for (const ms of [15_000, 45_000, 100_000, 150_000]) setTimeout(() => datos.refrescar(), ms);
 }
 
-export async function conectar(usuarioId, code) {
+/** Vincula un gamertag (y la función hace la primera sincronización). */
+export async function vincular(usuarioId, gamertag) {
   try { localStorage.setItem(CLAVE_INTENTO, String(Date.now())); } catch { /* nada */ }
-  const r = await llamarXbox('conectar', { usuario_id: usuarioId, code });
+  const r = await llamarXbox('vincular', { usuario_id: usuarioId, gamertag });
   if (r.ok) { await datos.refrescar(); refrescarLuego(r.sincronizacion); }
   return r;
 }
 
-export async function desconectar(usuarioId) {
-  const r = await llamarXbox('desconectar', { usuario_id: usuarioId });
+export async function desvincular(usuarioId) {
+  const r = await llamarXbox('desvincular', { usuario_id: usuarioId });
   if (r.ok) await datos.refrescar();
   return r;
 }
@@ -97,7 +72,7 @@ export function sincronizar(usuarioId) {
   try { localStorage.setItem(CLAVE_INTENTO, String(Date.now())); } catch { /* nada */ }
   sincronizando = llamarXbox('sincronizar', { usuario_id: usuarioId })
     .then(async (r) => {
-      if (r.ok || r.codigo === 'reconectar') await datos.refrescar();
+      if (r.ok) await datos.refrescar();
       if (r.ok) refrescarLuego(r);
       return r;
     })
@@ -111,11 +86,12 @@ export function esperaRestante(u) {
   return Math.max(0, ultima + ESPERA_MS - Date.now());
 }
 
-/** ¿Mi conexión con Xbox ha caducado? (aviso de Inicio) */
-export function hayQueReconectar() {
+/** Solo para el admin: ¿la clave de OpenXBL del grupo ha dejado de funcionar? */
+export function claveConProblemas() {
   const yo = usuarioActual();
-  const u = yo && datos.usuario(yo.id);
-  return !!(u?.xbox_reconectar && u.xbox_xuid);
+  if (!datos.usuario(yo?.id)?.es_admin) return null;
+  const e = (datos.estado.servicios ?? []).find((x) => x.id === 'openxbl');
+  return e && e.ok === false ? e : null;
 }
 
 let autoHecha = false;
@@ -126,7 +102,7 @@ export function revisarAutomatico() {
   const u = yo && datos.usuario(yo.id);
   if (!u || !('xbox_xuid' in u)) return;
   autoHecha = true;
-  if (!u.xbox_xuid || u.xbox_reconectar) return;
+  if (!u.xbox_xuid) return;
   const ultima = u.xbox_sincronizado_en ? new Date(u.xbox_sincronizado_en).getTime() : 0;
   let intento = 0;
   try { intento = Number(localStorage.getItem(CLAVE_INTENTO) || 0); } catch { /* nada */ }

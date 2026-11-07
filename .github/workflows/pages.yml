@@ -27,7 +27,7 @@ jobs:
       - name: Preparar la carpeta de la web
         run: |
           mkdir _site
-          cp -r index.html xbox.html manifest.webmanifest sw.js css js img herramientas _site/
+          cp -r index.html manifest.webmanifest sw.js css js img herramientas _site/
           touch _site/.nojekyll
 
       # Versión = hash corto del commit, en sw.js (nombre de su caché) y en js/version.js.

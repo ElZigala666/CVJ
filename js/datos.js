@@ -8,7 +8,7 @@ const CLAVE = 'cvj.datos.v1';
 const LIMITE_ACTIVIDAD = 60;
 const VENTANA_ACTIVIDAD_MS = 10 * 60 * 1000; // agrupar cambios del mismo juego en 10 min
 
-const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sagas: [], cargadoEn: null });
+const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sagas: [], servicios: [], cargadoEn: null });
 
 // Versión de los datos: sube cada vez que cambian (refresco, escritura o reversión).
 // metricas.js la usa para memoizar los cálculos.
@@ -40,7 +40,7 @@ function guardarCache() {
   } catch { /* sin espacio o modo privado */ }
 }
 
-const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sagas]);
+const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sagas, s.servicios]);
 
 /** Pinta desde caché (síncrono) y lanza el refresco en segundo plano. */
 export function iniciar() {
@@ -61,7 +61,7 @@ export function refrescar() {
     const sb = await cliente();
     // Extras que pueden no existir aún (migraciones): si fallan, se sigue con lo de antes.
     const extra = (q, previo) => q.then((r) => (r.error ? { data: previo } : r), () => ({ data: previo }));
-    const [u, v, j, a, bib, emp, ali, rech, sag] = await Promise.all([
+    const [u, v, j, a, bib, emp, ali, rech, sag, serv] = await Promise.all([
       leerUsuarios(sb),
       sb.from('valoraciones').select('*'),
       sb.from('juegos').select('*'),
@@ -72,13 +72,14 @@ export function refrescar() {
       extra(sb.from('juegos_alias').select('*'), estado.alias),
       extra(sb.from('fusiones_rechazadas').select('*'), estado.rechazadas),
       extra(sb.from('sagas_usuario').select('*'), estado.sagas),
+      extra(sb.from('estado_servicios').select('*'), estado.servicios),
     ]);
     const error = u.error || v.error || j.error || a.error;
     if (error) throw new Error(error.message);
     if (escriturasEnCurso) { refrescoAplazado = true; return; }
     const nuevo = {
       usuarios: u.data, valoraciones: v.data, juegos: j.data, actividad: a.data, biblioteca: bib.data ?? [], psnIgdb: emp.data ?? [],
-      alias: ali.data ?? [], rechazadas: rech.data ?? [], sagas: sag.data ?? [],
+      alias: ali.data ?? [], rechazadas: rech.data ?? [], sagas: sag.data ?? [], servicios: serv.data ?? [],
     };
     const cambia = firma(nuevo) !== firma(estado);
     Object.assign(estado, nuevo, { cargadoEn: new Date().toISOString() });

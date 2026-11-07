@@ -212,12 +212,13 @@ function avisoRevisar() {
     </a>`;
 }
 
+/** Solo para el admin: la clave de OpenXBL del grupo ha dejado de funcionar. */
 function avisoXbox() {
-  if (!xbox.hayQueReconectar()) return '';
+  if (!xbox.claveConProblemas()) return '';
   return `
     <button type="button" class="aviso-psn" data-accion="reconectar-psn">
       ${icono('jugando', { tam: 20, color: 'var(--peligro)', trazo: 'var(--fondo)' })}
-      <span>Tu conexión con Xbox ha caducado · <strong>Reconectar</strong></span>
+      <span>La clave de Xbox (OpenXBL) no funciona · <strong>Revisar</strong></span>
     </button>`;
 }
 

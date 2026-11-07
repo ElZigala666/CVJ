@@ -17,7 +17,6 @@ import * as perfil from './pantallas/perfil.js';
 import * as estadisticas from './pantallas/estadisticas.js';
 import * as rankings from './pantallas/rankings.js';
 import * as revisar from './pantallas/revisar.js';
-import * as conectarXbox from './pantallas/conectar-xbox.js';
 import * as xbox from './xbox.js';
 import { anotarNavegacion, corregirRuta } from './navegacion.js';
 
@@ -34,7 +33,6 @@ const RUTAS = {
   estadisticas,      // #estadisticas/{id}
   juego,
   revisar,           // #revisar: "Revisa tu biblioteca"
-  'conectar-xbox': conectarXbox, // vuelta del inicio de sesión de Xbox (xbox.html)
 };
 const PESTANAS = [
   ['inicio', 'Inicio'],
@@ -44,7 +42,7 @@ const PESTANAS = [
   ['perfil', 'Perfil'],
 ];
 // Rutas que se ven a pantalla completa, sin la barra inferior (la ficha tiene la suya).
-const SIN_BARRA = new Set(['juego', 'revisar', 'conectar-xbox']);
+const SIN_BARRA = new Set(['juego', 'revisar']);
 const REFRESCO_MS = 60_000;
 
 let limpiar = null;
@@ -169,8 +167,6 @@ iniciarTema();
 iniciarInstalacion();
 pintarBarra();
 aplicarAcento(usuarioActual()?.acento);
-// Si la URL de vuelta de Xbox se configuró a la raíz: ?code=... → #conectar-xbox.
-xbox.codigoEnLaUrl();
 window.addEventListener('hashchange', navegar);
 // "Reconectar" PlayStation (aviso de Inicio): Ajustes abierta en el asistente.
 // Sin el menú de pulsación larga del navegador (guardar imagen, abrir enlace...) salvo en

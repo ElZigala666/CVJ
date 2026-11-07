@@ -529,7 +529,7 @@ function bloqueBibliotecas(u, esMio, vinculado, bib) {
     filas.push(fila('psn', 'PlayStation', vinculado, u.psn_online_id, bib.porFuente?.psn ?? 0, horasDe('psn'), u.psn_sincronizado_en, !!u.psn_reconectar));
   }
   if ('xbox_xuid' in u) {
-    filas.push(fila('xbox', 'Xbox', !!u.xbox_xuid, u.xbox_gamertag, bib.porFuente?.xbox ?? 0, horasDe('xbox'), u.xbox_sincronizado_en, !!u.xbox_reconectar));
+    filas.push(fila('xbox', 'Xbox', !!u.xbox_xuid, u.xbox_gamertag, bib.porFuente?.xbox ?? 0, horasDe('xbox'), u.xbox_sincronizado_en, false));
   }
   if (!filas.length) {
     return '<div class="bibliotecas"><div class="bibliotecas-fila"><span>Plataformas</span><span class="etiqueta-gris">Próximamente</span></div></div>';

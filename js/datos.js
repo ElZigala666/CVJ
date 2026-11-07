@@ -111,7 +111,7 @@ const COLUMNAS_USUARIO = 'id, nombre, inicial, color, acento, creado_en';
  * cuentas_plataforma (los usuarios ya no guardan un resumen, migración 017).
  */
 async function leerUsuarios(sb) {
-  const r = await sb.from('usuarios').select(COLUMNAS_USUARIO + ', foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo').order('creado_en');
+  const r = await sb.from('usuarios').select(COLUMNAS_USUARIO + ', foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas').order('creado_en');
   if (!r.error) return r;
   return sb.from('usuarios').select(COLUMNAS_USUARIO).order('creado_en');
 }

@@ -13,8 +13,8 @@ export function cerrarHoja() {
 /**
  * @param {{ titulo: string, antetitulo?: string, html: string, alMontar?: (cuerpo: HTMLElement, cerrar: Function) => void }} op
  */
-export function abrirHoja({ titulo, antetitulo = '', html, alMontar }) {
-  abierta?.(true);
+export function abrirHoja({ titulo, antetitulo = '', html, alMontar, alCerrar }) {
+  abierta?.(true, true);
   const capa = document.createElement('div');
   capa.className = 'capa-hoja';
   capa.innerHTML = `
@@ -40,10 +40,12 @@ export function abrirHoja({ titulo, antetitulo = '', html, alMontar }) {
 
   let cerrando = false;
   const alTeclado = (e) => { if (e.key === 'Escape') cerrar(); };
-  const alCambiarRuta = () => cerrar(true);
-  function cerrar(inmediato = false) {
+  const alCambiarRuta = () => cerrar(true, true);
+  function cerrar(inmediato = false, porOtra = false) {
     if (cerrando) return;
     cerrando = true;
+    // Al cerrarla el usuario (no al abrir otra hoja encima ni al cambiar de pantalla).
+    if (!porOtra) setTimeout(() => alCerrar?.(), inmediato ? 0 : 190);
     abierta = null;
     document.removeEventListener('keydown', alTeclado);
     window.removeEventListener('hashchange', alCambiarRuta);

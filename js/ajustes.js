@@ -9,10 +9,9 @@ import { PALETA, ACENTO_DEFECTO, seLeeMal, esDePaleta } from './acento.js';
 import { usuarioActual } from './sesion.js';
 import * as datos from './datos.js';
 import { VERSION_CORTA } from './version.js';
-import { montarPsn } from './ajustes-psn.js';
-import { montarXbox } from './ajustes-xbox.js';
-import { montarSteam } from './ajustes-steam.js';
+import { montarPlataformas } from './ajustes-plataformas.js';
 import { montarGrupo } from './ajustes-grupo.js';
+import { abrirSelectorColor } from './selector-color.js';
 import { botonFoto } from './foto-perfil.js';
 import { avatar } from './ui.js';
 
@@ -23,7 +22,7 @@ function bloqueApariencia(acentoActual) {
     <section class="ajustes-bloque">
       <span class="campo-titulo">Tema</span>
       <div class="segmentado" role="radiogroup" aria-label="Tema">
-        ${TEMAS.map((t) => `<button type="button" role="radio" data-tema="${t.id}" class="${t.id === tema ? 'activo' : ''}" aria-checked="${t.id === tema}">${t.nombre}</button>`).join('')}
+        ${TEMAS.map((t) => `<button type="button" role="radio" data-pref-tema="${t.id}" class="${t.id === tema ? 'activo' : ''}" aria-checked="${t.id === tema}">${t.nombre}</button>`).join('')}
       </div>
     </section>
     <section class="ajustes-bloque">
@@ -32,10 +31,10 @@ function bloqueApariencia(acentoActual) {
         ${PALETA.map((p) => `
           <button type="button" role="radio" class="muestra${p.hex.toUpperCase() === acentoActual ? ' activa' : ''}"
             style="--muestra:${p.hex}" data-acento="${p.hex}" aria-checked="${p.hex.toUpperCase() === acentoActual}" aria-label="${esc(p.nombre)}"></button>`).join('')}
-        <label class="muestra-libre${enPaleta ? '' : ' activa'}">
-          <input type="color" value="${acentoActual}" data-libre aria-label="Color personalizado">
+        <button type="button" class="muestra-libre${enPaleta ? '' : ' activa'}" data-libre aria-label="Color personalizado">
+          <span class="muestra-mini" style="--muestra:${enPaleta ? 'conic-gradient(#e53935, #fdd835, #43a047, #1e88e5, #8e24aa, #e53935)' : acentoActual}"></span>
           <span>Otro</span>
-        </label>
+        </button>
       </div>
       <p class="ajustes-nota" data-ref="nota-acento"></p>
     </section>`;
@@ -70,7 +69,7 @@ function bloqueInstalar(modo, abierto) {
 }
 
 /** Abre la hoja de Ajustes. alSalir: cierra la sesión (lo pasa app.js). */
-export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas = false } = {}) {
+export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas = false, color = false } = {}) {
   let pasosAbiertos = false;
   abrirHoja({
     titulo: 'Ajustes',
@@ -80,9 +79,7 @@ export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas 
         <div data-ref="apariencia" class="ajustes-apariencia"></div>
         <section class="ajustes-bloque ajustes-plataformas" id="ajustes-plataformas">
           <span class="campo-titulo">Plataformas</span>
-          <div data-ref="psn"></div>
-          <div data-ref="xbox"></div>
-          <div data-ref="steam"></div>
+          <div data-ref="plataformas"></div>
         </section>
         <div data-ref="biblioteca"></div>
         <div data-ref="grupo"></div>
@@ -132,9 +129,8 @@ export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas 
       });
       const quitarFoto = datos.suscribir(() => { pintarFoto(); pintarUmbral(); });
       // PlayStation (se quita la suscripción al cerrar la hoja).
-      const quitarPsn = montarPsn(cuerpo.querySelector('[data-ref="psn"]'));
-      const quitarXbox = montarXbox(cuerpo.querySelector('[data-ref="xbox"]'));
-      const quitarSteam = montarSteam(cuerpo.querySelector('[data-ref="steam"]'));
+      // PSN se abre desplegada desde el aviso de "Reconectar"; Steam, al volver de su inicio de sesión.
+      const quitarPlataformas = montarPlataformas(cuerpo.querySelector('[data-ref="plataformas"]'), { abrir: psn ? 'psn' : steam ? 'steam' : null });
       const quitarGrupo = montarGrupo(cuerpo.querySelector('[data-ref="grupo"]'));
       // Abierta desde el aviso de "Reconectar": directamente al bloque de PlayStation.
       if (psn || steam || plataformas) {
@@ -144,7 +140,7 @@ export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas 
           if (bloque && scroll) scroll.scrollTop += bloque.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 8;
         }, 450);
       }
-      const vigilar = new MutationObserver(() => { if (!cuerpo.isConnected) { quitarPsn(); quitarXbox(); quitarSteam(); quitarGrupo(); quitarFoto(); vigilar.disconnect(); } });
+      const vigilar = new MutationObserver(() => { if (!cuerpo.isConnected) { quitarPlataformas(); quitarGrupo(); quitarFoto(); vigilar.disconnect(); } });
       vigilar.observe(document.body, { childList: true });
 
       // --- Apariencia ---------------------------------------------------------
@@ -181,21 +177,12 @@ export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas 
           pintarApariencia();
         });
       };
-      // Color libre: se ve en vivo al mover el selector y se guarda al soltar, tal cual.
-      cuerpo.addEventListener('input', (e) => {
-        if (!e.target.matches('[data-libre]')) return;
-        elegirAcento(e.target.value, false);
-      });
-      cuerpo.addEventListener('change', (e) => {
-        // Si después se tocó la paleta, el selector ya tiene ese color: no pisa nada.
-        if (e.target.matches('[data-libre]')) elegirAcento(e.target.value, true);
-      });
 
       cuerpo.addEventListener('click', async (e) => {
-        const t = e.target.closest('[data-tema]');
+        const t = e.target.closest('[data-pref-tema]');
         if (t) {
-          guardarTema(t.dataset.tema);
-          for (const b of cuerpo.querySelectorAll('[data-tema]')) {
+          guardarTema(t.dataset.prefTema);
+          for (const b of cuerpo.querySelectorAll('[data-pref-tema]')) {
             const on = b === t;
             b.classList.toggle('activo', on);
             b.setAttribute('aria-checked', String(on));
@@ -203,10 +190,14 @@ export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas 
           return;
         }
         const m = e.target.closest('[data-acento]');
-        if (m) {
-          const libre = cuerpo.querySelector('[data-libre]');
-          if (libre) libre.value = m.dataset.acento.toLowerCase();
-          elegirAcento(m.dataset.acento, true);
+        if (m) { elegirAcento(m.dataset.acento, true); return; }
+        // Color personalizado: selector propio en otra hoja; al cerrarla se vuelve a Ajustes.
+        if (e.target.closest('[data-libre]')) {
+          abrirSelectorColor({
+            inicial: acentoGuardado(),
+            alAplicar: (hex) => elegirAcento(hex, true),
+            alCerrar: () => abrirAjustes(alSalir, { color: true }),
+          });
           return;
         }
         const b = e.target.closest('[data-accion]');

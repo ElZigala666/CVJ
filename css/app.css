@@ -1033,10 +1033,8 @@ body.sin-barra #aviso-version { bottom: calc(96px + env(safe-area-inset-bottom))
   display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
 }
 .muestra-libre.activa { border-color: var(--texto); box-shadow: inset 0 0 0 1px var(--texto); }
-.muestra-libre input { width: 28px; height: 28px; border: 0; padding: 0; background: transparent; cursor: pointer; }
-.muestra-libre input::-webkit-color-swatch-wrapper { padding: 0; }
-.muestra-libre input::-webkit-color-swatch { border: 0; border-radius: 50%; }
-.muestra-libre input::-moz-color-swatch { border: 0; border-radius: 50%; }
+.muestra-libre { background: none; color: var(--texto); font-family: inherit; }
+.muestra-mini { width: 28px; height: 28px; border-radius: 50%; background: var(--muestra); flex: none; }
 .ajustes-nota { margin: 0; font-size: 12px; color: var(--texto-2); line-height: 1.4; }
 .ajustes-nota:empty { display: none; }
 .ajustes-version { margin: 0; text-align: center; font-size: 12px; color: var(--texto-2); }
@@ -1542,3 +1540,48 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 .bienvenida-pasos { display: grid; gap: 8px; }
 .bienvenida-pasos .con-icono { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .inicio-vacio [data-accion="conectar-plataformas"] { margin-top: 8px; }
+
+/* Selector de color propio */
+.selector-color { display: flex; flex-direction: column; gap: 16px; }
+.sc-cuadro {
+  position: relative; height: 200px; border-radius: 14px; touch-action: none; cursor: crosshair;
+  background: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, var(--tono, red));
+}
+.sc-punto {
+  position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%;
+  border: 3px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .35), 0 2px 6px rgba(0, 0, 0, .35); pointer-events: none;
+}
+.sc-tono {
+  position: relative; height: 26px; border-radius: 13px; touch-action: none; cursor: pointer;
+  background: linear-gradient(to right, #f00 0%, #ff0 16.66%, #0f0 33.33%, #0ff 50%, #00f 66.66%, #f0f 83.33%, #f00 100%);
+}
+.sc-tirador {
+  position: absolute; top: 50%; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%;
+  border: 3px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .35), 0 2px 6px rgba(0, 0, 0, .35); pointer-events: none;
+}
+.sc-cuadro:focus-visible, .sc-tono:focus-visible { outline: 2px solid var(--texto); outline-offset: 3px; }
+.sc-fila { display: flex; align-items: center; gap: 12px; }
+.sc-vista { display: flex; align-items: center; gap: 10px; flex: 1; }
+.sc-boton { height: 44px; padding: 0 18px; border-radius: 14px; display: inline-flex; align-items: center; font-weight: 700; }
+.sc-tier { width: 44px; height: 44px; border-radius: 10px; display: grid; place-items: center; font: 800 22px var(--fuente-titulos); }
+.sc-hex { display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 10px; border-radius: 12px; border: 1px solid var(--borde); background: var(--superficie); }
+.sc-hex span { font-size: 12px; font-weight: 700; color: var(--texto-2); }
+.sc-hex input { width: 84px; border: 0; background: none; color: var(--texto); font: 700 16px ui-monospace, monospace; outline: none; text-transform: uppercase; }
+.sc-hex input.error { color: var(--peligro); }
+.sc-recientes .muestra { width: 36px; height: 36px; }
+
+/* Ajustes → Plataformas compactas */
+.plat-tarjetas { display: flex; flex-direction: column; gap: 12px; }
+.plat-tarjetas:empty { display: none; }
+.plat-pie { display: flex; justify-content: space-between; gap: 12px; padding: 6px 4px 0; }
+.plat-lineas { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.plat-lineas:empty { display: none; }
+.plat-linea {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 0 14px;
+  border-radius: 14px; border: 1px solid var(--borde); background: var(--superficie);
+  color: var(--texto); font: inherit; font-size: 15px; text-align: left; cursor: pointer;
+}
+.plat-linea > span { flex: 1; }
+.plat-otras { margin-top: 10px; }
+.plat-otras summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--texto-2); padding: 6px 2px; }
+.plat-otras .plat-linea { margin-top: 6px; cursor: default; }

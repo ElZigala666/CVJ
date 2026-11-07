@@ -445,6 +445,16 @@ Deno.serve(async (req) => {
         return json({ ok: true, ...(await rellenarHoras(uid, u.xbox_xuid, 3)) });
       }
       case "tarea_horaria": return json(await tareaHoraria());
+      case "depurar_horas": {
+        // Diagnóstico: respuesta en bruto de /player/stats para unos títulos, pidiendo
+        // MinutesPlayed suelto y dentro del grupo "Hero". Gasta 2 peticiones.
+        const u = await usuario(uid);
+        if (!u.xbox_xuid) throw new ErrorXbox("sin_vincular", "Sin Xbox vinculada.");
+        const ids = (Array.isArray(c.title_ids) ? c.title_ids : []).map(String).slice(0, 10);
+        const suelto = await api("player/stats", false, { maximo: MAX_HORAS, cuerpo: { xuids: [u.xbox_xuid], stats: ids.map((titleId) => ({ name: "MinutesPlayed", titleId })) } });
+        const hero = await api("player/stats", false, { maximo: MAX_HORAS, cuerpo: { xuids: [u.xbox_xuid], groups: ids.map((titleId) => ({ name: "Hero", titleId })) } });
+        return json({ ok: true, suelto, hero });
+      }
       default: throw new ErrorXbox("parametros", 'Acción desconocida (usa "vincular", "sincronizar", "desvincular" o "estado")', 400);
     }
   } catch (e) {

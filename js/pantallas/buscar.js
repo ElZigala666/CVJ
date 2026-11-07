@@ -5,7 +5,7 @@ import * as datos from '../datos.js';
 import { esc, portada, notaConLetra, skeletonFila, aviso } from '../ui.js';
 import { abrirValorar } from '../hoja-valorar.js';
 import { volver } from '../navegacion.js';
-import { limpiarNombrePsn } from '../psn.js';
+import { simplificarTitulo } from '../psn-nombres.js';
 
 const PLATAFORMAS = ['Todas', 'PS5', 'PS4', 'PC', 'Xbox', 'Switch'];
 const ESPERA_MS = 300;
@@ -77,7 +77,7 @@ export function render(el, { ruta, params = [] } = {}) {
   const filaPsn = tituloPsn ? datos.filaBiblioteca(tituloPsn) : null;
   if (modo === 'elegir') {
     // Empezar buscando el nombre de PSN sin "™", "PS4 & PS5"...
-    memoria.texto = limpiarNombrePsn(filaPsn?.nombre_psn ?? '');
+    memoria.texto = simplificarTitulo(filaPsn?.nombre_psn ?? '');
   }
   const titulo = { buscar: 'Buscar', valorar: '¿Qué juego quieres valorar?', elegir: '¿Qué juego es?' }[modo];
   el.innerHTML = `

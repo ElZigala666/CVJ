@@ -89,7 +89,7 @@ function renderPerfil(el, id, alSalir) {
   const esMio = id === yo?.id;
   const fHist = filtroDe(`${id}:hist`, 'nota');
   const fBib = filtroDe(`${id}:bib`, 'horas');
-  const vista = { sinIdentificar: false, ocultos: false, seleccionando: false, abiertos: new Set() };
+  const vista = { sinIdentificar: false, probados: false, ocultos: false, seleccionando: false, abiertos: new Set() };
   const seleccion = new Set(); // claves de la biblioteca elegidas para ocultar
 
   const pintar = () => {
@@ -194,7 +194,7 @@ function renderPerfil(el, id, alSalir) {
           <section class="perfil-seccion">
             <div class="seccion-cab">
               <h2 class="seccion-titulo">Biblioteca</h2>
-              <span class="seccion-extra">${bib.total} ${bib.total === 1 ? 'juego' : 'juegos'}${bib.horas ? ` · ${bib.horas} h` : ''}</span>
+              <span class="seccion-extra">${bib.horas ? `${bib.horas} h` : ''}</span>
             </div>
             <div data-ref="biblioteca"></div>
           </section>` : ''}
@@ -280,10 +280,10 @@ function renderPerfil(el, id, alSalir) {
     fecha: x.ultimaVez,
   });
 
-  const rejillaBiblioteca = (bib) => {
-    const lista = filtrar(bib.identificados, fBib, datosBiblioteca);
+  const rejillaBiblioteca = (bib, origen = bib.misJuegos, vacio = 'Todavía no hay juegos identificados.') => {
+    const lista = filtrar(origen, fBib, datosBiblioteca);
     if (!lista.length) {
-      return `<p class="historial-tab-vacia">${fBib.texto ? 'Ningún juego con ese nombre.' : 'Todavía no hay juegos identificados.'}</p>`;
+      return `<p class="historial-tab-vacia">${fBib.texto ? 'Ningún juego con ese nombre.' : vacio}</p>`;
     }
     const item = (x, i) => (x.coleccion
       ? bloqueGrupo(x.clave, x.coleccion.juegos, x.coleccion.juego?.nombre ?? x.nombre,
@@ -298,11 +298,26 @@ function renderPerfil(el, id, alSalir) {
       : item(x, i))).join('')}</div>`;
   };
 
+  /** "Calculando horas de Xbox… (N de M)" mientras se van pidiendo poco a poco. */
+  const progresoHorasXbox = () => {
+    const filas = datos.bibliotecaDe(id).filter((f) => f.fuente === 'xbox' && !f.oculto);
+    if (!filas.length || !('horas_en' in filas[0])) return '';
+    const hechas = filas.filter((f) => f.horas_en).length;
+    return hechas < filas.length ? `<p class="bib-progreso">Calculando horas de Xbox… (${hechas} de ${filas.length})</p>` : '';
+  };
+
   const pintarBiblioteca = (bib) => {
     const cont = el.querySelector('[data-ref="biblioteca"]');
     if (!cont) return;
-    const sinId = filtrar(bib.sinIdentificar, fBib, datosBiblioteca);
+    const sinId = filtrar(bib.sinIdentificar.filter((x) => !x.probado), fBib, datosBiblioteca);
+    const nSinId = bib.sinIdentificar.filter((x) => !x.probado).length;
     cont.innerHTML = `
+      <p class="bib-recuento">
+        <span><strong>${bib.misJuegos.length}</strong> en Mis juegos</span>
+        <span><strong>${bib.probados.length}</strong> probados</span>
+        ${esMio ? `<span><strong>${bib.ocultos.length}</strong> ocultos</span>` : ''}
+      </p>
+      ${progresoHorasXbox()}
       ${barraFiltro('bib', fBib)}
       ${esMio && bib.identificados.length ? `
         <div class="bib-seleccionar">
@@ -314,9 +329,16 @@ function renderPerfil(el, id, alSalir) {
           <button type="button" class="boton-secundario neutro" data-accion="seleccionar">Cancelar</button>
           <button type="button" class="boton-principal" data-accion="ocultar-seleccion"${seleccion.size ? '' : ' disabled'}>Ocultar (${seleccion.size})</button>
         </div>` : ''}
-      ${bib.sinIdentificar.length ? `
+      ${bib.probados.length ? `
+        <details class="bib-plegable"${vista.probados ? ' open' : ''} data-plegable="probados">
+          <summary>Probados (${bib.probados.length})</summary>
+          <p class="ajustes-nota">Jugados poco (menos de ${bib.umbral} h, o sin horas y con menos del 5 % de logros), sin valorar y no recientes. No se borran: ${esMio ? 'súbelos a «Mis juegos» desde su menú (⋮) o cambia el umbral en Ajustes → Biblioteca' : 'son de relleno'}.</p>
+          <div data-ref="rejilla-probados">${rejillaBiblioteca(bib, bib.probados.filter((x) => x.coleccion || (x.igdbId != null && x.juego)), 'Ninguno identificado.')}</div>
+          ${bib.probados.some((x) => !x.coleccion && !(x.igdbId != null && x.juego)) ? `<div class="rejilla">${filtrar(bib.probados.filter((x) => !x.coleccion && !(x.igdbId != null && x.juego)), fBib, datosBiblioteca).map((x) => itemSinIdentificar(x, esMio)).join('')}</div>` : ''}
+        </details>` : ''}
+      ${nSinId ? `
         <details class="bib-plegable"${vista.sinIdentificar ? ' open' : ''} data-plegable="sinIdentificar">
-          <summary>Sin identificar (${bib.sinIdentificar.length})</summary>
+          <summary>Sin identificar (${nSinId})</summary>
           <p class="ajustes-nota">${esMio ? 'No hemos sabido qué juego es. Tócalo para elegirlo; vale para todo el grupo.' : 'Juegos de PlayStation que aún no se han identificado.'}</p>
           <div class="rejilla">${sinId.map((x) => itemSinIdentificar(x, esMio)).join('')}</div>
         </details>` : ''}
@@ -345,12 +367,24 @@ function renderPerfil(el, id, alSalir) {
       antetitulo: 'Tu biblioteca',
       html: `
         <div class="menu-bib">
+          ${x.probado
+            ? '<button type="button" class="boton-secundario neutro" data-mis="1">Subir a «Mis juegos»</button>'
+            : '<button type="button" class="boton-secundario neutro" data-mis="0">Mandar a «Probados»</button>'}
+          ${x.enMisJuegos != null ? '<button type="button" class="enlace-discreto" data-mis="auto">Que lo decida el umbral</button>' : ''}
           <button type="button" class="boton-secundario neutro" data-ocultar>Ocultar de mi biblioteca</button>
           <p class="ajustes-nota">No se borra: deja de salir en tu biblioteca, en tus horas y en «Jugando ahora», también tras sincronizar. Lo recuperas abajo del todo, en «Ver ocultos».</p>
           ${saga ? `<button type="button" class="boton-secundario neutro" data-agrupar-saga>Agrupar saga «${esc(saga.nombre)}»</button>
           <p class="ajustes-nota">Junta en una sola entrada tus juegos de esta saga. Solo cambia cómo se ve tu perfil.</p>` : ''}
         </div>`,
       alMontar(cuerpo, cerrar) {
+        for (const b of cuerpo.querySelectorAll('[data-mis]')) {
+          b.addEventListener('click', () => {
+            const valor = b.dataset.mis === 'auto' ? null : b.dataset.mis === '1';
+            datos.ponerEnMisJuegos(yo.id, x.titulos, valor, aviso);
+            aviso(valor === true ? 'En «Mis juegos»' : valor === false ? 'En «Probados»' : 'Lo decide el umbral');
+            cerrar();
+          });
+        }
         cuerpo.querySelector('[data-agrupar-saga]')?.addEventListener('click', () => {
           datos.guardarSaga(yo.id, saga.id, saga.nombre, true, aviso);
           aviso(`Agrupados: ${saga.nombre}`);
@@ -421,7 +455,9 @@ function renderPerfil(el, id, alSalir) {
       const r = el.querySelector('[data-ref="rejilla-bib"]');
       if (r) r.innerHTML = rejillaBiblioteca(bib);
       const sin = el.querySelector('[data-plegable="sinIdentificar"] .rejilla');
-      if (sin) sin.innerHTML = filtrar(bib.sinIdentificar, fBib, datosBiblioteca).map((x) => itemSinIdentificar(x, esMio)).join('');
+      if (sin) sin.innerHTML = filtrar(bib.sinIdentificar.filter((x) => !x.probado), fBib, datosBiblioteca).map((x) => itemSinIdentificar(x, esMio)).join('');
+      const prob = el.querySelector('[data-ref="rejilla-probados"]');
+      if (prob) prob.innerHTML = rejillaBiblioteca(bib, bib.probados.filter((x) => x.coleccion || (x.igdbId != null && x.juego)), 'Ninguno identificado.');
     }
   };
 
@@ -570,12 +606,14 @@ function itemBiblioteca(x, i, esMio, seleccionando = false, marcada = false) {
   const attrs = esMio && !v
     ? `href="#juego/${x.igdbId}" data-valorar-psn="${x.igdbId}" data-plataforma="${esc(plataformaParaValorar(x.plataformaPrincipal))}"`
     : `href="#juego/${x.igdbId}" data-precarga="${esc(x.juego.cover_id ?? '')}"`;
+  const desglose = metricas.textoDesglose(x);
   return `
-    <div class="bib-celda${marcada ? ' marcada' : ''}" data-bib-celda="${esc(x.clave)}">
+    <div class="bib-celda${marcada ? ' marcada' : ''}" data-bib-celda="${esc(x.clave)}"${desglose ? ` title="${esc(desglose)}"` : ''}>
       <a class="rejilla-item" ${attrs} aria-label="${esc(x.juego.nombre)}${horas ? `, ${horas}` : ''}">
         ${portada(x.juego, { clase: 'portada-rejilla', titulo: 'arriba', prioridad: i < 6 })}
         ${pie}
       </a>
+      ${x.desglose?.length > 1 ? `<span class="rejilla-plataformas">${esc(x.desglose.map((d) => `${d.plataforma.replace('Xbox Series', 'Series').replace('Xbox One', 'One')} ${textoHoras(d.horas)}`).join(' · '))}</span>` : ''}
       ${seleccionando
         ? `<span class="bib-casilla" aria-hidden="true">${marcada ? icono('completado', { tam: 26, color: 'var(--acento)', trazo: '#FFFFFF' }) : ''}</span>`
         : esMio ? `<button type="button" class="bib-menu" data-bib-menu="${esc(x.clave)}" aria-label="Opciones de ${esc(x.nombre)}">${icono('opciones', { tam: 18, color: '#FFFFFF' })}</button>` : ''}

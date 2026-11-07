@@ -106,6 +106,17 @@ async function obtenerToken(forzarNuevo = false): Promise<string> {
   return t.access_token;
 }
 
+// IGDB admite 4 peticiones por segundo. Se espacian (en esta instancia) y, si aun así
+// responde 429, se espera y se reintenta (hasta 4 veces) en vez de fallar.
+const ESPACIO_MS = 280;
+let siguienteHueco = 0;
+async function turno() {
+  const ahora = Date.now();
+  const espera = Math.max(0, siguienteHueco - ahora);
+  siguienteHueco = Math.max(ahora, siguienteHueco) + ESPACIO_MS;
+  if (espera) await new Promise((r) => setTimeout(r, espera));
+}
+
 async function igdb<T = unknown>(endpoint: string, consulta: string): Promise<T> {
   let token = await obtenerToken();
   const pedir = (tk: string) =>
@@ -120,9 +131,16 @@ async function igdb<T = unknown>(endpoint: string, consulta: string): Promise<T>
       body: consulta,
     });
 
+  await turno();
   let r = await pedir(token);
   if (r.status === 401 || r.status === 403) {
     token = await obtenerToken(true); // token revocado o caducado: pedir otro
+    await turno();
+    r = await pedir(token);
+  }
+  for (let intento = 1; r.status === 429 && intento <= 4; intento++) {
+    await new Promise((res) => setTimeout(res, 600 * intento));
+    await turno();
     r = await pedir(token);
   }
   if (!r.ok) {
@@ -259,7 +277,7 @@ const CAMPOS_RELACIONES =
   "game_type,version_parent,parent_game,remakes,remasters,ports,expanded_games,bundles,collections.name,franchises.name,franchise.name";
 const CAMPOS_FICHA =
   `name,slug,first_release_date,summary,cover.image_id,platforms.abbreviation,platforms.name,genres.name,involved_companies.developer,involved_companies.company.name,game_modes.name,themes.name,keywords.name,${CAMPOS_RELACIONES}`;
-const CAMPOS_EMPAREJAR = `${CAMPOS_LISTA},alternative_names.name,version_parent,parent_game`;
+const CAMPOS_EMPAREJAR = `${CAMPOS_LISTA},alternative_names.name,game_localizations.name,version_parent,parent_game`;
 
 // <puntuacion> (bloque sin dependencias: se prueba en local con node)
 /** minúsculas, sin tildes ni signos: "Ghost of Yōtei!" → "ghost of yotei" */
@@ -411,6 +429,7 @@ export function claramenteIgual(a: string, b: string): boolean {
 type CandidatoEmparejar = Candidato & {
   id: number;
   alternative_names?: { name?: string }[];
+  game_localizations?: { name?: string }[];
   platforms?: { abbreviation?: string; name?: string }[];
   version_parent?: number | null;
   parent_game?: number | null;
@@ -424,6 +443,52 @@ const SINONIMOS: [RegExp, string][] = [
 ];
 const VACIAS = /^(the|of|de|del|la|el|los|las|and|y|a)$/;
 const sinArt = (x: string) => x.replace(/^(the|el|la|los|las)\s+/, "");
+
+// ----- Simplificar títulos (emparejar y buscador) ------------------------------
+// Palabras de edición, en español e inglés, y de plataforma, que sobran para buscar.
+const PALABRAS_EDICION = new Set(("edicion edition ediciones deluxe gold ultimate complete completa goty definitive definitiva " +
+  "standard estandar digital bundle pack premium special especial collectors coleccionista anniversary aniversario " +
+  "enhanced mejorada directors cut corte director royal legendary legendaria ultra super deluxe launch day one " +
+  "season pass cross gen version").split(" "));
+const PLATAFORMA_EN_TITULO = /\b(ps4|ps5|playstation \d|xbox series x s|xbox series x|xbox series|xbox one|xbox 360|xbox|for windows 10|for windows|windows 10|windows|pc|para xbox series x s|para xbox one|para xbox)\b/g;
+const PARECE_EDICION = /\b(edicion|edition|deluxe|gold|ultimate|complete|completa|goty|definitive|definitiva|standard|estandar|digital|bundle|premium|special|especial|anniversary|aniversario|enhanced|directors cut|royal|legendary|ps4|ps5|xbox|windows|pc|remastered|remasterizad[oa]|vacio)\b/;
+
+/** Sin lo que va detrás de ":", " - " o "–" si parece una edición ("Hollow Knight: Edición Corazón Vacío" → "Hollow Knight"). */
+export function sinSufijoEdicion(nombre: string): string {
+  const crudo = String(nombre ?? "").replace(/[™®©]/g, "");
+  const m = crudo.match(/^(.*?)\s*(?::|\s[-–—]\s|\s[-–—]|[-–—]\s)\s*(.+)$/);
+  if (!m) return limpiarNombrePsn(crudo);
+  const resto = limpiarNombrePsn(m[2]);
+  return PARECE_EDICION.test(resto) || !resto ? limpiarNombrePsn(m[1]) : limpiarNombrePsn(crudo);
+}
+
+/** Sin palabras de edición ni de plataforma en ningún sitio (con cuidado: "remastered" se queda). */
+export function sinPalabrasEdicion(limpio: string): string {
+  const sinPlat = limpio.replace(PLATAFORMA_EN_TITULO, " ").replace(/\s+/g, " ").trim();
+  const quedan = sinPlat.split(" ").filter((w) => !PALABRAS_EDICION.has(w));
+  return quedan.join(" ").trim();
+}
+
+const VACIA = /^(the|of|de|del|la|el|los|las|and|y|a|en|to|for|para)$/;
+/**
+ * Textos que se van probando, de más a menos exacto:
+ *  1) el nombre limpio; 2) sin el sufijo de edición; 3) sin palabras de edición ni
+ *  plataforma; 4) quitando palabras del final una a una (quedan al menos 2
+ *  significativas, o 1 si es larga). Sin repetidos.
+ */
+export function variantesBusqueda(nombre: string): string[] {
+  const limpio = limpiarNombrePsn(nombre);
+  const salida = [limpio, sinSufijoEdicion(nombre), sinPalabrasEdicion(sinSufijoEdicion(nombre)), sinPalabrasEdicion(limpio)];
+  const base = salida[2] || salida[0];
+  const palabras = base.split(" ").filter(Boolean);
+  for (let n = palabras.length - 1; n >= 1; n--) {
+    const trozo = palabras.slice(0, n);
+    const significativas = trozo.filter((w) => !VACIA.test(w) && w.length >= 3);
+    if (significativas.length >= 2 || (significativas.length === 1 && significativas[0].length >= 5 && n === 1)) salida.push(trozo.join(" "));
+    if (salida.length >= 10) break;
+  }
+  return [...new Set(salida.map((x) => x.trim()).filter((x) => x.length >= 2))];
+}
 
 /** Bolsa de palabras (sin orden ni artículos, con sinónimos): "trilogia mafia" = "mafia trilogy". */
 export function bolsa(limpio: string): string {
@@ -450,11 +515,12 @@ export function anioDelNombre(limpio: string): number | null {
  * otro orden de palabras, o un nombre alternativo de IGDB). Que coincidan algunas
  * palabras da 30 como mucho: nunca basta para aceptar.
  */
-export function puntuarNombre(limpio: string, c: { name: string; alternative_names?: { name?: string }[] }): number {
+export function puntuarNombre(limpio: string, c: { name: string; alternative_names?: { name?: string }[]; game_localizations?: { name?: string }[] }): number {
   const nc = limpiarNombrePsn(c.name);
   if (nc === limpio) return 60;
   if (sinArt(nc) === sinArt(limpio)) return 58;
-  const alts = (c.alternative_names ?? []).map((x) => limpiarNombrePsn(x.name ?? "")).filter(Boolean);
+  const alts = [...(c.alternative_names ?? []), ...((c as { game_localizations?: { name?: string }[] }).game_localizations ?? [])]
+    .map((x) => limpiarNombrePsn(x.name ?? "")).filter(Boolean);
   if (alts.some((x) => x === limpio || sinArt(x) === sinArt(limpio))) return 55;
   const bl = bolsa(limpio);
   if (bl.includes(" ") && bolsa(nc) === bl) return 50;
@@ -475,9 +541,40 @@ const tipoDe = (c: { game_type?: number | { id: number } | null }) =>
  * + año (−40 si salió después de jugarlo por primera vez; ±10/−20 si el nombre lleva año)
  * + colecciones (+10 si el título lo parece, −15 si no) + +15 si ya lo tiene valorado.
  */
+/** Textos con los que se compara el nombre: el limpio, sin sufijo y sin palabras de edición. */
+function textosNombre(nombre: string) {
+  return [...new Set([limpiarNombrePsn(nombre), sinSufijoEdicion(nombre), sinPalabrasEdicion(sinSufijoEdicion(nombre))].filter((x) => x.length >= 2))];
+}
+/**
+ * Parecido de nombre usando todas las simplificaciones. Si nada coincide, que el
+ * candidato EMPIECE por una versión recortada del título (con 2+ palabras
+ * significativas y sin perder sus números) da 35: parcial, nunca basta por sí solo.
+ */
+function mejorNombre(nombre: string, c: CandidatoEmparejar) {
+  const directo = Math.max(0, ...textosNombre(nombre).map((t) => puntuarNombre(t, c)));
+  if (directo) return directo;
+  const nc = limpiarNombrePsn(c.name);
+  const numeros = (x: string) => (x.match(/\b(\d+|[ivx]+)\b/g) ?? []).join(",");
+  for (const v of variantesBusqueda(nombre).slice(1)) {
+    if (v.split(" ").filter((w) => w.length >= 3).length < 2) continue;
+    if (nc.startsWith(v + " ") && numeros(nc.slice(0, v.length)) === numeros(v)) return 35;
+  }
+  return 0;
+}
+
+/** ¿Está en una plataforma compatible con la fuente? (consola de esa familia, retrocompatibles o PC) */
+export function plataformaCompatible(plataforma: string | undefined, c: { platforms?: { abbreviation?: string; name?: string }[] }): boolean | null {
+  const plats = (c.platforms ?? []).map((x) => `${x.abbreviation ?? ""}|${x.name ?? ""}`.toUpperCase().replace(/\s+/g, ""));
+  if (!plats.length) return null;
+  const pl = String(plataforma ?? "");
+  if (/^PS/.test(pl)) return plats.some((x) => /PS4|PS5|PLAYSTATION[45]/.test(x));
+  if (/^Xbox|^PC$/.test(pl)) return plats.some((x) => /XBOX|XONE|XSX|SERIESX|X360|^PC\||WIN/.test(x));
+  return null;
+}
+
 export function confianza(e: EntradaPsn, c: CandidatoEmparejar, idBundleTipo = TIPO_BUNDLE_RESPALDO): number {
   const limpio = limpiarNombrePsn(e.nombre);
-  const nombre = puntuarNombre(limpio, c);
+  const nombre = mejorNombre(e.nombre, c);
   if (!nombre) return 0;
   let p = nombre;
   const plats = (c.platforms ?? []).map((x) => `${x.abbreviation ?? ""}|${x.name ?? ""}`.toUpperCase().replace(/\s+/g, ""));
@@ -492,10 +589,11 @@ export function confianza(e: EntradaPsn, c: CandidatoEmparejar, idBundleTipo = T
     const pl = String(e.plataforma ?? "");
     let misma = false, otra = false, familia = false;
     if (pl === "PS5" || pl === "PS4") {
-      misma = pl === "PS5" ? ps5 : ps4; otra = pl === "PS5" ? ps4 : ps5;
+      misma = pl === "PS5" ? ps5 || ps4 : ps4; otra = pl === "PS5" ? false : ps5; // la PS5 juega a lo de PS4
       familia = tiene(/PS\d|PSVITA|PSP|PLAYSTATION/);
     } else if (pl === "Xbox Series" || pl === "Xbox One") {
-      misma = pl === "Xbox Series" ? series : one; otra = pl === "Xbox Series" ? one || pc : series || pc; // retrocompatibles y PC Game Pass
+      // Retrocompatibles: la Series juega a lo de One y 360; la One, a lo de 360. PC Game Pass, "otra".
+      misma = pl === "Xbox Series" ? series || one || x360 : one || x360; otra = pl === "Xbox Series" ? pc : series || pc;
       familia = tiene(/XBOX|XONE|XSX|X360/);
     } else if (pl === "Xbox 360") {
       misma = x360; otra = one || series; familia = tiene(/XBOX|XONE|XSX|X360/);
@@ -526,15 +624,29 @@ export function confianza(e: EntradaPsn, c: CandidatoEmparejar, idBundleTipo = T
  * puntuación parecida restan 20 (es ambiguo).
  */
 export function elegirCandidato(e: EntradaPsn, candidatos: CandidatoEmparejar[], idBundleTipo = TIPO_BUNDLE_RESPALDO) {
+  // Una edición o versión de otro candidato de la lista es el mismo juego: fuera (queda el original).
+  const ids = new Set(candidatos.map((c) => c.id));
   const lista = candidatos
-    .map((c) => ({ c, p: confianza(e, c, idBundleTipo), n: puntuarNombre(limpiarNombrePsn(e.nombre), c) }))
-    .filter((x) => x.p > 0)
+    .filter((c) => !(c.version_parent && ids.has(Number(c.version_parent))))
+    .map((c) => ({ c, p: confianza(e, c, idBundleTipo), n: mejorNombre(e.nombre, c) }))
     .sort((a, b) => b.p - a.p);
   if (!lista.length) return { id: null as number | null, propuesta: null as number | null, confianza: 0, candidato: null as CandidatoEmparejar | null };
-  const [primero, segundo] = lista;
+  const conNombre = lista.filter((x) => x.p > 0);
+  // Sin ningún parecido de nombre: el primero de la búsqueda queda como propuesta (confianza baja).
+  if (!conNombre.length) return { id: null, propuesta: lista[0].c.id, confianza: 10, candidato: lista[0].c };
+  const [primero, segundo] = conNombre;
   let conf = primero.p;
   if (segundo && segundo.n >= 45 && segundo.p >= primero.p - 10) conf -= 20;
-  conf = Math.max(0, conf);
+  // Un único resultado razonable (con el nombre parecido y en una plataforma compatible): se acepta.
+  const razonables = conNombre.filter((x) => x.n >= 30 && plataformaCompatible(e.plataforma, x.c) !== false);
+  // (Nunca si algo lo contradice: p. ej. que se jugara antes de salir.)
+  const sinPegas = primero.p >= 55;
+  if (sinPegas && razonables.length === 1 && razonables[0] === primero) conf = Math.max(conf, UMBRAL_ACEPTAR);
+  // El nombre del candidato es justo el título sin la edición, y está en su plataforma: se acepta.
+  if (sinPegas && primero.n >= 55 && plataformaCompatible(e.plataforma, primero.c) === true && !(segundo && segundo.n >= 55 && segundo.p >= primero.p - 10)) {
+    conf = Math.max(conf, UMBRAL_ACEPTAR);
+  }
+  conf = Math.max(0, Math.min(100, conf));
   return conf >= UMBRAL_ACEPTAR
     ? { id: primero.c.id, propuesta: null, confianza: conf, candidato: primero.c }
     : { id: null, propuesta: primero.c.id, confianza: conf, candidato: primero.c };
@@ -587,13 +699,37 @@ async function obtenerCandidatos(q: string) {
   return r;
 }
 
+/** ¿Algún resultado comparte al menos la mitad de las palabras del texto? (si no, son flojos) */
+function resultadosFlojos(lista: JuegoIGDB[], q: string) {
+  const palabras = normalizar(q).split(" ").filter((w) => w.length >= 3);
+  if (!lista.length) return true;
+  if (!palabras.length) return false;
+  return !lista.slice(0, 5).some((j) => {
+    const n = normalizar(j.name);
+    return palabras.filter((w) => n.includes(w)).length / palabras.length >= 0.5;
+  });
+}
+
 async function buscar(texto: string) {
   const q = texto.trim().slice(0, 100);
   if (q.length < 2) return { resultados: [] };
-  const { busqueda, parcial } = await obtenerCandidatos(q);
+  let { busqueda, parcial } = await obtenerCandidatos(q);
+  let qFinal = q;
+  // Palabras de más ("hollow knight edicion corazon vacio"): se prueba simplificando.
+  if (resultadosFlojos(ordenar(busqueda, parcial, q, 20), q)) {
+    for (const v of variantesBusqueda(q).slice(1)) {
+      const r = await obtenerCandidatos(v);
+      if (!resultadosFlojos(ordenar(r.busqueda, r.parcial, v, 20), v)) {
+        busqueda = [...r.busqueda, ...busqueda];
+        parcial = [...r.parcial, ...parcial];
+        qFinal = v;
+        break;
+      }
+    }
+  }
 
   return {
-    resultados: ordenar(busqueda, parcial, q, 20).map((j) => ({
+    resultados: ordenar(busqueda, parcial, qFinal, 20).map((j) => ({
       igdb_id: j.id,
       nombre: j.name,
       anio: anio(j.first_release_date),
@@ -783,16 +919,16 @@ async function emparejarPsn(e: EntradaPsn & { titleId?: string }) {
       ]);
       return ordenar(busqueda, parcial, q, 15);
     };
+    // Búsqueda escalonada: de más exacta a más simplificada, hasta que haya algo bueno.
     let mejor: ReturnType<typeof elegirCandidato> | null = null;
-    for (const variante of [...new Set([limpio, limpiarNombrePsn(e.nombre, true)])]) {
-      let candidatos = await consultar(variante);
-      const palabras = variante.split(" ");
-      for (let i = 1; !candidatos.length && palabras.length - i >= 2 && i <= 2; i++) {
-        candidatos = await consultar(palabras.slice(i).join(" "));
-      }
-      const r = elegirCandidato(e, candidatos, bundle);
-      if (!mejor || r.confianza > mejor.confianza) mejor = r;
-      if (r.id) break;
+    const vistos = new Map<number, CandidatoEmparejar>();
+    for (const variante of variantesBusqueda(e.nombre)) {
+      const candidatos = await consultar(variante);
+      for (const c of candidatos) if (!vistos.has(c.id)) vistos.set(c.id, c);
+      const r = elegirCandidato(e, [...vistos.values()], bundle);
+      if (!mejor || r.confianza > mejor.confianza || (!mejor.candidato && r.candidato)) mejor = r;
+      if (r.id) break; // aceptado: no hace falta seguir
+      if (vistos.size >= 25 && r.confianza >= 50) break;
     }
     elegido = mejor;
   }

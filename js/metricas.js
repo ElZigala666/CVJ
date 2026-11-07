@@ -293,7 +293,17 @@ export function biblioteca(uid) {
       }
       const g = grupos.get(clave);
       g.filas.push(f);
-      g.horasPsn += Number(f.horas ?? 0);
+      // Horas: se suman por plataforma (son partidas distintas), pero dentro de la MISMA
+      // fuente, dos filas con las mismas horas y la misma última vez son el mismo dato repetido.
+      const huella = `${f.fuente ?? 'psn'}|${f.horas ?? ''}|${f.ultima_vez ?? ''}`;
+      g.huellas ??= new Set();
+      g.desglose ??= new Map();
+      if (f.horas != null && !g.huellas.has(huella)) {
+        g.huellas.add(huella);
+        g.horasPsn += Number(f.horas);
+        const pl = f.plataforma ?? 'Otra';
+        g.desglose.set(pl, (g.desglose.get(pl) ?? 0) + Number(f.horas));
+      }
       if (f.ultima_vez && (!g.ultimaVez || f.ultima_vez > g.ultimaVez)) g.ultimaVez = f.ultima_vez;
       if (f.progreso_trofeos != null) g.progreso = Math.max(g.progreso ?? 0, Number(f.progreso_trofeos));
     }
@@ -320,11 +330,18 @@ export function biblioteca(uid) {
         oculto: g.filas.every((f) => f.oculto || (g.emp?.tipo === 'no_juego' && f.oculto_usuario == null)),
         porRevisar: g.filas.some((f) => f.por_revisar),
         revision: revisionDe(g),
+        // "PS5 40 h · Xbox Series 12 h" (las horas a mano, si las hay, mandan sobre el total)
+        desglose: [...(g.desglose ?? new Map())].filter(([, h]) => h > 0).sort((a, b) => b[1] - a[1]).map(([plataforma, h]) => ({ plataforma, horas: Math.round(h * 10) / 10 })),
+        fuentes: [...new Set(g.filas.map((f) => f.fuente ?? 'psn'))],
+        enMisJuegos: g.filas.some((f) => f.en_mis_juegos === true) ? true : g.filas.some((f) => f.en_mis_juegos === false) ? false : null,
       };
     }).sort((a, b) => b.horas - a.horas || (b.ultimaVez ?? '').localeCompare(a.ultimaVez ?? ''));
 
     const juegos = todos.filter((x) => !x.oculto);
     const identificados = juegos.filter((x) => x.coleccion || (x.igdbId != null && x.juego));
+    // "Mis juegos" y "Probados" (lo de relleno: poco tiempo, sin valorar y nada reciente).
+    const umbral = umbralProbados(uid);
+    for (const x of juegos) x.probado = esProbado(x, umbral);
     // Por plataforma (todas las fuentes): juegos y horas de cada una.
     const plat = new Map();
     for (const x of juegos) {
@@ -350,6 +367,9 @@ export function biblioteca(uid) {
       horas: Math.round(horas),
       plataformas: [...plat.values()].map((x) => ({ ...x, horas: Math.round(x.horas) })).sort((a, b) => b.juegos - a.juegos),
       porFuente, // juegos de cada fuente (psn, xbox...)
+      misJuegos: identificados.filter((x) => !x.probado),
+      probados: juegos.filter((x) => x.probado),
+      umbral,
       top: juegos.filter((x) => x.horas > 0).slice(0, 5),
       sinValorar: identificados.filter((x) => !x.valoracion),
       ultimaVez: juegos.reduce((m, x) => (x.ultimaVez && (!m || x.ultimaVez > m) ? x.ultimaVez : m), null),
@@ -379,6 +399,40 @@ export function tiempo(uid) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// "Mis juegos" y "Probados"
+// ---------------------------------------------------------------------------
+const DIAS_RECIENTE = 30;
+/** Horas por debajo de las cuales un juego va a "Probados" (0 = nunca). */
+export function umbralProbados(uid) {
+  const u = datos.usuario(uid);
+  const v = u?.umbral_probados;
+  return v == null ? 1 : Number(v);
+}
+
+/**
+ * ¿Va a "Probados"? Nunca si está valorado o si el usuario lo subió a mano; siempre si
+ * lo mandó él. Si no: por debajo del umbral de horas (o, sin horas, con menos de un 5 %
+ * de logros) y sin jugar en los últimos 30 días.
+ */
+export function esProbado(x, umbral) {
+  if (x.valoracion || x.enMisJuegos === true) return false;
+  if (x.enMisJuegos === false) return true;
+  if (!umbral) return false;
+  const reciente = x.ultimaVez && Date.now() - new Date(x.ultimaVez).getTime() < DIAS_RECIENTE * 86400000;
+  if (reciente) return false;
+  const conHoras = x.horas > 0 || x.filas.some((f) => f.horas != null);
+  if (conHoras) return x.horas < umbral;
+  return x.progreso == null || x.progreso < 5;
+}
+
+/** Texto "PS5 40 h · Xbox Series 12 h · Total 52 h" (o solo el total si hay una plataforma). */
+export function textoDesglose(x) {
+  const d = x.desglose ?? [];
+  if (d.length < 2) return '';
+  return [...d.map((p) => `${p.plataforma} ${textoHoras(p.horas)}`), `Total ${textoHoras(d.reduce((t, p) => t + p.horas, 0))}`].join(' · ');
+}
+
 /** Horas de un usuario en un juego: las puestas a mano o, si no hay, las de PSN. */
 export function horasDe(uid, igdbId) {
   const manual = datos.miValoracion(uid, igdbId)?.horas;
@@ -392,8 +446,15 @@ export function bibliotecaDeJuego(igdbId) {
     const m = new Map();
     for (const f of datos.bibliotecaDeJuego(igdbId)) {
       if (!datos.usuario(f.usuario_id) || f.oculto) continue;
-      const x = m.get(f.usuario_id) ?? { horas: 0, progreso: null, plataformas: [], filas: [] };
-      x.horas += Number(f.horas ?? 0);
+      const x = m.get(f.usuario_id) ?? { horas: 0, progreso: null, plataformas: [], filas: [], huellas: new Set(), desglose: [] };
+      // Igual que en la biblioteca: dentro de una fuente, el mismo dato repetido cuenta una vez.
+      const huella = `${f.fuente ?? 'psn'}|${f.horas ?? ''}|${f.ultima_vez ?? ''}`;
+      if (f.horas != null && !x.huellas.has(huella)) {
+        x.huellas.add(huella);
+        x.horas += Number(f.horas);
+        const d = x.desglose.find((p) => p.plataforma === (f.plataforma ?? 'Otra'));
+        if (d) d.horas += Number(f.horas); else x.desglose.push({ plataforma: f.plataforma ?? 'Otra', horas: Number(f.horas) });
+      }
       if (f.progreso_trofeos != null) x.progreso = Math.max(x.progreso ?? 0, Number(f.progreso_trofeos));
       if (f.plataforma && !x.plataformas.includes(f.plataforma)) x.plataformas.push(f.plataforma);
       x.filas.push(f);

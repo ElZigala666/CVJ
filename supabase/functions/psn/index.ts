@@ -318,9 +318,9 @@ export function claramenteIgual(a: string, b: string): boolean {
 // debajo queda "por revisar" con la mejor propuesta. Lo confirmado o corregido a
 // mano (confirmado = true) no se toca nunca.
 // -----------------------------------------------------------------------------
-const EMPAREJAR_A_LA_VEZ = 4;
+const EMPAREJAR_A_LA_VEZ = 2; // IGDB admite 4 peticiones/s y cada título hace varias
 const EMPAREJAR_HASTA_MS = 120_000; // en segundo plano (Supabase corta a los 150 s)
-const ALGORITMO = 3;                // lo no confirmado con una versión anterior se recalcula
+const ALGORITMO = 4;                // lo no confirmado con una versión anterior se recalcula
 const UMBRAL_ACEPTAR = 75;
 
 type Emparejamiento = { igdb_id: number | null; confirmado?: boolean; algoritmo?: number; tipo?: string };
@@ -453,7 +453,8 @@ async function emparejarLocal(usuarioId: string, pendientes: Fila[]) {
 }
 
 /** Paso 2 (en segundo plano): IGDB para todo lo que falte, de 4 en 4 y con tope de tiempo. */
-async function emparejarConIgdb(pendientes: Fila[], valorados: number[]) {
+async function emparejarConIgdb(pendientes: Fila[], valoradosDe: number[] | ((f: Fila) => number[])) {
+  const valoradosPara = typeof valoradosDe === "function" ? valoradosDe : () => valoradosDe;
   const inicio = Date.now();
   let hechos = 0;
   for (let i = 0; i < pendientes.length; i += EMPAREJAR_A_LA_VEZ) {
@@ -463,7 +464,7 @@ async function emparejarConIgdb(pendientes: Fila[], valorados: number[]) {
       try {
         r = await llamarIgdb({
           accion: "emparejar", nombre: f.nombre_psn, title_id: f.psn_title_id, plataforma: f.plataforma,
-          primera_vez: f.primera_vez ?? null, valorados,
+          primera_vez: f.primera_vez ?? null, valorados: valoradosPara(f),
         });
       } catch (e) {
         console.warn("Emparejar", f.nombre_psn, (e as Error).message);
@@ -505,7 +506,7 @@ async function leerConocidos(ids: string[]) {
  * Recalcula los emparejamientos de unas filas de biblioteca (sincronizar y reprocesar):
  * no-juegos y paso local al momento; IGDB en segundo plano. Devuelve cuántos quedan.
  */
-async function emparejarFilas(usuarioId: string, filas: Fila[], conocidos: Map<string, Emparejamiento>) {
+async function emparejarFilas(usuarioId: string, filas: Fila[], conocidos: Map<string, Emparejamiento>, lanzar = true) {
   const pendientes = filas
     .filter((f) => hayQueEmparejar(conocidos.get(String(f.psn_title_id))))
     .sort((a, b) => Number(b.horas ?? 0) - Number(a.horas ?? 0));
@@ -527,11 +528,11 @@ async function emparejarFilas(usuarioId: string, filas: Fila[], conocidos: Map<s
   }
   // 2) IGDB, en segundo plano.
   const paraIgdb = juegos.filter((f) => !locales.has(String(f.psn_title_id)));
-  if (paraIgdb.length) {
+  if (paraIgdb.length && lanzar) {
     const { data: vals } = await sb.from("valoraciones").select("juego_id").eq("usuario_id", usuarioId);
     enSegundoPlano(emparejarConIgdb(paraIgdb, (vals ?? []).map((v) => Number(v.juego_id))));
   }
-  return { locales: locales.size, noJuegos: noJuegos.length, pendientes: paraIgdb.length };
+  return { locales: locales.size, noJuegos: noJuegos.length, pendientes: paraIgdb.length, paraIgdb };
 }
 
 // -----------------------------------------------------------------------------
@@ -632,13 +633,54 @@ async function estado(usuarioId: string) {
  */
 async function reprocesar(usuarioId: string) {
   await usuario(usuarioId);
-  let r = await sb.from("biblioteca").select("psn_title_id, nombre_psn, plataforma, horas, primera_vez").eq("usuario_id", usuarioId);
-  if (r.error) r = await sb.from("biblioteca").select("psn_title_id, nombre_psn, plataforma, horas").eq("usuario_id", usuarioId);
-  const filas = (r.data ?? []) as Fila[];
+  const filas = await filasParaEmparejar(usuarioId);
   if (!filas.length) return { ok: true, pendientes: 0, locales: 0, noJuegos: 0 };
   const conocidos = await leerConocidos(filas.map((f) => String(f.psn_title_id)));
-  const emp = await emparejarFilas(usuarioId, filas, conocidos);
+  const { paraIgdb: _, ...emp } = await emparejarFilas(usuarioId, filas, conocidos);
   return { ok: true, ...emp };
+}
+
+/** Filas de biblioteca de un usuario (o de todos) que se pueden emparejar: lo que él no ha ocultado. */
+async function filasParaEmparejar(usuarioId?: string) {
+  const cols = "usuario_id, psn_title_id, nombre_psn, plataforma, horas, primera_vez, oculto_usuario";
+  let q = sb.from("biblioteca").select(cols);
+  if (usuarioId) q = q.eq("usuario_id", usuarioId);
+  let r = await q;
+  if (r.error) {
+    let q2 = sb.from("biblioteca").select("usuario_id, psn_title_id, nombre_psn, plataforma, horas");
+    if (usuarioId) q2 = q2.eq("usuario_id", usuarioId);
+    r = await q2;
+  }
+  return ((r.data ?? []) as Fila[]).filter((f) => f.oculto_usuario !== true);
+}
+
+/**
+ * Para la tarea de cada hora: lo pendiente de TODOS los usuarios, en una sola tanda
+ * en segundo plano (con su tope de tiempo; lo que no dé tiempo, en la siguiente).
+ */
+async function reprocesarTodos() {
+  const filas = await filasParaEmparejar();
+  const porUsuario = new Map<string, Fila[]>();
+  for (const f of filas) {
+    const u = String(f.usuario_id);
+    if (!porUsuario.has(u)) porUsuario.set(u, []);
+    porUsuario.get(u)!.push(f);
+  }
+  const conocidos = await leerConocidos([...new Set(filas.map((f) => String(f.psn_title_id)))]);
+  const { data: vals } = await sb.from("valoraciones").select("juego_id, usuario_id");
+  const valoradosDe = (f: Fila) => (vals ?? []).filter((v) => v.usuario_id === f.usuario_id).map((v) => Number(v.juego_id));
+  const todos: Fila[] = [];
+  const vistos = new Set<string>();
+  for (const [u, sus] of porUsuario) {
+    const r = await emparejarFilas(u, sus, conocidos, false);
+    for (const f of r.paraIgdb) {
+      if (vistos.has(String(f.psn_title_id))) continue; // el mismo título de dos usuarios: una vez
+      vistos.add(String(f.psn_title_id));
+      todos.push(f);
+    }
+  }
+  if (todos.length) enSegundoPlano(emparejarConIgdb(todos, valoradosDe));
+  return { ok: true, usuarios: porUsuario.size, pendientes: todos.length };
 }
 
 async function sincronizar(usuarioId: string) {
@@ -766,6 +808,7 @@ Deno.serve(async (req) => {
       case "desconectar": return json(await desconectar(uid));
       case "estado": return json(await estado(uid));
       case "reprocesar": return json(await reprocesar(uid));
+      case "reprocesar_todos": return json(await reprocesarTodos());
       default: throw new ErrorPsn("parametros", 'Acción desconocida (usa "conectar", "sincronizar", "desconectar" o "estado")', 400);
     }
   } catch (e) {

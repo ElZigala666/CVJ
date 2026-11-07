@@ -137,6 +137,7 @@ export function revisarAutomatico() {
 }
 
 let reprocesoHecho = false;
+const ALGORITMO = 4; // el de la función psn: lo emparejado con uno anterior (y no confirmado) se recalcula
 /**
  * Una vez por sesión: si mi biblioteca tiene títulos emparejados con reglas antiguas
  * (y no confirmados a mano), la función los recalcula con las nuevas (migración 006).
@@ -151,16 +152,19 @@ export function revisarReproceso() {
   if (!conTipo) return; // aún sin la migración 006
   const viejo = filas.some((f) => {
     const e = datos.emparejamiento(f.psn_title_id);
-    return !e || (!e.confirmado && Number(e.algoritmo ?? 1) < 3);
+    return !f.oculto_usuario && (!e || (!e.confirmado && Number(e.algoritmo ?? 1) < ALGORITMO));
   });
   if (!viejo) return;
-  (window.requestIdleCallback ?? ((fn) => setTimeout(fn, 2500)))(() => {
-    llamarPsn('reprocesar', { usuario_id: yo.id }).then((r) => {
-      if (!r.ok) { console.info('[psn] Reprocesar sin éxito:', r.codigo); return; }
-      datos.refrescar();
-      refrescarLuego(r);
-    });
+  // Por rondas: cada llamada empareja lo que le da tiempo (unos 2 minutos) y sigue
+  // en la siguiente mientras la app esté abierta (la tarea de cada hora hace el resto).
+  let rondas = 0;
+  const ronda = () => llamarPsn('reprocesar', { usuario_id: yo.id }).then((r) => {
+    if (!r.ok) { console.info('[psn] Reprocesar sin éxito:', r.codigo); return; }
+    datos.refrescar();
+    refrescarLuego(r);
+    if (r.pendientes > 0 && ++rondas < 8) setTimeout(ronda, 150_000);
   });
+  (window.requestIdleCallback ?? ((fn) => setTimeout(fn, 2500)))(ronda);
 }
 
 /** Para cerrar sesión: que el siguiente usuario empiece de cero. */

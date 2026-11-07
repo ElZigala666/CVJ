@@ -145,6 +145,7 @@ function iniciarDatos() {
     // PlayStation: sincronización automática, en segundo plano.
     psn.revisarAutomatico();
     xbox.revisarAutomatico();
+    xbox.revisarHoras();
     // Biblioteca sincronizada con reglas antiguas: recalcularla una vez con las nuevas.
     psn.revisarReproceso();
     // Juegos guardados antes de la migración 005: marcar cuáles son online (una vez).

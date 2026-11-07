@@ -188,7 +188,10 @@ export function render(el, { params }) {
     const b = metricas.bibliotecaDeJuego(id).get(uid);
     const partes = [];
     // Las horas puestas a mano mandan sobre las de PSN.
-    const h = metricas.textoHoras(metricas.horasDe(uid, id));
+    // Varias plataformas: "PS5 40 h · Xbox Series 12 h · Total 52 h" (si no hay horas a mano).
+    const manual = datos.miValoracion(uid, id)?.horas;
+    const desglose = manual == null && b ? metricas.textoDesglose(b) : '';
+    const h = desglose || metricas.textoHoras(metricas.horasDe(uid, id));
     if (h) partes.push(h);
     if (b?.progreso) partes.push(`${b.progreso} % trofeos`);
     return partes.length ? ` · ${partes.join(' · ')}` : '';

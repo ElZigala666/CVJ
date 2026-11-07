@@ -81,6 +81,7 @@ export function abrirAjustes(alSalir, { psn = false } = {}) {
           <div data-ref="psn"></div>
           <div data-ref="xbox"></div>
         </section>
+        <div data-ref="biblioteca"></div>
         <div data-ref="instalar"></div>
         <button type="button" class="boton-secundario neutro ajustes-salir" data-accion="salir">Cerrar sesión en este móvil</button>
         <p class="ajustes-version">CVJ · versión ${esc(VERSION_CORTA)}</p>
@@ -100,7 +101,32 @@ export function abrirAjustes(alSalir, { psn = false } = {}) {
           </section>` : '';
       };
       pintarFoto();
-      const quitarFoto = datos.suscribir(pintarFoto);
+      // Biblioteca: umbral de "Probados" (migración 009).
+      const pintarUmbral = () => {
+        const u = datos.usuario(usuarioActual()?.id);
+        const cont = cuerpo.querySelector('[data-ref="biblioteca"]');
+        if (!u || !('umbral_probados' in u)) { cont.innerHTML = ''; return; }
+        const v = Number(u.umbral_probados ?? 1);
+        cont.innerHTML = `
+          <section class="ajustes-bloque">
+            <span class="campo-titulo">Biblioteca</span>
+            <label class="ajustes-fila-select">
+              <span>Pasar a «Probados» los juegos con menos de</span>
+              <select data-umbral>
+                ${[[1, '1 h'], [2, '2 h'], [5, '5 h'], [0, 'Nunca']].map(([n, t]) => `<option value="${n}"${n === v ? ' selected' : ''}>${t}</option>`).join('')}
+              </select>
+            </label>
+            <p class="ajustes-nota">Sin horas conocidas, cuenta tener menos de un 5 % de logros. Valorar un juego o jugarlo en los últimos 30 días lo deja siempre en «Mis juegos».</p>
+          </section>`;
+      };
+      pintarUmbral();
+      cuerpo.addEventListener('change', (e) => {
+        const sel = e.target.closest('[data-umbral]');
+        if (!sel) return;
+        const yoId = usuarioActual()?.id;
+        if (yoId) datos.actualizarUsuario(yoId, { umbral_probados: Number(sel.value) }, aviso, 'No se ha podido guardar. Se ha deshecho el cambio.');
+      });
+      const quitarFoto = datos.suscribir(() => { pintarFoto(); pintarUmbral(); });
       // PlayStation (se quita la suscripción al cerrar la hoja).
       const quitarPsn = montarPsn(cuerpo.querySelector('[data-ref="psn"]'));
       const quitarXbox = montarXbox(cuerpo.querySelector('[data-ref="xbox"]'));

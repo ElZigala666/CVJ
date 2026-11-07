@@ -173,7 +173,7 @@ export function abrirValorar(igdbId, op = {}) {
                 placeholder="${horasPsn ? esc(String(Math.round(horasPsn))) : '0'}" value="${previa?.horas != null ? esc(String(previa.horas).replace('.', ',')) : ''}">
               <span aria-hidden="true">h</span>
             </div>
-            ${horasPsn ? `<span class="campo-ayuda">PlayStation: ${esc(metricas.textoHoras(horasPsn))}. Si escribes otras, se usan las tuyas.</span>` : ''}
+            ${horasPsn ? `<span class="campo-ayuda">En tu biblioteca: ${esc(metricas.textoDesglose(metricas.bibliotecaDeJuego(id).get(yo.id)) || metricas.textoHoras(horasPsn))}. Si escribes otras, se usan las tuyas.</span>` : ''}
             <span class="campo-ayuda error" data-ref="horas-error" hidden>Escribe solo un número, por ejemplo 12 o 12,5.</span>
           </div>` : ''}
 

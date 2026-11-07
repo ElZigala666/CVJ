@@ -43,3 +43,25 @@ export function nucleoNombre(nombre) {
 export function sinNumeros(nombre) {
   return claveNombrePsn(nombre).replace(/\b(\d+|2k\d\d|[ivx]+)\b/g, ' ').replace(/\s+/g, ' ').trim();
 }
+
+// Igual que en la función igdb (variantes de búsqueda): sin el sufijo de edición
+// ("Hollow Knight: Edición Corazón Vacío" → "hollow knight") y sin palabras de edición
+// ni de plataforma. Es el texto con el que se abre "Cambiar juego".
+const PALABRAS_EDICION = new Set(('edicion edition ediciones deluxe gold ultimate complete completa goty definitive definitiva ' +
+  'standard estandar digital bundle pack premium special especial collectors coleccionista anniversary aniversario ' +
+  'enhanced mejorada directors cut corte director royal legendary legendaria ultra super launch day one ' +
+  'season pass cross gen version').split(' '));
+const PLATAFORMA_EN_TITULO = /\b(ps4|ps5|playstation \d|xbox series x s|xbox series x|xbox series|xbox one|xbox 360|xbox|for windows 10|for windows|windows 10|windows|pc|para xbox series x s|para xbox one|para xbox)\b/g;
+const PARECE_EDICION = /\b(edicion|edition|deluxe|gold|ultimate|complete|completa|goty|definitive|definitiva|standard|estandar|digital|bundle|premium|special|especial|anniversary|aniversario|enhanced|directors cut|royal|legendary|ps4|ps5|xbox|windows|pc|remastered|remasterizad[oa]|vacio)\b/;
+
+export function simplificarTitulo(nombre) {
+  const crudo = String(nombre ?? '').replace(/[™®©]/g, '');
+  const m = crudo.match(/^(.*?)\s*(?::|\s[-–—]\s|\s[-–—]|[-–—]\s)\s*(.+)$/);
+  let base = claveNombrePsn(crudo);
+  if (m) {
+    const resto = claveNombrePsn(m[2]);
+    if (PARECE_EDICION.test(resto) || !resto) base = claveNombrePsn(m[1]);
+  }
+  const sinPlat = base.replace(PLATAFORMA_EN_TITULO, ' ').replace(/\s+/g, ' ').trim();
+  return sinPlat.split(' ').filter((w) => !PALABRAS_EDICION.has(w)).join(' ').trim() || base;
+}

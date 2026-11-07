@@ -22,7 +22,11 @@ export function render(el) {
     for (const k of [...sel]) if (!claves.has(k)) sel.delete(k);
     const parejas = metricas.parejasFusion(yo.id).slice(0, 6);
     const sagas = metricas.sugerenciasSaga(yo.id);
-    const seguros = items.filter((x) => x.revision.seguro);
+    // Abajo, aparte, los de "relleno" (por debajo del umbral): se pueden mandar todos a Probados.
+    const principales = items.filter((x) => !x.probado);
+    const relleno = items.filter((x) => x.probado);
+    const conPropuesta = items.filter((x) => x.coleccion || x.igdbId != null || x.revision.propuesta);
+    const bajas = conPropuesta.filter((x) => !x.revision.seguro).length;
     document.title = 'CVJ · Revisa tu biblioteca';
 
     el.innerHTML = `
@@ -31,8 +35,21 @@ export function render(el) {
         ${sagas.map(tarjetaSaga).join('')}
         ${parejas.map(tarjetaFusion).join('')}
         ${items.length ? `
-          <p class="ajustes-nota">Comprueba que cada juego de PlayStation es el que proponemos. Los marcados «Revisar» no se cuentan hasta que los confirmes.</p>
-          <div class="revisar-lista">${items.map((x) => fila(x, sel.has(x.clave))).join('')}</div>`
+          ${conPropuesta.length ? `
+            <div class="revisar-todas">
+              <button type="button" class="boton-principal" data-bloque="todas">Confirmar todas las propuestas (${conPropuesta.length})</button>
+              <span class="ajustes-nota">${bajas ? `${bajas} ${bajas === 1 ? 'es' : 'son'} de confianza baja («Revisar»): échales un vistazo antes.` : 'Todas son seguras.'}</span>
+            </div>` : ''}
+          <div class="revisar-lista">${principales.map((x) => fila(x, sel.has(x.clave))).join('')}</div>
+          ${relleno.length ? `
+            <div class="revisar-relleno">
+              <div class="seccion-cab">
+                <h2 class="seccion-titulo">Jugados muy poco (${relleno.length})</h2>
+                <button type="button" class="boton-secundario boton-pequeno" data-bloque="probados">Mandar todos a Probados</button>
+              </div>
+              <p class="ajustes-nota">Por debajo de tu umbral y sin jugar últimamente. En «Probados» no estorban y no se borran.</p>
+              <div class="revisar-lista">${relleno.map((x) => fila(x, sel.has(x.clave))).join('')}</div>
+            </div>` : ''}`
           : estadoVacio({ icono: 'completado', titulo: 'No hay nada que revisar', texto: 'Cuando sincronices juegos nuevos, aparecerán aquí para que los compruebes.' })}
       </div>
       ${items.length ? `
@@ -40,7 +57,7 @@ export function render(el) {
           ${sel.size
             ? `<button type="button" class="boton-secundario neutro" data-bloque="quitar">Quitar (${sel.size})</button>
                <button type="button" class="boton-principal" data-bloque="confirmar">Confirmar (${sel.size})</button>`
-            : `<button type="button" class="boton-principal" data-bloque="seguros"${seguros.length ? '' : ' disabled'}>Confirmar todos los seguros${seguros.length ? ` (${seguros.length})` : ''}</button>`}
+            : `<span class="barra-accion-nota">Marca varios para confirmarlos o quitarlos a la vez.</span>`}
         </div>` : ''}`;
   };
 
@@ -87,7 +104,12 @@ export function render(el) {
     const elegidos = items.filter((x) => sel.has(x.clave));
     if (b.dataset.bloque === 'confirmar') confirmar(elegidos);
     if (b.dataset.bloque === 'quitar') quitar(elegidos);
-    if (b.dataset.bloque === 'seguros') confirmar(items.filter((x) => x.revision.seguro));
+    if (b.dataset.bloque === 'todas') confirmar(items);
+    if (b.dataset.bloque === 'probados') {
+      const relleno = items.filter((x) => x.probado);
+      datos.ponerEnMisJuegos(yo.id, relleno.flatMap((x) => x.titulos), false, aviso);
+      aviso(`${relleno.length} a Probados`);
+    }
     sel.clear();
   });
 
@@ -125,8 +147,8 @@ function fila(x, marcada) {
         </div>
         <div class="revisar-propuesta">${propuesta}</div>
         <div class="revisar-acciones">
-          <button type="button" class="boton-secundario boton-pequeno" data-confirmar="${esc(x.clave)}"${sinNada ? ' disabled' : ''}>Confirmar</button>
-          <a class="boton-secundario neutro boton-pequeno" href="#elegir/${encodeURIComponent(x.psnTitleId)}">Cambiar juego</a>
+          ${sinNada ? '' : `<button type="button" class="boton-principal revisar-si" data-confirmar="${esc(x.clave)}">Sí, es este</button>`}
+          <a class="boton-secundario neutro boton-pequeno" href="#elegir/${encodeURIComponent(x.psnTitleId)}">${sinNada ? 'Elegir el juego' : 'Cambiar'}</a>
           <button type="button" class="enlace-discreto" data-quitar="${esc(x.clave)}">Quitar</button>
         </div>
       </div>

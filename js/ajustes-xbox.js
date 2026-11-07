@@ -54,6 +54,11 @@ export function montarXbox(cont) {
             <button type="button" class="boton-principal" data-xbox="vincular"${s.ocupado ? ' disabled' : ''}>${s.ocupado === 'vincular' ? 'Buscando…' : 'Vincular'}</button>
           </div>
           <p class="ajustes-nota">Trae tus juegos y logros de Xbox (las horas no las da). Nunca se crean valoraciones solas.</p>`}
+        ${vinculada && 'xbox_incluir_pc' in u ? `
+          <label class="interruptor">
+            <input type="checkbox" data-xbox-pc${u.xbox_incluir_pc ? ' checked' : ''}>
+            <span class="interruptor-texto"><strong>Incluir juegos de PC detectados</strong><small>Juegos de PC que Xbox ha visto pero no son de la tienda (Steam, Epic...). Apagado, van a «Ocultos».</small></span>
+          </label>` : ''}
         ${s.mensaje ? `<p class="psn-mensaje${s.error ? ' error' : ''}" role="status">${esc(s.mensaje)}</p>` : ''}
         <button type="button" class="enlace-discreto psn-ayuda-boton" data-xbox="guia" aria-expanded="${s.guia}">${s.guia ? 'Ocultar la guía' : 'Cómo hacer visible tu historial de Xbox'}</button>
         ${s.guia ? GUIA_PRIVACIDAD : ''}
@@ -113,6 +118,13 @@ export function montarXbox(cont) {
       if (r.ok) aviso('Xbox desvinculada');
     }
     pintar();
+  });
+
+  cont.addEventListener('change', (e) => {
+    const c = e.target.closest('[data-xbox-pc]');
+    if (!c || !yo) return;
+    datos.cambiarIncluirPc(yo.id, c.checked, aviso);
+    aviso(c.checked ? 'Juegos de PC detectados incluidos' : 'Juegos de PC detectados a «Ocultos»');
   });
 
   const desuscribir = datos.suscribir(pintar);

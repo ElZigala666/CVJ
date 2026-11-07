@@ -23,7 +23,13 @@
 //   { "accion": "vincular", "usuario_id": "...", "gamertag": "..." }
 //   { "accion": "sincronizar", "usuario_id": "..." }
 //   { "accion": "desvincular", "usuario_id": "..." }
+//   { "accion": "horas", "usuario_id": "..." }   (rellena horas que falten, poco a poco)
+//   { "accion": "tarea_horaria" }   (la llama pg_cron cada hora: horas de todos)
 //   { "accion": "estado" }   (¿está la clave puesta y funciona? para probar)
+//
+// Horas: POST https://api.xbl.io/v2/player/stats { xuids, stats: [{ name: "MinutesPlayed", titleId }] }
+// admite varios juegos en UNA petición (se piden de 20 en 20). Un contador en la base
+// (openxbl_reservar) impide pasar de 110 peticiones por hora para horas y de 145 en total.
 //
 // El emparejamiento con IGDB, las colecciones, las apps ocultas, "Revisa tu biblioteca"...
 // son comunes a todas las plataformas: los hace la función "psn" (acción "reprocesar").
@@ -69,14 +75,34 @@ async function anotarClave(ok: boolean, mensaje: string | null = null) {
   if (error && !/estado_servicios/.test(error.message)) console.warn("estado_servicios:", error.message);
 }
 
+/**
+ * Reserva n peticiones de la hora actual en el contador compartido (openxbl_uso).
+ * false = no quedan (se respeta el límite del grupo). Sin la migración 009, siempre true.
+ */
+async function reservar(n: number, maximo: number) {
+  const { data, error } = await sb.rpc("openxbl_reservar", { n, maximo });
+  if (error) {
+    if (!/openxbl_reservar|function/.test(error.message)) console.warn("openxbl_reservar:", error.message);
+    return true;
+  }
+  return data === true;
+}
+const MAX_TOTAL = 145; // lo normal (vincular, sincronizar) puede usar casi todo
+const MAX_HORAS = 110; // las horas dejan margen para lo normal
+
 // -----------------------------------------------------------------------------
 // OpenXBL
 // -----------------------------------------------------------------------------
 /** GET con la clave de API. "privado" solo cuando se pide el historial de otro (sePuedeOcultar). */
-async function api(ruta: string, sePuedeOcultar = false) {
+async function api(ruta: string, sePuedeOcultar = false, op: { cuerpo?: unknown; maximo?: number } = {}) {
   if (!CLAVE) throw new ErrorXbox("falta_clave", "Falta el secreto OPENXBL_API_KEY en Supabase.");
+  if (!(await reservar(1, op.maximo ?? MAX_TOTAL))) {
+    throw new ErrorXbox("limite", "Xbox ha llegado al límite de peticiones de esta hora para el grupo. Prueba más tarde.");
+  }
   const r = await fetch(`${API}/${ruta}`, {
-    headers: { "X-Authorization": CLAVE, Accept: "application/json", "Accept-Language": "es-ES,es" },
+    method: op.cuerpo ? "POST" : "GET",
+    headers: { "X-Authorization": CLAVE, Accept: "application/json", "Accept-Language": "es-ES,es", ...(op.cuerpo ? { "Content-Type": "application/json" } : {}) },
+    body: op.cuerpo ? JSON.stringify(op.cuerpo) : undefined,
   });
   const d = await r.json().catch(() => null);
   if (r.status === 401) {
@@ -132,7 +158,41 @@ export function filaXbox(t: Record<string, any>, usuarioId: string, ahora: strin
     actualizado_en: ahora,
     // Apps (Netflix, Edge, Películas y TV...): el titlehub las marca con type distinto de "Game".
     es_app: t.type != null && String(t.type).toLowerCase() !== "game",
+    detectado: esPcDetectado(t),
   };
+}
+
+/**
+ * "PC detectado": juego de PC que la app de Xbox o la barra de juegos de Windows ha
+ * visto pero que no es de la tienda ni tiene Xbox Live (Steam, Epic, launchers...).
+ * Señales: solo en PC, sin nivel de Xbox Live, sin paquete de la tienda y sin gamerscore.
+ */
+export function esPcDetectado(t: Record<string, any>): boolean {
+  const devices = (t?.devices ?? []).map((x: string) => String(x).toLowerCase());
+  const soloPc = devices.length > 0 && devices.every((x: string) => x === "pc" || x.includes("win"));
+  if (!soloPc) return false;
+  const tier = String(t?.xboxLiveTier ?? "None").toLowerCase();
+  const gamerscore = Number(t?.achievement?.totalGamerscore ?? 0);
+  const deTienda = !!(t?.pfn || t?.windowsPhoneProductId || t?.productId);
+  return tier === "none" && gamerscore === 0 && !deTienda;
+}
+
+/** Minutos jugados por título en la respuesta de /player/stats (busca "MinutesPlayed" donde esté). */
+export function minutosPorTitulo(respuesta: unknown): Map<string, number> {
+  const m = new Map<string, number>();
+  const visitar = (x: any) => {
+    if (!x || typeof x !== "object") return;
+    if (Array.isArray(x)) { x.forEach(visitar); return; }
+    const nombre = String(x.name ?? x.Name ?? "");
+    const titulo = x.titleid ?? x.titleId ?? x.TitleId;
+    const valor = Number(x.value ?? x.Value);
+    if (/^minutesplayed$/i.test(nombre) && titulo != null && Number.isFinite(valor)) {
+      m.set(String(titulo), Math.max(m.get(String(titulo)) ?? 0, valor));
+    }
+    for (const v of Object.values(x)) if (v && typeof v === "object") visitar(v);
+  };
+  visitar(respuesta);
+  return m;
 }
 
 /** ¿App de Xbox por el nombre? (por si la API no dice el tipo) */
@@ -165,7 +225,10 @@ export function elegirJugador(content: any, gamertag: string): { xuid: string; g
 // -----------------------------------------------------------------------------
 async function usuario(id: string) {
   if (!id) throw new ErrorXbox("parametros", "Falta usuario_id.", 400);
-  const { data, error } = await sb.from("usuarios").select("id, xbox_xuid, xbox_gamertag, xbox_sincronizado_en").eq("id", id).maybeSingle();
+  let { data, error } = await sb.from("usuarios").select("id, xbox_xuid, xbox_gamertag, xbox_sincronizado_en, xbox_incluir_pc").eq("id", id).maybeSingle();
+  if (error && /xbox_incluir_pc/.test(error.message)) {
+    ({ data, error } = await sb.from("usuarios").select("id, xbox_xuid, xbox_gamertag, xbox_sincronizado_en").eq("id", id).maybeSingle());
+  }
   if (error) throw new ErrorXbox("bd", "No se ha podido leer el usuario: " + error.message, 500);
   if (!data) throw new ErrorXbox("parametros", "Ese usuario no existe.", 404);
   return data;
@@ -223,17 +286,24 @@ async function sincronizar(usuarioId: string) {
   const { data: previas } = await sb.from("biblioteca").select("psn_title_id").eq("usuario_id", usuarioId).eq("fuente", "xbox");
   const yaTenia = new Set((previas ?? []).map((x) => x.psn_title_id));
   const limpia = ({ es_app: _, ...f }: Record<string, any>) => f;
+  // "PC detectado" (no es de la tienda): solo si el usuario lo ha pedido en Ajustes.
+  const incluirPc = (u as { xbox_incluir_pc?: boolean }).xbox_incluir_pc === true;
   const nuevas = filas.filter((f) => !yaTenia.has(f.psn_title_id)).map((f) => {
-    const app = apps.includes(f);
-    return { ...limpia(f), por_revisar: !app, oculto: app };
+    const fuera = apps.includes(f) || (f.detectado && !incluirPc);
+    return { ...limpia(f), por_revisar: !fuera, oculto: fuera };
   });
   const viejas = filas.filter((f) => yaTenia.has(f.psn_title_id)).map((f) => limpia(f));
   for (const grupo of [nuevas, viejas]) {
     for (let i = 0; i < grupo.length; i += 200) {
-      const { error } = await sb.from("biblioteca").upsert(grupo.slice(i, i + 200), { onConflict: "usuario_id,psn_title_id" });
+      let { error } = await sb.from("biblioteca").upsert(grupo.slice(i, i + 200), { onConflict: "usuario_id,psn_title_id" });
+      if (error && /detectado/.test(error.message)) { // sin la migración 009
+        ({ error } = await sb.from("biblioteca").upsert(grupo.slice(i, i + 200).map(({ detectado: _, ...r }) => r), { onConflict: "usuario_id,psn_title_id" }));
+      }
       if (error) throw new ErrorXbox("bd", "No se ha podido guardar la biblioteca: " + error.message, 500);
     }
   }
+  // Los detectados que ya estaban siguen el interruptor (salvo que el usuario decidiera a mano).
+  await sb.from("biblioteca").update({ oculto: !incluirPc }).eq("usuario_id", usuarioId).eq("fuente", "xbox").eq("detectado", true).is("oculto_usuario", null);
   if (apps.length) {
     await sb.from("psn_igdb").upsert(apps.map((f) => ({
       psn_title_id: f.psn_title_id, igdb_id: null, confirmado: false, nombre_psn: f.nombre_psn,
@@ -254,14 +324,76 @@ async function sincronizar(usuarioId: string) {
   } catch (e) {
     console.warn("Emparejar (psn reprocesar):", (e as Error).message);
   }
+  // Horas: unas pocas peticiones ahora; el resto, poco a poco (tarea horaria y al abrir la app).
+  let horas = { pedidas: 0, quedan: 0 };
+  try { horas = await rellenarHoras(usuarioId, u.xbox_xuid, 2); } catch (e) { console.warn("Horas:", (e as Error).message); }
+
   return {
     ok: true,
     juegos: filas.length - apps.length,
     apps: apps.length,
+    detectados: filas.filter((f) => f.detectado).length,
     nuevos: nuevas.filter((f) => f.por_revisar).length,
     pendientes,
+    horas_pendientes: horas.quedan,
     sincronizado_en: ahora,
   };
+}
+
+// -----------------------------------------------------------------------------
+// Horas de juego (MinutesPlayed), poco a poco y sin pasar del límite del grupo
+// -----------------------------------------------------------------------------
+const LOTE_HORAS = 20;
+
+/**
+ * Pide horas de los juegos de Xbox (no ocultos) que no las tienen o que se han
+ * jugado desde la última vez que se pidieron, los más recientes primero.
+ * Como mucho maxPeticiones, y nunca por encima de MAX_HORAS en la hora.
+ */
+async function rellenarHoras(usuarioId: string, xuid: string, maxPeticiones: number) {
+  let r = await sb.from("biblioteca").select("psn_title_id, ultima_vez, horas_en").eq("usuario_id", usuarioId).eq("fuente", "xbox").eq("oculto", false);
+  if (r.error) return { pedidas: 0, quedan: 0 }; // sin la migración 009
+  const faltan = ((r.data ?? []) as { psn_title_id: string; ultima_vez: string | null; horas_en: string | null }[])
+    .filter((f) => !f.horas_en || (f.ultima_vez && new Date(f.ultima_vez) > new Date(f.horas_en)))
+    .sort((a, b) => String(b.ultima_vez ?? "").localeCompare(String(a.ultima_vez ?? "")));
+  let pedidas = 0;
+  for (let i = 0; i < faltan.length && pedidas < maxPeticiones; i += LOTE_HORAS) {
+    const lote = faltan.slice(i, i + LOTE_HORAS);
+    const ids = lote.map((f) => f.psn_title_id.replace(/^XBOX-/, ""));
+    let minutos: Map<string, number>;
+    try {
+      const d = await api("player/stats", false, {
+        maximo: MAX_HORAS,
+        cuerpo: { xuids: [xuid], stats: ids.map((titleId) => ({ name: "MinutesPlayed", titleId })) },
+      });
+      minutos = minutosPorTitulo(d);
+    } catch (e) {
+      if (e instanceof ErrorXbox && (e.codigo === "limite" || e.codigo === "clave_api")) break; // ya se seguirá
+      console.warn("player/stats:", (e as Error).message);
+      minutos = new Map(); // sin datos: se marca igualmente para no repetir en bucle
+    }
+    pedidas++;
+    const ahora = new Date().toISOString();
+    for (const f of lote) {
+      const min = minutos.get(f.psn_title_id.replace(/^XBOX-/, ""));
+      // Sin la estadística, se queda sin horas (nada de inventar): se puede poner a mano.
+      const cambios: Record<string, unknown> = { horas_en: ahora };
+      if (min != null && min > 0) cambios.horas = Math.round((min / 60) * 100) / 100;
+      await sb.from("biblioteca").update(cambios).eq("usuario_id", usuarioId).eq("psn_title_id", f.psn_title_id);
+    }
+  }
+  return { pedidas, quedan: Math.max(0, faltan.length - pedidas * LOTE_HORAS) };
+}
+
+/** Tarea de cada hora: horas de todos los usuarios con Xbox, repartiendo el margen. */
+async function tareaHoraria() {
+  const { data } = await sb.from("usuarios").select("id, xbox_xuid").not("xbox_xuid", "is", null);
+  const lista = data ?? [];
+  let pedidas = 0;
+  for (const u of lista) {
+    try { pedidas += (await rellenarHoras(u.id, u.xbox_xuid, 4)).pedidas; } catch (e) { console.warn("Tarea horaria:", (e as Error).message); }
+  }
+  return { ok: true, usuarios: lista.length, pedidas };
 }
 
 async function desvincular(usuarioId: string) {
@@ -306,6 +438,12 @@ Deno.serve(async (req) => {
       case "sincronizar": return json(await sincronizar(uid));
       case "desvincular": return json(await desvincular(uid));
       case "estado": return json(await estado());
+      case "horas": {
+        const u = await usuario(uid);
+        if (!u.xbox_xuid) throw new ErrorXbox("sin_vincular", "Primero vincula tu gamertag de Xbox.");
+        return json({ ok: true, ...(await rellenarHoras(uid, u.xbox_xuid, 3)) });
+      }
+      case "tarea_horaria": return json(await tareaHoraria());
       default: throw new ErrorXbox("parametros", 'Acción desconocida (usa "vincular", "sincronizar", "desvincular" o "estado")', 400);
     }
   } catch (e) {

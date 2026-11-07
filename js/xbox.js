@@ -113,7 +113,28 @@ export function revisarAutomatico() {
   });
 }
 
+let horasPedidas = false;
+/** Al abrir la app: si faltan horas de Xbox, pedir unas cuantas (como mucho cada 30 min). */
+export function revisarHoras() {
+  if (horasPedidas) return;
+  const yo = usuarioActual();
+  const u = yo && datos.usuario(yo.id);
+  if (!u?.xbox_xuid) return;
+  const filas = datos.bibliotecaDe(u.id).filter((f) => f.fuente === 'xbox' && !f.oculto);
+  if (!filas.length || !('horas_en' in filas[0])) return;
+  horasPedidas = true;
+  const faltan = filas.some((f) => !f.horas_en || (f.ultima_vez && new Date(f.ultima_vez) > new Date(f.horas_en)));
+  let ultima = 0;
+  try { ultima = Number(localStorage.getItem('cvj.xbox.horas') || 0); } catch { /* nada */ }
+  if (!faltan || Date.now() - ultima < 30 * 60 * 1000) return;
+  try { localStorage.setItem('cvj.xbox.horas', String(Date.now())); } catch { /* nada */ }
+  (window.requestIdleCallback ?? ((fn) => setTimeout(fn, 4000)))(() => {
+    llamarXbox('horas', { usuario_id: u.id }).then((r) => { if (r.ok && r.pedidas) datos.refrescar(); });
+  });
+}
+
 export function olvidar() {
+  horasPedidas = false;
   autoHecha = false;
   ultimaRespuesta = null;
   try { localStorage.removeItem(CLAVE_INTENTO); } catch { /* nada */ }

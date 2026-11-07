@@ -103,7 +103,7 @@ const COLUMNAS_PSN = ', psn_online_id, psn_account_id, psn_sincronizado_en';
 /** Usuarios con sus datos de PSN y su foto; si faltan las migraciones 005, 004 o 003, con lo que haya. */
 async function leerUsuarios(sb) {
   const xboxCols = ', xbox_gamertag, xbox_xuid, xbox_sincronizado_en, xbox_reconectar';
-  for (const extra of [COLUMNAS_PSN + ', psn_reconectar, foto_url, es_admin' + xboxCols, COLUMNAS_PSN + ', psn_reconectar, foto_url, es_admin', COLUMNAS_PSN + ', psn_reconectar', COLUMNAS_PSN]) {
+  for (const extra of [COLUMNAS_PSN + ', psn_reconectar, foto_url, es_admin' + xboxCols + ', umbral_probados, xbox_incluir_pc', COLUMNAS_PSN + ', psn_reconectar, foto_url, es_admin' + xboxCols, COLUMNAS_PSN + ', psn_reconectar, foto_url, es_admin', COLUMNAS_PSN + ', psn_reconectar', COLUMNAS_PSN]) {
     const r = await sb.from('usuarios').select(COLUMNAS_USUARIO + extra).order('creado_en');
     if (!r.error) return r;
   }
@@ -430,6 +430,34 @@ export function marcarOnline(igdbId, valor, onError) {
     async (sb) => { comprobar(await sb.from('juegos').update(cambios).eq('igdb_id', id)); },
     onError,
     'No se ha podido cambiar. Se ha deshecho el cambio.',
+  );
+}
+
+/** "Mis juegos" (true) o "Probados" (false) a mano; null = lo decide el umbral. */
+export function ponerEnMisJuegos(usuarioId, psnTitleIds, valor, onError) {
+  const ids = new Set(psnTitleIds);
+  const cambios = { en_mis_juegos: valor, por_revisar: false };
+  return escribirOptimista(
+    (s) => { s.biblioteca = (s.biblioteca ?? []).map((b) => (b.usuario_id === usuarioId && ids.has(b.psn_title_id) ? { ...b, ...cambios } : b)); },
+    async (sb) => { comprobar(await sb.from('biblioteca').update(cambios).eq('usuario_id', usuarioId).in('psn_title_id', [...ids])); },
+    onError,
+    'No se ha podido guardar. Se ha deshecho el cambio.',
+  );
+}
+
+/** Interruptor "Incluir juegos de PC detectados" (Xbox): también muestra u oculta los que ya hay. */
+export function cambiarIncluirPc(usuarioId, incluir, onError) {
+  return escribirOptimista(
+    (s) => {
+      s.usuarios = s.usuarios.map((u) => (u.id === usuarioId ? { ...u, xbox_incluir_pc: incluir } : u));
+      s.biblioteca = (s.biblioteca ?? []).map((b) => (b.usuario_id === usuarioId && b.detectado && b.oculto_usuario == null ? { ...b, oculto: !incluir } : b));
+    },
+    async (sb) => {
+      comprobar(await sb.from('usuarios').update({ xbox_incluir_pc: incluir }).eq('id', usuarioId));
+      comprobar(await sb.from('biblioteca').update({ oculto: !incluir }).eq('usuario_id', usuarioId).eq('detectado', true).is('oculto_usuario', null));
+    },
+    onError,
+    'No se ha podido cambiar. Se ha deshecho.',
   );
 }
 

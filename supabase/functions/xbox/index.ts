@@ -146,7 +146,8 @@ export function filaXbox(t: Record<string, any>, usuarioId: string, ahora: strin
     nombre_psn: String(t.name),
     plataforma: plataformaXbox(t.devices ?? []),
     imagen_psn: t.displayImage ?? null,
-    horas: null, // la API solo las da con una petición por juego: no se piden (nada de inventar)
+    // Sin "horas": el historial no las trae y NUNCA se pisan las que ya hay. Las pone
+    // rellenarHoras (MinutesPlayed) solo cuando llega un valor nuevo y válido.
     ultima_vez: t.titleHistory?.lastTimePlayed ?? null,
     progreso_trofeos: Number.isFinite(progreso) ? Math.max(0, Math.min(100, Math.round(progreso))) : null,
     trofeos: logros.totalAchievements != null || logros.currentGamerscore != null ? {

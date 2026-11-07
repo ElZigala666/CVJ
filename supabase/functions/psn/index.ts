@@ -759,8 +759,18 @@ async function sincronizar(usuarioId: string) {
     const noJuego = esNoJuego(String(f.nombre_psn), String(f.categoria ?? ""));
     return { ...sinCategoria(conJuego(f)), por_revisar: !noJuego, oculto: noJuego };
   });
-  const viejas = lista.filter((f) => yaTenia.has(String(f.psn_title_id))).map((f) => sinCategoria(conJuego(f)));
-  for (const [grupo, extra] of [[nuevas, true], [viejas, false]] as const) {
+  // Una sincronización NUNCA borra horas que ya había: si esta respuesta no las trae,
+  // la fila se actualiza sin tocar las horas guardadas.
+  const sinHorasVacias = (f: Fila) => {
+    if (f.horas == null) { const { horas: _, ...resto } = f; return resto; }
+    return f;
+  };
+  const viejas = lista.filter((f) => yaTenia.has(String(f.psn_title_id))).map((f) => sinHorasVacias(sinCategoria(conJuego(f))));
+  // (Por separado las que traen horas y las que no: en un upsert de varias filas, la
+  // columna que falta en alguna se rellenaría con null.)
+  const viejasConHoras = viejas.filter((f) => "horas" in f);
+  const viejasSinHoras = viejas.filter((f) => !("horas" in f));
+  for (const [grupo, extra] of [[nuevas, true], [viejasConHoras, false], [viejasSinHoras, false]] as const) {
     for (let i = 0; i < grupo.length; i += 200) {
       let { error } = await sb.from("biblioteca").upsert(grupo.slice(i, i + 200), { onConflict: "usuario_id,psn_title_id" });
       if (error && /por_revisar|primera_vez/.test(error.message)) { // sin la migración 006

@@ -1,0 +1,13 @@
+# Configuración del CLI de Supabase (lo usa el workflow de despliegue).
+project_id = "CVJ"
+
+# Las funciones se llaman con la clave pública, sin sesión de Supabase Auth:
+# la verificación JWT tiene que estar SIEMPRE apagada.
+[functions.igdb]
+verify_jwt = false
+
+[functions.psn]
+verify_jwt = false
+
+[functions.xbox]
+verify_jwt = false

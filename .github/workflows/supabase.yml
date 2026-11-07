@@ -1,0 +1,85 @@
+name: Desplegar Supabase
+
+# En cada push a main que toque supabase/**: migraciones pendientes y TODAS las funciones.
+# La web (GitHub Pages) va en su propio workflow (pages.yml) y no cambia.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/supabase.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Nunca dos despliegues a la vez (y sin cancelar uno a medias).
+concurrency:
+  group: supabase
+  cancel-in-progress: false
+
+env:
+  SUPABASE_CLI: 2.121.0   # versión fija del CLI
+
+jobs:
+  desplegar:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Comprobar los secretos de GitHub
+        run: |
+          falta=0
+          for v in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_REF; do
+            if [ -z "${!v}" ]; then echo "::error::Falta el secreto $v en GitHub (Settings → Secrets and variables → Actions)."; falta=1; fi
+          done
+          exit $falta
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI }}
+
+      - name: Enlazar el proyecto
+        run: |
+          supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD" \
+            || { echo "::error::No se ha podido enlazar el proyecto de Supabase. Revisa SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF y SUPABASE_DB_PASSWORD."; exit 1; }
+
+      - name: Migraciones pendientes (en seco)
+        run: |
+          supabase migration list --password "$SUPABASE_DB_PASSWORD"
+          supabase db push --dry-run --password "$SUPABASE_DB_PASSWORD" \
+            || { echo "::error::La lista de migraciones no cuadra con la base de datos. No se ha aplicado nada."; exit 1; }
+
+      - name: Aplicar las migraciones
+        run: |
+          supabase db push --yes --password "$SUPABASE_DB_PASSWORD" \
+            || { echo "::error::Ha fallado una migración (mira el paso de arriba). Las anteriores sí están aplicadas; no se han desplegado las funciones."; exit 1; }
+
+      - name: Desplegar las funciones (sin verificación JWT)
+        run: |
+          for carpeta in supabase/functions/*/; do
+            f=$(basename "$carpeta")
+            echo "::group::Función $f"
+            supabase functions deploy "$f" --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt --use-api \
+              || { echo "::error::Ha fallado el despliegue de la función $f."; exit 1; }
+            echo "::endgroup::"
+          done
+
+      - name: Comprobar que ninguna función exige JWT
+        run: |
+          supabase functions list --project-ref "$SUPABASE_PROJECT_REF" --output-format json > funciones.json
+          python3 - <<'PY'
+          import json, sys
+          d = json.load(open("funciones.json"))
+          funciones = d.get("functions", d) if isinstance(d, dict) else d
+          mal = [f["slug"] for f in funciones if f.get("verify_jwt")]
+          for f in funciones:
+              print(f'{f["slug"]}: versión {f.get("version")}, {f.get("status")}, verify_jwt={f.get("verify_jwt")}')
+          if mal:
+              print(f"::error::Estas funciones tienen la verificación JWT encendida: {', '.join(mal)}")
+              sys.exit(1)
+          PY

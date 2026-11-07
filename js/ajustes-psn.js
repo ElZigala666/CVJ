@@ -82,7 +82,7 @@ export function montarPsn(cont) {
   const pintar = () => {
     const u = yo && datos.usuario(yo.id);
     // Sin la migración de PSN (o sin datos aún) no se enseña nada.
-    if (!u || !('psn_account_id' in u)) { cont.innerHTML = ''; return; }
+    if (!u) { cont.innerHTML = ''; return; }
     // Conservar lo que haya escrito en los campos al repintar.
     const campo = cont.querySelector('#psn-codigo');
     if (campo) s.borrador = campo.value;
@@ -177,7 +177,8 @@ export function montarPsn(cont) {
   const alVolver = () => {
     if (document.visibilityState !== 'visible' || !s.paso2 || s.ocupado || leyendo || !HAY_PORTAPAPELES || !cont.isConnected) return;
     const u = yo && datos.usuario(yo.id);
-    if (!u || (u.psn_account_id && !u.psn_reconectar && !s.anadir)) return;
+    const cs = u ? datos.cuentasDe(u.id, 'psn') : [];
+    if (!u || (cs.length && !cs.some((c) => c.reconectar) && !s.anadir)) return;
     leyendo = true;
     // Un momento después de volver: Chrome no deja leer el portapapeles hasta que la página tiene el foco.
     setTimeout(async () => {

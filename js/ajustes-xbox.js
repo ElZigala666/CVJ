@@ -24,7 +24,7 @@ export function montarXbox(cont) {
 
   const pintar = () => {
     const u = yo && datos.usuario(yo.id);
-    if (!u || !('xbox_xuid' in u)) { cont.innerHTML = ''; return; } // sin la migración 007
+    if (!u) { cont.innerHTML = ''; return; }
     const campo = cont.querySelector('#xbox-gamertag');
     if (campo) s.borrador = campo.value;
     const et = cont.querySelector('#xbox-etiqueta-nueva');

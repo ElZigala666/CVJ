@@ -7,21 +7,8 @@ import * as metricas from './metricas.js';
 
 const hace = (iso) => (iso ? tiempoRelativo(iso).replace(/^Ahora$/, 'ahora mismo').toLowerCase() : 'nunca');
 
-/**
- * Cuentas de una fuente. Sin la migración 011 (no hay tabla de cuentas) se monta una
- * con los datos resumidos del usuario, para que la tarjeta siga funcionando.
- */
-export function cuentasDe(u, fuente) {
-  if (Array.isArray(datos.estado.cuentas)) return datos.cuentasDe(u.id, fuente);
-  const id = fuente === 'psn' ? u.psn_account_id : u.xbox_xuid;
-  if (!id) return [];
-  return [{
-    id: null, usuario_id: u.id, fuente, externo_id: id,
-    nombre: fuente === 'psn' ? u.psn_online_id : u.xbox_gamertag,
-    sincronizado_en: fuente === 'psn' ? u.psn_sincronizado_en : u.xbox_sincronizado_en,
-    reconectar: fuente === 'psn' && !!u.psn_reconectar, etiqueta: null,
-  }];
-}
+/** Cuentas de una fuente (psn, xbox, steam) de un usuario. */
+export const cuentasDe = (u, fuente) => datos.cuentasDe(u.id, fuente);
 
 /**
  * HTML de las filas.

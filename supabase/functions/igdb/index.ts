@@ -849,6 +849,37 @@ async function asegurarPadres(filas: Record<string, unknown>[], nivel = 0) {
   if (faltan.length) await guardarVarios(faltan, nivel + 1);
 }
 
+/**
+ * Steam: appid → juego de IGDB con external_games (fuente Steam = 1). Una consulta por
+ * cada 500 appids. Guarda esos juegos en la tabla (y sus originales, para las
+ * fusiones de versiones). → { juegos: { appid: igdbId } }
+ */
+async function porAppidSteam(appids: string[]) {
+  const lista = [...new Set(appids.map((x) => String(x).replace(/\D/g, "")).filter(Boolean))];
+  const juegos: Record<string, number> = {};
+  for (let i = 0; i < lista.length; i += 500) {
+    const trozo = lista.slice(i, i + 500).map((x) => `"${x}"`).join(",");
+    let ext: { game?: number; uid?: string }[] = [];
+    try {
+      // Campo actual: external_game_source (Steam = 1); el antiguo era category.
+      ext = await igdb("external_games", `fields game,uid; where external_game_source = 1 & uid = (${trozo}); limit 500;`);
+    } catch {
+      ext = await igdb("external_games", `fields game,uid; where category = 1 & uid = (${trozo}); limit 500;`);
+    }
+    // Si un appid diera varios juegos, se queda sin emparejar (lo hará el nombre).
+    const porUid = new Map<string, Set<number>>();
+    for (const x of ext) {
+      if (!x.uid || !x.game) continue;
+      if (!porUid.has(x.uid)) porUid.set(x.uid, new Set());
+      porUid.get(x.uid)!.add(Number(x.game));
+    }
+    for (const [uid, set] of porUid) if (set.size === 1) juegos[uid] = [...set][0];
+  }
+  const ids = [...new Set(Object.values(juegos))];
+  for (let i = 0; i < ids.length; i += 100) await guardarVarios(ids.slice(i, i + 100));
+  return { juegos };
+}
+
 /** Busca los originales que falten de todas las versiones guardadas y fusiona. */
 async function fusionarVersiones() {
   const { data } = await sb.from("juegos").select("igdb_id, relaciones").not("relaciones", "is", null);
@@ -1043,6 +1074,8 @@ Deno.serve(async (req) => {
       case "revisar_juegos":
       case "revisar_online":
         return json(await revisarJuegos());
+      case "steam_appids":
+        return json(await porAppidSteam(Array.isArray(cuerpo.appids) ? cuerpo.appids.map(String) : []));
       case "fusionar_versiones":
         return json(await fusionarVersiones());
       case "juego": {

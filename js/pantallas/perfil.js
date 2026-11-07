@@ -112,7 +112,7 @@ function renderPerfil(el, id, alSalir) {
     const p = metricas.perfil(id);
     const bib = metricas.biblioteca(id);
     const tiempo = metricas.tiempo(id);
-    const vinculado = !!u.psn_account_id;
+    const vinculado = datos.cuentasDe(u.id).length > 0;
     const soyAdmin = !!datos.usuario(yo?.id)?.es_admin;
     if (!pestanaRecordada.has(id)) {
       const inicial = p.completados ? 'completado' : PESTANAS.find((x) => p.historial[x.id].length)?.id ?? 'completado';
@@ -582,9 +582,8 @@ function bloqueBibliotecas(u, esMio, vinculado, bib) {
     const suyas = visibles.filter((f) => (f.fuente ?? 'psn') === fuente && (!c.id || f.cuenta_id === c.id));
     return [suyas.length, Math.round(metricas.sumarHoras(suyas, u.id).total)];
   };
-  const nombres = { psn: 'PlayStation', xbox: 'Xbox' };
-  for (const fuente of ['psn', 'xbox']) {
-    if (!((fuente === 'psn' ? 'psn_account_id' : 'xbox_xuid') in u)) continue;
+  const nombres = { psn: 'PlayStation', xbox: 'Xbox', steam: 'Steam' };
+  for (const fuente of ['psn', 'xbox', 'steam']) {
     const cuentas = cuentasDe(u, fuente);
     if (!cuentas.length) { filas.push(fila(fuente, nombres[fuente], false, null, 0, 0, null, false)); continue; }
     for (const c of cuentas) {
@@ -599,7 +598,7 @@ function bloqueBibliotecas(u, esMio, vinculado, bib) {
   return `
     <div class="bibliotecas bibliotecas-varias">
       ${filas.join('')}
-      ${esMio && !vinculado && !u.xbox_xuid ? '<p class="ajustes-nota">Conecta tus plataformas y tu biblioteca, tus horas y tus logros se cargarán solos. Nunca se crean valoraciones automáticamente.</p>' : ''}
+      ${esMio && !vinculado ? '<p class="ajustes-nota">Conecta tus plataformas y tu biblioteca, tus horas y tus logros se cargarán solos. Nunca se crean valoraciones automáticamente.</p>' : ''}
     </div>`;
 }
 

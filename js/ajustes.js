@@ -11,6 +11,7 @@ import * as datos from './datos.js';
 import { VERSION_CORTA } from './version.js';
 import { montarPsn } from './ajustes-psn.js';
 import { montarXbox } from './ajustes-xbox.js';
+import { montarSteam } from './ajustes-steam.js';
 import { botonFoto } from './foto-perfil.js';
 import { avatar } from './ui.js';
 
@@ -68,7 +69,7 @@ function bloqueInstalar(modo, abierto) {
 }
 
 /** Abre la hoja de Ajustes. alSalir: cierra la sesión (lo pasa app.js). */
-export function abrirAjustes(alSalir, { psn = false } = {}) {
+export function abrirAjustes(alSalir, { psn = false, steam = false } = {}) {
   let pasosAbiertos = false;
   abrirHoja({
     titulo: 'Ajustes',
@@ -80,6 +81,7 @@ export function abrirAjustes(alSalir, { psn = false } = {}) {
           <span class="campo-titulo">Plataformas</span>
           <div data-ref="psn"></div>
           <div data-ref="xbox"></div>
+          <div data-ref="steam"></div>
         </section>
         <div data-ref="biblioteca"></div>
         <div data-ref="instalar"></div>
@@ -130,15 +132,16 @@ export function abrirAjustes(alSalir, { psn = false } = {}) {
       // PlayStation (se quita la suscripción al cerrar la hoja).
       const quitarPsn = montarPsn(cuerpo.querySelector('[data-ref="psn"]'));
       const quitarXbox = montarXbox(cuerpo.querySelector('[data-ref="xbox"]'));
+      const quitarSteam = montarSteam(cuerpo.querySelector('[data-ref="steam"]'));
       // Abierta desde el aviso de "Reconectar": directamente al bloque de PlayStation.
-      if (psn) {
+      if (psn || steam) {
         setTimeout(() => {
-          const bloque = cuerpo.querySelector('#ajustes-psn');
+          const bloque = cuerpo.querySelector(steam ? '#ajustes-steam' : '#ajustes-psn');
           const scroll = bloque?.closest('.hoja-cuerpo');
           if (bloque && scroll) scroll.scrollTop += bloque.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 8;
         }, 450);
       }
-      const vigilar = new MutationObserver(() => { if (!cuerpo.isConnected) { quitarPsn(); quitarXbox(); quitarFoto(); vigilar.disconnect(); } });
+      const vigilar = new MutationObserver(() => { if (!cuerpo.isConnected) { quitarPsn(); quitarXbox(); quitarSteam(); quitarFoto(); vigilar.disconnect(); } });
       vigilar.observe(document.body, { childList: true });
 
       // --- Apariencia ---------------------------------------------------------

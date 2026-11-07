@@ -19,6 +19,7 @@ import * as rankings from './pantallas/rankings.js';
 import * as revisar from './pantallas/revisar.js';
 import * as saga from './pantallas/saga.js';
 import * as xbox from './xbox.js';
+import * as steam from './steam.js';
 import { anotarNavegacion, corregirRuta } from './navegacion.js';
 import { olvidarGaleria } from './galeria.js';
 
@@ -136,6 +137,7 @@ function alSalir() {
   salir();
   psn.olvidar();
   xbox.olvidar();
+  steam.olvidar();
   datos.borrarCache();
   datosIniciados = false;
   aplicarAcento(null);
@@ -152,6 +154,7 @@ function iniciarDatos() {
     psn.revisarAutomatico();
     xbox.revisarAutomatico();
     xbox.revisarHoras();
+    steam.revisarAutomatico();
     // Biblioteca sincronizada con reglas antiguas: recalcularla una vez con las nuevas.
     psn.revisarReproceso();
     // Juegos guardados antes de la migración 005: marcar cuáles son online (una vez).
@@ -189,6 +192,8 @@ document.addEventListener('click', (e) => {
   if (u) abrirEditorFoto(u);
 });
 window.addEventListener('cvj:psn-asistente', () => { if (usuarioActual()) abrirAjustes(alSalir, { psn: true }); });
+// Vuelta del inicio de sesión de Steam (?steam=vuelta&openid.…): validar y enseñar el resultado en Ajustes.
+steam.revisarVuelta()?.then(() => { if (usuarioActual()) abrirAjustes(alSalir, { steam: true }); });
 // Refresco en segundo plano: al volver a la app y cada minuto mientras se ve.
 // Si no ha cambiado nada, datos.js no repinta.
 document.addEventListener('visibilitychange', () => {

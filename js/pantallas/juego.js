@@ -213,7 +213,7 @@ export function render(el, { params }) {
     if (!u) return '';
     const est = ESTADOS.find((e) => e.id === v.estado);
     const version = nombreVersion(v.juego_origen);
-    const sub = [nombreEstado(v.estado), version, v.plataforma].filter(Boolean).join(' · ') + extraPsn(u.id);
+    const sub = [nombreEstado(v.estado), version, ...datos.plataformasDe(v)].filter(Boolean).join(' · ') + extraPsn(u.id);
     const derecha = v.nota != null
       ? `<div class="grupo-nota">${notaConLetra(v.nota, 'lg')}${iconoRecomendacion(v.recomendado, 20)}</div>`
       : `<span class="grupo-sin-nota">Sin nota aún</span>`;

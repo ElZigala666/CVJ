@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.xbox]
 verify_jwt = false
+
+[functions.steam]
+verify_jwt = false

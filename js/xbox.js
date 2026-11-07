@@ -85,8 +85,8 @@ export function sincronizar(usuarioId) {
 export function esperaRestante(u) {
   // Con varias cuentas, se puede en cuanto alguna esté libre (la más antigua).
   const cs = u ? datos.cuentasDe(u.id, 'xbox') : [];
-  const fechas = cs.length ? cs.map((c) => c.sincronizado_en) : [u?.xbox_sincronizado_en];
-  const ultima = Math.min(...fechas.map((f) => (f ? new Date(f).getTime() : 0)));
+  if (!cs.length) return 0;
+  const ultima = Math.min(...cs.map((c) => (c.sincronizado_en ? new Date(c.sincronizado_en).getTime() : 0)));
   return Math.max(0, ultima + ESPERA_MS - Date.now());
 }
 
@@ -104,10 +104,11 @@ export function revisarAutomatico() {
   if (autoHecha) return;
   const yo = usuarioActual();
   const u = yo && datos.usuario(yo.id);
-  if (!u || !('xbox_xuid' in u)) return;
+  if (!u) return;
   autoHecha = true;
-  if (!u.xbox_xuid) return;
-  const ultima = u.xbox_sincronizado_en ? new Date(u.xbox_sincronizado_en).getTime() : 0;
+  const cs = datos.cuentasDe(u.id, 'xbox');
+  if (!cs.length) return;
+  const ultima = Math.min(...cs.map((c) => (c.sincronizado_en ? new Date(c.sincronizado_en).getTime() : 0)));
   let intento = 0;
   try { intento = Number(localStorage.getItem(CLAVE_INTENTO) || 0); } catch { /* nada */ }
   const ahora = Date.now();
@@ -123,7 +124,7 @@ export function revisarHoras() {
   if (horasPedidas) return;
   const yo = usuarioActual();
   const u = yo && datos.usuario(yo.id);
-  if (!u?.xbox_xuid) return;
+  if (!u || !datos.cuentasDe(u.id, 'xbox').length) return;
   const filas = datos.bibliotecaDe(u.id).filter((f) => f.fuente === 'xbox' && !f.oculto);
   if (!filas.length || !('horas_en' in filas[0])) return;
   horasPedidas = true;

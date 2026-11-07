@@ -124,25 +124,8 @@ async function canjearNpsso(npsso: string): Promise<Tokens> {
 async function marcarReconectar(c: Cuenta) {
   const { error } = await sb.from("cuentas_plataforma").update({ reconectar: true }).eq("id", c.cuenta_id);
   if (error) console.error("Marcando reconectar:", error.message);
-  await resumirUsuario(c.usuario_id);
 }
 
-/**
- * usuarios.psn_* resume sus cuentas de PSN (para la app): la primera cuenta da el ID,
- * la última sincronización es la más reciente y "reconectar" si alguna lo necesita.
- */
-async function resumirUsuario(usuarioId: string) {
-  const { data } = await sb.from("cuentas_plataforma").select("externo_id, nombre, sincronizado_en, reconectar, creado_en")
-    .eq("usuario_id", usuarioId).eq("fuente", "psn").order("creado_en");
-  const cs = data ?? [];
-  const ultima = cs.map((c) => c.sincronizado_en).filter(Boolean).sort().pop() ?? null;
-  await sb.from("usuarios").update({
-    psn_account_id: cs[0]?.externo_id ?? null,
-    psn_online_id: cs[0]?.nombre ?? null,
-    psn_sincronizado_en: ultima,
-    psn_reconectar: cs.some((c) => c.reconectar),
-  }).eq("id", usuarioId);
-}
 
 const errorReconectar = () =>
   new ErrorPsn("reconectar", "Tu conexión con PlayStation ha caducado. Vuelve a conectarla desde Ajustes → PlayStation.");
@@ -559,7 +542,7 @@ async function emparejarFilas(usuarioId: string, filas: Fila[], conocidos: Map<s
 // -----------------------------------------------------------------------------
 async function usuario(id: string) {
   if (!id) throw new ErrorPsn("parametros", "Falta usuario_id.", 400);
-  const { data, error } = await sb.from("usuarios").select("id, nombre, psn_online_id, psn_account_id, psn_sincronizado_en").eq("id", id).maybeSingle();
+  const { data, error } = await sb.from("usuarios").select("id, nombre").eq("id", id).maybeSingle();
   if (error) throw new ErrorPsn("bd", "No se ha podido leer el usuario: " + error.message, 500);
   if (!data) throw new ErrorPsn("parametros", "Ese usuario no existe.", 404);
   return data;
@@ -602,7 +585,6 @@ async function conectar(usuarioId: string, textoNpsso: string, etiqueta?: string
   const ahora = new Date().toISOString();
   const { error } = await sb.from("psn_cuentas").upsert({ ...c, actualizado_en: ahora }, { onConflict: "cuenta_id" });
   if (error) throw new ErrorPsn("bd", "No se ha podido guardar la conexión: " + error.message, 500);
-  await resumirUsuario(usuarioId);
 
   // Primera sincronización. Si falla, la conexión ya está hecha: se puede reintentar.
   let sincronizacion: Record<string, unknown>;
@@ -624,7 +606,6 @@ async function desconectar(usuarioId: string, cuentaId?: string) {
   if (cuentaId) q = q.eq("id", cuentaId);
   const { error } = await q; // en cascada: psn_cuentas y biblioteca de esa cuenta
   if (error) throw new ErrorPsn("bd", "No se ha podido desconectar: " + error.message, 500);
-  await resumirUsuario(usuarioId);
   return { ok: true };
 }
 
@@ -840,7 +821,6 @@ async function sincronizarCuenta(usuarioId: string, c: Cuenta) {
     void extra;
   }
   await sb.from("cuentas_plataforma").update({ sincronizado_en: ahora, reconectar: false }).eq("id", c.cuenta_id);
-  await resumirUsuario(usuarioId);
 
   // Emparejar lo que falte (no-juegos y locales ahora; IGDB en segundo plano).
   const emp = await emparejarFilas(usuarioId, lista, conocidos);
@@ -872,6 +852,11 @@ Deno.serve(async (req) => {
       throw new ErrorPsn("parametros", "El cuerpo debe ser JSON", 400);
     }
     const uid = String(c.usuario_id ?? "");
+
+    // Un usuario_id que no es un UUID es una petición mal hecha (404), no un error del servidor.
+    if (uid && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(uid))) {
+      return json({ ok: false, codigo: "parametros", error: "Ese usuario no existe." }, 404);
+    }
     switch (c.accion) {
       case "conectar": return json(await conectar(uid, String(c.npsso ?? ""), c.etiqueta ? String(c.etiqueta) : undefined));
       case "sincronizar": return json(await sincronizar(uid, c.cuenta_id ? String(c.cuenta_id) : undefined));

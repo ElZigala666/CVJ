@@ -7,6 +7,7 @@ import { notaALetra, letraANota, redondear, formatearNota, LETRAS } from './nota
 import { esc, portada, aviso, ESTADOS } from './ui.js';
 import { fichaJuego } from './igdb.js';
 import * as metricas from './metricas.js';
+import { plataformaParaValorar } from './plataformas-ui.js';
 
 const MAX_RESENA = 280;
 const AVISO_RESENA = 230;
@@ -82,13 +83,18 @@ export function abrirValorar(igdbId, op = {}) {
 
   // Plataformas del juego (si IGDB no trae ninguna, las de siempre).
   let plataformas = juego.plataformas?.length ? [...juego.plataformas] : [...PLATAFORMAS_GENERICAS];
-  for (const p of [previa?.plataforma, op.plataforma]) {
-    if (p && !plataformas.includes(p)) plataformas.unshift(p);
-  }
-  const ultima = leer(CLAVE_PLATAFORMA);
-  const plataformaInicial = previa?.plataforma
-    ?? op.plataforma
-    ?? (ultima && plataformas.includes(ultima) ? ultima : plataformas.includes('PS5') ? 'PS5' : plataformas[0]);
+  // Varias plataformas: las que ya puso; si no, en las que lo tiene en su biblioteca
+  // (todas sus fuentes y cuentas); si no, las últimas que usó.
+  const previas = previa ? datos.plataformasDe(previa) : [];
+  const deBiblioteca = saga ? [] : [...new Set((metricas.bibliotecaDeJuego(id).get(yo.id)?.plataformas ?? []).map(plataformaParaValorar).filter(Boolean))];
+  let ultimas = [];
+  try { const x = JSON.parse(leer(CLAVE_PLATAFORMA) || '[]'); ultimas = Array.isArray(x) ? x : [String(x)]; } catch { ultimas = [leer(CLAVE_PLATAFORMA)].filter(Boolean); }
+  const iniciales = previas.length ? previas
+    : op.plataforma ? [op.plataforma, ...deBiblioteca.filter((p) => p !== op.plataforma)]
+    : deBiblioteca.length ? deBiblioteca
+    : ultimas.filter((p) => plataformas.includes(p)).length ? ultimas.filter((p) => plataformas.includes(p))
+    : [plataformas.includes('PS5') ? 'PS5' : plataformas[0]].filter(Boolean);
+  for (const p of [...iniciales].reverse()) if (p && !plataformas.includes(p)) plataformas.unshift(p);
 
   const s = {
     // Un juego online no se "completa": si lo estaba, pasa a "Lo juego".
@@ -96,7 +102,7 @@ export function abrirValorar(igdbId, op = {}) {
     modo: leer(CLAVE_MODO) === 'letra' ? 'letra' : 'nota',
     nota: previa?.nota != null ? redondear(previa.nota) : null,
     recomendado: previa?.recomendado ?? null,
-    plataforma: plataformaInicial,
+    plataformas: new Set(iniciales),
     confirmandoQuitar: false,
   };
 
@@ -176,7 +182,7 @@ export function abrirValorar(igdbId, op = {}) {
         </div>
 
         <div class="bloque-campo"${saga ? ' hidden' : ''}>
-          <span class="campo-titulo">Plataforma</span>
+          <span class="campo-titulo">Plataformas <span class="campo-opcional">(una o varias)</span></span>
           <div class="chips-plataforma">
             ${plataformas.map((p) => `<button type="button" class="chip" data-plataforma="${esc(p)}">${esc(p)}</button>`).join('')}
           </div>
@@ -255,7 +261,7 @@ export function abrirValorar(igdbId, op = {}) {
       b.setAttribute('aria-pressed', String(on));
     }
     for (const b of capa.querySelectorAll('[data-plataforma]')) {
-      const on = b.dataset.plataforma === s.plataforma;
+      const on = s.plataformas.has(b.dataset.plataforma);
       b.classList.toggle('activo', on);
       b.setAttribute('aria-pressed', String(on));
     }
@@ -305,7 +311,9 @@ export function abrirValorar(igdbId, op = {}) {
     else if (d.rec) {
       const valor = d.rec === 'si';
       s.recomendado = s.recomendado === valor ? null : valor; // tocar otra vez desmarca
-    } else if (d.plataforma) s.plataforma = d.plataforma;
+    } else if (d.plataforma) {
+      if (s.plataformas.has(d.plataforma)) s.plataformas.delete(d.plataforma); else s.plataformas.add(d.plataforma);
+    }
     else if (d.accion === 'quitar-nota') s.nota = null;
     else if (d.accion === 'pedir-quitar') s.confirmandoQuitar = true;
     else if (d.accion === 'cancelar-quitar') s.confirmandoQuitar = false;
@@ -393,14 +401,16 @@ export function abrirValorar(igdbId, op = {}) {
       aviso(s.estado === 'pendiente' ? 'Añadida a pendientes' : previa ? 'Valoración actualizada' : 'Valoración guardada');
       return;
     }
-    escribir(CLAVE_PLATAFORMA, s.plataforma ?? '');
+    // En el orden de los chips (las de la biblioteca primero).
+    const elegidas = plataformas.filter((p) => s.plataformas.has(p));
+    escribir(CLAVE_PLATAFORMA, JSON.stringify(elegidas));
     datos.guardarValoracion({
       usuarioId: yo.id,
       igdbId: id,
       estado: s.estado,
       nota: conNota ? s.nota : null,
       recomendado: conNota ? s.recomendado : null,
-      plataforma: s.plataforma,
+      plataformas: elegidas,
       resena: resena.value.slice(0, MAX_RESENA),
     }, aviso).then((ok) => {
       // Si el juego solo se conocía por Buscar, completar su ficha en la tabla.

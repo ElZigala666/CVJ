@@ -110,8 +110,7 @@ export const estaSincronizando = () => !!sincronizando;
 /** ¿Mi conexión con PlayStation ha caducado? (para el aviso de Inicio) */
 export function hayQueReconectar() {
   const yo = usuarioActual();
-  const u = yo && datos.usuario(yo.id);
-  return !!(u?.psn_reconectar && u.psn_account_id);
+  return !!yo && datos.cuentasDe(yo.id, 'psn').some((c) => c.reconectar);
 }
 
 // ---------------------------------------------------------------------------
@@ -123,10 +122,12 @@ export function revisarAutomatico() {
   if (autoHecha) return;
   const yo = usuarioActual();
   const u = yo && datos.usuario(yo.id);
-  if (!u || !('psn_account_id' in u)) return; // aún sin datos (o sin la migración de PSN)
+  if (!u) return; // aún sin datos
   autoHecha = true;
-  if (!u.psn_account_id || u.psn_reconectar) return;
-  const ultima = u.psn_sincronizado_en ? new Date(u.psn_sincronizado_en).getTime() : 0;
+  const cs = datos.cuentasDe(u.id, 'psn').filter((c) => !c.reconectar);
+  if (!cs.length) return;
+  // La que lleve más tiempo sin sincronizar.
+  const ultima = Math.min(...cs.map((c) => (c.sincronizado_en ? new Date(c.sincronizado_en).getTime() : 0)));
   let intento = 0;
   try { intento = Number(localStorage.getItem(CLAVE_INTENTO) || 0); } catch { /* nada */ }
   const ahora = Date.now();

@@ -87,7 +87,7 @@ export function perfil(uid) {
     const jugados = vals.filter((v) => v.estado !== 'pendiente');
     const media = mediaGrupo(vals);
     const conteoPlat = new Map();
-    for (const v of jugados) if (v.plataforma) conteoPlat.set(v.plataforma, (conteoPlat.get(v.plataforma) ?? 0) + 1);
+    for (const v of jugados) for (const pl of datos.plataformasDe(v)) conteoPlat.set(pl, (conteoPlat.get(pl) ?? 0) + 1);
     const plataformas = [...conteoPlat.entries()].sort((a, b) => b[1] - a[1]).map(([nombre, n]) => ({ nombre, n }));
 
     return {
@@ -623,7 +623,22 @@ export function parejasFusion(uid) {
 }
 
 /** Parejas para "¿Es el mismo juego?" en la ficha de un juego. */
-export const parejasDeJuego = (uid, igdbId) => parejasFusion(uid).filter((x) => x.a === Number(igdbId) || x.b === Number(igdbId));
+export function parejasDeJuego(uid, igdbId) {
+  const id = Number(igdbId);
+  const l = parejasFusion(uid).filter((x) => x.a === id || x.b === id);
+  // Juego ampliado de un prólogo, demo o episodio: no se fusiona solo (ante la duda),
+  // pero se sugiere en su ficha aunque no se tengan los dos.
+  const r = datos.juegoConocido(id)?.relaciones;
+  const padre = Number(r?.tipo) === 10 ? datos.canonico(r.version_parent ?? r.parent_game ?? 0) : 0;
+  const jp = padre ? datos.juegoConocido(padre) : null;
+  if (jp && padre !== id && !l.some((x) => x.a === padre || x.b === padre) && VERSION_REDUCIDA.test(jp.nombre ?? '')) {
+    const [x, y] = [id, padre].sort((m, n) => m - n);
+    if (!datos.fusionRechazada(uid, x, y)) l.push({ a: x, b: y, motivo: 'ampliado' });
+  }
+  return l;
+}
+/** Igual que version_reducida() en la base (migración 015). */
+const VERSION_REDUCIDA = /(prologue|pr[oó]logo|\bdemo\b|episode|episodio|chapter|cap[ií]tulo|\blite\b|\btrial\b|prelude|preludio|ground zeroes|first look|vertical slice|\bbeta\b)/i;
 
 // ---------------------------------------------------------------------------
 // Sagas del grupo (como un juego más)

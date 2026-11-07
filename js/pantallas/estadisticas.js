@@ -44,7 +44,7 @@ export function render(el, { params }) {
           ${dato(s.abandonados, 'Abandonados')}
           ${dato(s.jugando, 'Jugando')}
           ${dato(s.pendientes, 'Pendientes')}
-          ${dato(bib.total || (u.psn_account_id ? 0 : null), 'En biblioteca')}
+          ${dato(bib.total || (datos.cuentasDe(u.id).length ? 0 : null), 'En biblioteca')}
         </div>
       </section>
 
@@ -124,7 +124,7 @@ function tiempoDeJuego(u, bib, t) {
     return `
       <div class="caja-punteada">
         ${icono('pendiente', { tam: 18, color: 'var(--texto-2)', trazo: 'var(--fondo)' })}
-        <span>${u.psn_account_id || u.xbox_xuid
+        <span>${datos.cuentasDe(u.id).length
           ? 'Hay una plataforma conectada, pero aún no hay juegos sincronizados.'
           : 'Las horas aparecerán aquí cuando se conecte una plataforma o se escriban al valorar.'}</span>
       </div>`;

@@ -106,14 +106,13 @@ export function refrescar() {
 }
 
 const COLUMNAS_USUARIO = 'id, nombre, inicial, color, acento, creado_en';
-const COLUMNAS_PSN = ', psn_online_id, psn_account_id, psn_sincronizado_en';
-/** Usuarios con sus datos de PSN y su foto; si faltan las migraciones 005, 004 o 003, con lo que haya. */
+/**
+ * Usuarios con su foto y sus preferencias. Las cuentas de PSN, Xbox y Steam están en
+ * cuentas_plataforma (los usuarios ya no guardan un resumen, migración 017).
+ */
 async function leerUsuarios(sb) {
-  const xboxCols = ', xbox_gamertag, xbox_xuid, xbox_sincronizado_en, xbox_reconectar';
-  for (const extra of [COLUMNAS_PSN + ', psn_reconectar, foto_url, es_admin' + xboxCols + ', umbral_probados, xbox_incluir_pc', COLUMNAS_PSN + ', psn_reconectar, foto_url, es_admin' + xboxCols, COLUMNAS_PSN + ', psn_reconectar, foto_url, es_admin', COLUMNAS_PSN + ', psn_reconectar', COLUMNAS_PSN]) {
-    const r = await sb.from('usuarios').select(COLUMNAS_USUARIO + extra).order('creado_en');
-    if (!r.error) return r;
-  }
+  const r = await sb.from('usuarios').select(COLUMNAS_USUARIO + ', foto_url, es_admin, umbral_probados, xbox_incluir_pc').order('creado_en');
+  if (!r.error) return r;
   return sb.from('usuarios').select(COLUMNAS_USUARIO).order('creado_en');
 }
 
@@ -255,6 +254,9 @@ export function portadaSaga(s) {
 export const comoJuego = (s) => (s ? { igdb_id: null, saga_id: s.id, nombre: s.nombre, cover_id: portadaSaga(s), anio: null, plataformas: [], es_online: !!s.es_online } : null);
 /** ¿Saga online / sin final? (FIFA...: no se juega "hasta el final") */
 export const sagaOnline = (sagaId) => !!saga(sagaId)?.es_online;
+
+/** Plataformas de una valoración ("PS5", "PC"...): la lista nueva o, si es antigua, la única que tenía. */
+export const plataformasDe = (v) => (v?.plataformas?.length ? v.plataformas : v?.plataforma ? [v.plataforma] : []);
 
 /** Juego principal de un juego (el mismo si no está fusionado con otro). */
 export const canonico = (igdbId) => indices.canon(igdbId);
@@ -402,14 +404,11 @@ export function guardarValoracion(v, onError) {
     estado: v.estado,
     nota: pendiente ? null : redondear(v.nota),
     recomendado: pendiente ? null : (v.recomendado ?? null),
-    plataforma: v.plataforma || null,
+    plataformas: (v.plataformas ?? []).length ? [...new Set(v.plataformas)] : null,
     resena: (v.resena || '').trim() || null,
     creado_en: antes?.creado_en ?? ahora,
     actualizado_en: ahora,
   };
-  // Horas a mano: solo si la columna existe (migración 005) o se han escrito.
-  if (v.horas !== undefined && (v.horas != null || antes?.horas != null)) fila.horas = v.horas;
-  else if (antes && 'horas' in antes) fila.horas = antes.horas;
 
   // ¿Qué se cuenta en la actividad?
   let tipo = null;
@@ -660,10 +659,10 @@ export function confirmarRevision(usuarioId, items, onError) {
 /**
  * Fusiona dos versiones del mismo juego: para todo el grupo, "alias" cuenta como
  * "principal" (si alguno ya era parte de una fusión, se respeta la que había). Mi
- * valoración queda una sola, en el principal, con la nota elegida y las horas sumadas.
- * @param {{ usuarioId, principal, alias, notaDe: 'principal'|'alias', horas: number|null }} f
+ * valoración queda una sola, en el principal, con la nota elegida.
+ * @param {{ usuarioId, principal, alias, notaDe: 'principal'|'alias' }} f
  */
-export function fusionar({ usuarioId, principal, alias, notaDe = 'principal', horas = null }, onError) {
+export function fusionar({ usuarioId, principal, alias, notaDe = 'principal' }, onError) {
   let p = canonico(principal);
   let a = canonico(alias);
   // Si "alias" ya es el principal de otras versiones y "principal" no, se respeta el que existía.
@@ -684,7 +683,6 @@ export function fusionar({ usuarioId, principal, alias, notaDe = 'principal', ho
     id: vp?.id ?? crypto.randomUUID(),
     juego_id: p,
     actualizado_en: ahora,
-    ...(horas != null ? { horas } : {}),
   } : null;
   const borrar = [vp, va].filter((x) => x && x.id !== quedan?.id).map((x) => x.id);
   return escribirOptimista(
@@ -697,7 +695,8 @@ export function fusionar({ usuarioId, principal, alias, notaDe = 'principal', ho
       if (reapuntar.length) comprobar(await sb.from('juegos_alias').update({ principal_id: p }).in('alias_id', reapuntar));
       if (borrar.length) comprobar(await sb.from('valoraciones').delete().in('id', borrar));
       if (quedan) {
-        const { juego_origen: _, ...fila } = quedan;
+        // Sin columnas que ya no existen (horas y plataforma, migración 017).
+        const { juego_origen: _, horas: _h, plataforma: _p, ...fila } = quedan;
         comprobar(await sb.from('valoraciones').upsert(fila, { onConflict: 'usuario_id,juego_id' }));
       }
     },

@@ -226,10 +226,7 @@ export function elegirJugador(content: any, gamertag: string): { xuid: string; g
 // -----------------------------------------------------------------------------
 async function usuario(id: string) {
   if (!id) throw new ErrorXbox("parametros", "Falta usuario_id.", 400);
-  let { data, error } = await sb.from("usuarios").select("id, xbox_xuid, xbox_gamertag, xbox_sincronizado_en, xbox_incluir_pc").eq("id", id).maybeSingle();
-  if (error && /xbox_incluir_pc/.test(error.message)) {
-    ({ data, error } = await sb.from("usuarios").select("id, xbox_xuid, xbox_gamertag, xbox_sincronizado_en").eq("id", id).maybeSingle());
-  }
+  const { data, error } = await sb.from("usuarios").select("id, xbox_incluir_pc").eq("id", id).maybeSingle();
   if (error) throw new ErrorXbox("bd", "No se ha podido leer el usuario: " + error.message, 500);
   if (!data) throw new ErrorXbox("parametros", "Ese usuario no existe.", 404);
   return data;
@@ -247,14 +244,6 @@ async function cuentasDe(usuarioId: string, cuentaId?: string): Promise<CuentaXb
   return (data ?? []) as CuentaXbox[];
 }
 
-/** usuarios.xbox_* resume sus cuentas (para la app): la primera da el gamertag. */
-async function resumirUsuario(usuarioId: string) {
-  const cs = await cuentasDe(usuarioId);
-  const ultima = cs.map((c) => c.sincronizado_en).filter(Boolean).sort().pop() ?? null;
-  await sb.from("usuarios").update({
-    xbox_xuid: cs[0]?.externo_id ?? null, xbox_gamertag: cs[0]?.nombre ?? null, xbox_sincronizado_en: ultima, xbox_reconectar: false,
-  }).eq("id", usuarioId);
-}
 
 /** Vincula un gamertag (otro más si ya tenía alguno) y lo sincroniza. */
 async function vincular(usuarioId: string, texto: string, etiqueta?: string) {
@@ -272,7 +261,6 @@ async function vincular(usuarioId: string, texto: string, etiqueta?: string) {
   const { data: cuenta, error } = await sb.from("cuentas_plataforma")
     .upsert(fila, { onConflict: "usuario_id,fuente,externo_id" }).select("id, usuario_id, externo_id, nombre, sincronizado_en").single();
   if (error || !cuenta) throw new ErrorXbox("bd", "No se ha podido guardar: " + (error?.message ?? ""), 500);
-  await resumirUsuario(usuarioId);
 
   let sincronizacion: Record<string, unknown>;
   try {
@@ -355,7 +343,6 @@ async function sincronizarCuenta(usuarioId: string, c: CuentaXbox, opciones: { h
   }
   await sb.from("cuentas_plataforma").update({ sincronizado_en: ahora, reconectar: false }).eq("id", c.id);
   c.sincronizado_en = ahora;
-  await resumirUsuario(usuarioId);
 
   // Emparejar con IGDB: lo común a todas las plataformas lo hace la función psn.
   let pendientes = 0;
@@ -466,7 +453,6 @@ async function desvincular(usuarioId: string, cuentaId?: string) {
   if (cuentaId) q = q.eq("id", cuentaId);
   const { error } = await q; // en cascada: la biblioteca de esa cuenta
   if (error) throw new ErrorXbox("bd", "No se ha podido desvincular: " + error.message, 500);
-  await resumirUsuario(usuarioId);
   return { ok: true };
 }
 
@@ -496,6 +482,11 @@ Deno.serve(async (req) => {
       throw new ErrorXbox("parametros", "El cuerpo debe ser JSON", 400);
     }
     const uid = String(c.usuario_id ?? "");
+
+    // Un usuario_id que no es un UUID es una petición mal hecha (404), no un error del servidor.
+    if (uid && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(uid))) {
+      return json({ ok: false, codigo: "parametros", error: "Ese usuario no existe." }, 404);
+    }
     switch (c.accion) {
       case "vincular": return json(await vincular(uid, String(c.gamertag ?? ""), c.etiqueta ? String(c.etiqueta) : undefined));
       case "sincronizar": return json(await sincronizar(uid, c.cuenta_id ? String(c.cuenta_id) : undefined));

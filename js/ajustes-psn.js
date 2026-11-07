@@ -3,19 +3,16 @@
 // usuario conecte SU PROPIA cuenta pegando su código (NPSSO).
 // Conectado: ID online, última sincronización, "Sincronizar ahora" y "Desconectar".
 import { icono } from './icons.js';
-import { esc, tiempoRelativo, aviso } from './ui.js';
+import { esc, aviso } from './ui.js';
 import * as datos from './datos.js';
 import * as psn from './psn.js';
 import { usuarioActual } from './sesion.js';
 import * as metricas from './metricas.js';
 import { iconoFuente } from './plataformas-ui.js';
+import { cuentasDe, filasCuentas, escucharEtiquetas } from './cuentas-ui.js';
 
 const ES_IPHONE = /iPhone|iPad|iPod/.test(navigator.userAgent)
   || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-function hace(iso) {
-  return iso ? tiempoRelativo(iso).replace(/^Ahora$/, 'ahora mismo').toLowerCase() : 'nunca';
-}
 
 const AYUDA_ERROR = `
   <p>Sale un error si <strong>en ese navegador</strong> no hay sesión de PlayStation. Repite el paso 1 y luego el 2 sin cerrar el navegador.</p>
@@ -31,7 +28,8 @@ export function montarPsn(cont) {
   const yo = usuarioActual();
   const s = {
     paso1: false, paso2: false, ayuda: false, manual: !HAY_PORTAPAPELES,
-    confirmarQuitar: false, ocupado: null, mensaje: null, error: false, borrador: '',
+    confirmarQuitar: null, ocupado: null, mensaje: null, error: false, borrador: '',
+    anadir: false, etiqueta: '', // "Añadir otra cuenta" y su etiqueta
     ultimoIntento: null, // último código probado (para no repetirlo al volver a la app)
   };
 
@@ -81,45 +79,44 @@ export function montarPsn(cont) {
     ${s.mensaje ? `<p class="psn-mensaje${s.error ? ' error' : ''}" role="status">${esc(s.mensaje)}</p>` : ''}
     <p class="psn-privacidad">${icono('candado', { tam: 16, color: 'var(--texto-2)', trazo: 'var(--fondo)' })}<span>El código se canjea al momento por un permiso de lectura de tu biblioteca y no se guarda.</span></p>`;
 
-  const desconectarHtml = () => s.confirmarQuitar
-    ? `<div class="psn-confirmar" role="group" aria-label="Confirmar desconexión">
-         <p>¿Desconectar PlayStation? Se borran tu conexión y tu biblioteca de CVJ. Tus valoraciones no se tocan.</p>
-         <div class="psn-confirmar-botones">
-           <button type="button" class="boton-secundario neutro" data-psn="no-desconectar">Cancelar</button>
-           <button type="button" class="boton-secundario peligro" data-psn="desconectar"${s.ocupado ? ' disabled' : ''}>${s.ocupado === 'desconectar' ? 'Desconectando…' : 'Sí, desconectar'}</button>
-         </div>
-       </div>`
-    : '<button type="button" class="enlace-discreto psn-desconectar" data-psn="pedir-desconectar">Desconectar</button>';
-
   const pintar = () => {
     const u = yo && datos.usuario(yo.id);
     // Sin la migración de PSN (o sin datos aún) no se enseña nada.
     if (!u || !('psn_account_id' in u)) { cont.innerHTML = ''; return; }
-    // Conservar lo que haya escrito en el campo del código al repintar.
+    // Conservar lo que haya escrito en los campos al repintar.
     const campo = cont.querySelector('#psn-codigo');
     if (campo) s.borrador = campo.value;
-    const conectado = !!u.psn_account_id;
-    const reconectar = conectado && !!u.psn_reconectar;
-    const bib = metricas.biblioteca(u.id);
+    const et = cont.querySelector('#psn-etiqueta-nueva');
+    if (et) s.etiqueta = et.value;
+    const cuentas = cuentasDe(u, 'psn');
+    const caducadas = cuentas.filter((c) => c.reconectar);
+    const conAsistente = !cuentas.length || s.anadir || caducadas.length > 0;
+    const reconectar = caducadas.length > 0 && !s.anadir;
 
     cont.innerHTML = `
       <section class="tarjeta-plataforma ajustes-psn" id="ajustes-psn">
         <div class="plataforma-cab">
           ${iconoFuente('psn', 22)}
-          <div class="plataforma-cab-texto"><strong>PlayStation</strong><span>${u.psn_account_id && !u.psn_reconectar ? 'Conectada' : u.psn_reconectar ? 'La conexión ha caducado' : 'Sin conectar'}</span></div>
+          <div class="plataforma-cab-texto"><strong>PlayStation</strong><span>${!cuentas.length ? 'Sin conectar'
+            : caducadas.length ? 'Una conexión ha caducado'
+            : cuentas.length === 1 ? 'Conectada' : `${cuentas.length} cuentas conectadas`}</span></div>
         </div>
-        ${conectado && !reconectar ? `
-          <div class="psn-conectado">
-            <span class="psn-icono">${icono('jugando', { tam: 22, color: 'var(--acento)', trazo: 'var(--acento-suave)' })}</span>
-            <div class="psn-conectado-texto">
-              <strong>${esc(u.psn_online_id)}</strong>
-              <span>${bib.total ? `${bib.total} ${bib.total === 1 ? 'juego' : 'juegos'} · ${bib.horas} h · ` : ''}Sincronizado ${esc(hace(u.psn_sincronizado_en))}</span>
-            </div>
-          </div>
-          <button type="button" class="boton-principal" data-psn="sincronizar"${s.ocupado ? ' disabled' : ''}>${s.ocupado === 'sincronizar' ? 'Sincronizando…' : 'Sincronizar ahora'}</button>
-          ${s.mensaje ? `<p class="psn-mensaje${s.error ? ' error' : ''}" role="status">${esc(s.mensaje)}</p>` : ''}
-          ${desconectarHtml()}` : asistente(reconectar)}
-        ${reconectar ? desconectarHtml() : ''}
+        ${cuentas.length ? filasCuentas({
+          uid: u.id, fuente: 'psn', cuentas, attr: 'psn', confirmar: s.confirmarQuitar, ocupado: s.ocupado,
+          quitar: 'Desconectar', quitando: 'Desconectando…',
+          pregunta: 'Se borran esta conexión y sus juegos en CVJ. Tus valoraciones y tus horas extra no se tocan.',
+        }) : ''}
+        ${cuentas.length && !caducadas.length ? `
+          <button type="button" class="boton-principal" data-psn="sincronizar"${s.ocupado ? ' disabled' : ''}>${s.ocupado === 'sincronizar' ? 'Sincronizando…' : 'Sincronizar ahora'}</button>` : ''}
+        ${!conAsistente && s.mensaje ? `<p class="psn-mensaje${s.error ? ' error' : ''}" role="status">${esc(s.mensaje)}</p>` : ''}
+        ${conAsistente ? `
+          ${s.anadir ? `
+            <label for="psn-etiqueta-nueva" class="campo-titulo">Otra cuenta de PlayStation</label>
+            <input id="psn-etiqueta-nueva" class="psn-input" maxlength="40" autocomplete="off" placeholder="Etiqueta (opcional): Cuenta 2" value="${esc(s.etiqueta)}">
+            <p class="ajustes-nota">Antes del paso 1, cierra la sesión de PlayStation en el navegador para poder entrar con la otra cuenta.</p>` : ''}
+          ${asistente(reconectar)}` : ''}
+        ${cuentas.length && cuentas[0].id ? `
+          <button type="button" class="enlace-discreto cuenta-anadir" data-psn="anadir" aria-expanded="${s.anadir}">${s.anadir ? 'Cancelar' : 'Añadir otra cuenta'}</button>` : ''}
       </section>`;
   };
 
@@ -155,11 +152,13 @@ export function montarPsn(cont) {
     const r = await ejecutar('conectar', async () => {
       const nota = cont.querySelector('.psn-privacidad');
       nota?.insertAdjacentHTML('beforebegin', '<p class="psn-mensaje" role="status">Conectando y trayendo tus juegos. Puede tardar un minuto.</p>');
-      return psn.conectar(yo.id, v.npsso);
+      return psn.conectar(yo.id, v.npsso, s.anadir ? cont.querySelector('#psn-etiqueta-nueva')?.value.trim() : undefined);
     });
     if (r.ok) {
       s.borrador = '';
       s.paso1 = s.paso2 = false;
+      s.anadir = false;
+      s.etiqueta = '';
       const sinc = r.sincronizacion;
       s.mensaje = sinc?.ok
         ? `Conectado como ${r.online_id}. ${resumen(sinc)}`
@@ -178,7 +177,7 @@ export function montarPsn(cont) {
   const alVolver = () => {
     if (document.visibilityState !== 'visible' || !s.paso2 || s.ocupado || leyendo || !HAY_PORTAPAPELES || !cont.isConnected) return;
     const u = yo && datos.usuario(yo.id);
-    if (!u || (u.psn_account_id && !u.psn_reconectar)) return;
+    if (!u || (u.psn_account_id && !u.psn_reconectar && !s.anadir)) return;
     leyendo = true;
     // Un momento después de volver: Chrome no deja leer el portapapeles hasta que la página tiene el foco.
     setTimeout(async () => {
@@ -217,8 +216,9 @@ export function montarPsn(cont) {
     if (!b || !yo) return;
     const a = b.dataset.psn;
     if (a === 'ayuda') { s.ayuda = !s.ayuda; pintar(); return; }
-    if (a === 'pedir-desconectar') { s.confirmarQuitar = true; pintar(); return; }
-    if (a === 'no-desconectar') { s.confirmarQuitar = false; pintar(); return; }
+    if (a === 'pedir-quitar') { s.confirmarQuitar = b.dataset.id ?? ''; pintar(); return; }
+    if (a === 'no-quitar') { s.confirmarQuitar = null; pintar(); return; }
+    if (a === 'anadir') { s.anadir = !s.anadir; s.mensaje = null; s.paso1 = s.paso2 = false; pintar(); return; }
 
     if (a === 'manual') { s.manual = !s.manual; pintar(); if (s.manual) cont.querySelector('#psn-codigo')?.focus(); return; }
 
@@ -249,9 +249,9 @@ export function montarPsn(cont) {
       pintar();
       return;
     }
-    if (a === 'desconectar') {
-      const r = await ejecutar('desconectar', () => psn.desconectar(yo.id));
-      s.confirmarQuitar = !r.ok && s.confirmarQuitar;
+    if (a === 'quitar') {
+      const r = await ejecutar('quitar', () => psn.desconectar(yo.id, b.dataset.id || undefined));
+      s.confirmarQuitar = r.ok ? null : s.confirmarQuitar;
       s.mensaje = r.ok ? null : psn.mensajePsn(r);
       if (r.ok) aviso('PlayStation desconectada');
       pintar();
@@ -259,9 +259,11 @@ export function montarPsn(cont) {
   });
 
   const desuscribir = datos.suscribir(pintar);
+  const sinEtiquetas = escucharEtiquetas(cont);
   pintar();
   return () => {
     desuscribir();
+    sinEtiquetas();
     document.removeEventListener('visibilitychange', alVolver);
     window.removeEventListener('focus', alVolver);
   };

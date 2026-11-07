@@ -235,8 +235,30 @@ async function usuario(id: string) {
   return data;
 }
 
-async function vincular(usuarioId: string, texto: string) {
-  const u = await usuario(usuarioId);
+type CuentaXbox = { id: string; usuario_id: string; externo_id: string; nombre: string | null; sincronizado_en: string | null };
+
+/** Las cuentas de Xbox (gamertags) de un usuario; o solo una si se pasa cuentaId. */
+async function cuentasDe(usuarioId: string, cuentaId?: string): Promise<CuentaXbox[]> {
+  let q = sb.from("cuentas_plataforma").select("id, usuario_id, externo_id, nombre, sincronizado_en")
+    .eq("usuario_id", usuarioId).eq("fuente", "xbox").order("creado_en");
+  if (cuentaId) q = q.eq("id", cuentaId);
+  const { data, error } = await q;
+  if (error) throw new ErrorXbox("bd", "No se han podido leer las cuentas: " + error.message, 500);
+  return (data ?? []) as CuentaXbox[];
+}
+
+/** usuarios.xbox_* resume sus cuentas (para la app): la primera da el gamertag. */
+async function resumirUsuario(usuarioId: string) {
+  const cs = await cuentasDe(usuarioId);
+  const ultima = cs.map((c) => c.sincronizado_en).filter(Boolean).sort().pop() ?? null;
+  await sb.from("usuarios").update({
+    xbox_xuid: cs[0]?.externo_id ?? null, xbox_gamertag: cs[0]?.nombre ?? null, xbox_sincronizado_en: ultima, xbox_reconectar: false,
+  }).eq("id", usuarioId);
+}
+
+/** Vincula un gamertag (otro más si ya tenía alguno) y lo sincroniza. */
+async function vincular(usuarioId: string, texto: string, etiqueta?: string) {
+  await usuario(usuarioId);
   const gamertag = String(texto ?? "").trim();
   if (!/^[A-Za-z0-9 #]{1,20}$/.test(gamertag)) {
     throw new ErrorXbox("gamertag_no_valido", "Ese gamertag no parece válido: letras, números y espacios (hasta 15), y si tiene sufijo, con # (p. ej. Nombre#1234).");
@@ -245,46 +267,69 @@ async function vincular(usuarioId: string, texto: string) {
   if (!jugador) jugador = elegirJugador(await api(`friends/search?gt=${encodeURIComponent(gamertag)}`), gamertag);
   if (!jugador) throw new ErrorXbox("no_existe", `No hay ningún jugador de Xbox con el gamertag «${gamertag}». Revisa que esté bien escrito.`);
 
-  // Otro gamertag distinto del de antes: su biblioteca de Xbox vieja fuera.
-  if (u.xbox_xuid && u.xbox_xuid !== jugador.xuid) await sb.from("biblioteca").delete().eq("usuario_id", usuarioId).eq("fuente", "xbox");
-  const { error } = await sb.from("usuarios").update({
-    xbox_xuid: jugador.xuid, xbox_gamertag: jugador.gamertag, xbox_sincronizado_en: null, xbox_reconectar: false,
-  }).eq("id", usuarioId);
-  if (error) throw new ErrorXbox("bd", "No se ha podido guardar: " + error.message, 500);
+  const fila: Record<string, unknown> = { usuario_id: usuarioId, fuente: "xbox", externo_id: jugador.xuid, nombre: jugador.gamertag, reconectar: false };
+  if (etiqueta?.trim()) fila.etiqueta = etiqueta.trim().slice(0, 40);
+  const { data: cuenta, error } = await sb.from("cuentas_plataforma")
+    .upsert(fila, { onConflict: "usuario_id,fuente,externo_id" }).select("id, usuario_id, externo_id, nombre, sincronizado_en").single();
+  if (error || !cuenta) throw new ErrorXbox("bd", "No se ha podido guardar: " + (error?.message ?? ""), 500);
+  await resumirUsuario(usuarioId);
 
   let sincronizacion: Record<string, unknown>;
   try {
-    sincronizacion = await sincronizar(usuarioId);
+    sincronizacion = await sincronizarCuenta(usuarioId, cuenta as CuentaXbox);
   } catch (e) {
     sincronizacion = e instanceof ErrorXbox
       ? { ok: false, codigo: e.codigo, error: e.message }
       : { ok: false, codigo: "interno", error: (e as Error).message };
   }
-  return { ok: true, gamertag: jugador.gamertag, xuid: jugador.xuid, sincronizacion };
+  return { ok: true, gamertag: jugador.gamertag, xuid: jugador.xuid, cuenta_id: cuenta.id, sincronizacion };
 }
 
-async function sincronizar(usuarioId: string) {
+/** Sincroniza todas las cuentas de Xbox de un usuario (o solo una) y suma el resultado. */
+async function sincronizar(usuarioId: string, cuentaId?: string) {
+  await usuario(usuarioId);
+  const cs = await cuentasDe(usuarioId, cuentaId);
+  if (!cs.length) throw new ErrorXbox("sin_vincular", "Primero vincula tu gamertag de Xbox.");
+  const res: Record<string, any>[] = [];
+  let primerError: unknown = null;
+  for (const c of cs) {
+    try {
+      res.push({ ...(await sincronizarCuenta(usuarioId, c)), gamertag: c.nombre });
+    } catch (e) {
+      primerError ??= e;
+      res.push({ ok: false, gamertag: c.nombre, codigo: (e as ErrorXbox).codigo ?? "interno", error: (e as Error).message });
+    }
+  }
+  if (!res.some((r) => r.ok)) throw primerError;
+  const suma = (k: string) => res.reduce((t, r) => t + Number(r[k] ?? 0), 0);
+  return {
+    ok: true, juegos: suma("juegos"), apps: suma("apps"), detectados: suma("detectados"), nuevos: suma("nuevos"),
+    pendientes: suma("pendientes"), horas_pendientes: suma("horas_pendientes"), sincronizado_en: new Date().toISOString(), cuentas: res,
+  };
+}
+
+async function sincronizarCuenta(usuarioId: string, c: CuentaXbox, opciones: { horas?: number } = {}) {
   const u = await usuario(usuarioId);
-  if (!u.xbox_xuid) throw new ErrorXbox("sin_vincular", "Primero vincula tu gamertag de Xbox.");
-  // Una sincronización cada 10 minutos como mucho (el límite es de todo el grupo).
-  const ultima = u.xbox_sincronizado_en ? new Date(u.xbox_sincronizado_en).getTime() : 0;
+  // Una sincronización cada 10 minutos como mucho por cuenta (el límite es de todo el grupo).
+  const ultima = c.sincronizado_en ? new Date(c.sincronizado_en).getTime() : 0;
   const falta = ultima + ESPERA_MS - Date.now();
   if (falta > 0) {
     throw new ErrorXbox("espera", `Acabas de sincronizar. Podrás volver a hacerlo en ${Math.ceil(falta / 60000)} min.`, 200, { segundos: Math.ceil(falta / 1000) });
   }
 
   // UNA petición: el historial de títulos (con logros) de ese jugador.
-  const d = await api(`titles/${encodeURIComponent(u.xbox_xuid)}`, true);
+  const d = await api(`titles/${encodeURIComponent(c.externo_id)}`, true);
   const titulos: any[] = d?.titles ?? [];
   if (!titulos.length) {
     throw new ErrorXbox("privado", "No se ve ningún juego en tu historial de Xbox: seguramente es privado. Cambia la privacidad y vuelve a sincronizar.");
   }
   const ahora = new Date().toISOString();
-  const filas = titulos.map((t) => filaXbox(t, usuarioId, ahora)).filter(Boolean) as NonNullable<ReturnType<typeof filaXbox>>[];
+  const filas = titulos.map((t) => filaXbox(t, usuarioId, ahora)).filter(Boolean)
+    .map((f) => ({ ...f!, cuenta_id: c.id })) as (NonNullable<ReturnType<typeof filaXbox>> & { cuenta_id: string })[];
   const apps = filas.filter((f) => f.es_app || esAppXbox(f.nombre_psn));
 
-  // Lo que ya tenía conserva su revisión y su "oculto"; lo nuevo entra "por revisar".
-  const { data: previas } = await sb.from("biblioteca").select("psn_title_id").eq("usuario_id", usuarioId).eq("fuente", "xbox");
+  // Lo que ya tenía esta cuenta conserva su revisión, su "oculto" y sus horas; lo nuevo entra "por revisar".
+  const { data: previas } = await sb.from("biblioteca").select("psn_title_id").eq("cuenta_id", c.id);
   const yaTenia = new Set((previas ?? []).map((x) => x.psn_title_id));
   const limpia = ({ es_app: _, ...f }: Record<string, any>) => f;
   // "PC detectado" (no es de la tienda): solo si el usuario lo ha pedido en Ajustes.
@@ -296,22 +341,21 @@ async function sincronizar(usuarioId: string) {
   const viejas = filas.filter((f) => yaTenia.has(f.psn_title_id)).map((f) => limpia(f));
   for (const grupo of [nuevas, viejas]) {
     for (let i = 0; i < grupo.length; i += 200) {
-      let { error } = await sb.from("biblioteca").upsert(grupo.slice(i, i + 200), { onConflict: "usuario_id,psn_title_id" });
-      if (error && /detectado/.test(error.message)) { // sin la migración 009
-        ({ error } = await sb.from("biblioteca").upsert(grupo.slice(i, i + 200).map(({ detectado: _, ...r }) => r), { onConflict: "usuario_id,psn_title_id" }));
-      }
+      const { error } = await sb.from("biblioteca").upsert(grupo.slice(i, i + 200), { onConflict: "cuenta_id,psn_title_id" });
       if (error) throw new ErrorXbox("bd", "No se ha podido guardar la biblioteca: " + error.message, 500);
     }
   }
   // Los detectados que ya estaban siguen el interruptor (salvo que el usuario decidiera a mano).
-  await sb.from("biblioteca").update({ oculto: !incluirPc }).eq("usuario_id", usuarioId).eq("fuente", "xbox").eq("detectado", true).is("oculto_usuario", null);
+  await sb.from("biblioteca").update({ oculto: !incluirPc }).eq("cuenta_id", c.id).eq("detectado", true).is("oculto_usuario", null);
   if (apps.length) {
     await sb.from("psn_igdb").upsert(apps.map((f) => ({
       psn_title_id: f.psn_title_id, igdb_id: null, confirmado: false, nombre_psn: f.nombre_psn,
       tipo: "no_juego", confianza: 100, algoritmo: 3, juegos: null, propuesta_id: null, actualizado_en: ahora,
     })), { onConflict: "psn_title_id", ignoreDuplicates: true });
   }
-  await sb.from("usuarios").update({ xbox_sincronizado_en: ahora }).eq("id", usuarioId);
+  await sb.from("cuentas_plataforma").update({ sincronizado_en: ahora, reconectar: false }).eq("id", c.id);
+  c.sincronizado_en = ahora;
+  await resumirUsuario(usuarioId);
 
   // Emparejar con IGDB: lo común a todas las plataformas lo hace la función psn.
   let pendientes = 0;
@@ -325,9 +369,9 @@ async function sincronizar(usuarioId: string) {
   } catch (e) {
     console.warn("Emparejar (psn reprocesar):", (e as Error).message);
   }
-  // Horas: unas pocas peticiones ahora; el resto, poco a poco (tarea horaria y al abrir la app).
+  // Horas: las de los juegos jugados desde la última vez (y las que falten), poco a poco.
   let horas = { pedidas: 0, quedan: 0 };
-  try { horas = await rellenarHoras(usuarioId, u.xbox_xuid, 2); } catch (e) { console.warn("Horas:", (e as Error).message); }
+  try { horas = await rellenarHoras(c, opciones.horas ?? 2); } catch (e) { console.warn("Horas:", (e as Error).message); }
 
   return {
     ok: true,
@@ -351,8 +395,9 @@ const LOTE_HORAS = 20;
  * jugado desde la última vez que se pidieron, los más recientes primero.
  * Como mucho maxPeticiones, y nunca por encima de MAX_HORAS en la hora.
  */
-async function rellenarHoras(usuarioId: string, xuid: string, maxPeticiones: number) {
-  let r = await sb.from("biblioteca").select("psn_title_id, ultima_vez, horas_en").eq("usuario_id", usuarioId).eq("fuente", "xbox").eq("oculto", false);
+async function rellenarHoras(c: CuentaXbox, maxPeticiones: number) {
+  const xuid = c.externo_id;
+  const r = await sb.from("biblioteca").select("psn_title_id, ultima_vez, horas_en").eq("cuenta_id", c.id).eq("oculto", false);
   if (r.error) return { pedidas: 0, quedan: 0 }; // sin la migración 009
   const faltan = ((r.data ?? []) as { psn_title_id: string; ultima_vez: string | null; horas_en: string | null }[])
     .filter((f) => !f.horas_en || (f.ultima_vez && new Date(f.ultima_vez) > new Date(f.horas_en)))
@@ -380,31 +425,48 @@ async function rellenarHoras(usuarioId: string, xuid: string, maxPeticiones: num
       // Sin la estadística, se queda sin horas (nada de inventar): se puede poner a mano.
       const cambios: Record<string, unknown> = { horas_en: ahora };
       if (min != null && min > 0) cambios.horas = Math.round((min / 60) * 100) / 100;
-      await sb.from("biblioteca").update(cambios).eq("usuario_id", usuarioId).eq("psn_title_id", f.psn_title_id);
+      await sb.from("biblioteca").update(cambios).eq("cuenta_id", c.id).eq("psn_title_id", f.psn_title_id);
     }
   }
   return { pedidas, quedan: Math.max(0, faltan.length - pedidas * LOTE_HORAS) };
 }
 
-/** Tarea de cada hora: horas de todos los usuarios con Xbox, repartiendo el margen. */
+/**
+ * Tarea de cada hora (pg_cron). Para cada cuenta de Xbox:
+ *  - si hace más de 6 h que no se sincroniza, vuelve a leer su historial (1 petición):
+ *    así se sabe qué juegos se han jugado desde entonces ("última vez" cambiada);
+ *  - y pide horas de lo que falte o haya cambiado, lo más reciente primero.
+ * Todo dentro del contador compartido (110 peticiones por hora para horas).
+ */
 async function tareaHoraria() {
-  const { data } = await sb.from("usuarios").select("id, xbox_xuid").not("xbox_xuid", "is", null);
-  const lista = data ?? [];
-  let pedidas = 0;
-  for (const u of lista) {
-    try { pedidas += (await rellenarHoras(u.id, u.xbox_xuid, 4)).pedidas; } catch (e) { console.warn("Tarea horaria:", (e as Error).message); }
+  const { data } = await sb.from("cuentas_plataforma").select("id, usuario_id, externo_id, nombre, sincronizado_en").eq("fuente", "xbox");
+  const lista = (data ?? []) as CuentaXbox[];
+  const limite = Date.now() - 6 * 3600 * 1000;
+  let sincronizadas = 0, pedidas = 0;
+  for (const c of lista) {
+    try {
+      if (!c.sincronizado_en || new Date(c.sincronizado_en).getTime() < limite) {
+        const r = await sincronizarCuenta(c.usuario_id, c, { horas: 4 });
+        sincronizadas++;
+        pedidas += r.horas_pendientes === undefined ? 0 : 1;
+      } else {
+        pedidas += (await rellenarHoras(c, 4)).pedidas;
+      }
+    } catch (e) {
+      console.warn("Tarea horaria Xbox:", (e as Error).message);
+    }
   }
-  return { ok: true, usuarios: lista.length, pedidas };
+  return { ok: true, cuentas: lista.length, sincronizadas, pedidas };
 }
 
-async function desvincular(usuarioId: string) {
+/** Desvincula un gamertag (o todos): se borra su biblioteca de Xbox. */
+async function desvincular(usuarioId: string, cuentaId?: string) {
   await usuario(usuarioId);
-  const { error: e1 } = await sb.from("biblioteca").delete().eq("usuario_id", usuarioId).eq("fuente", "xbox");
-  const { error: e2 } = await sb.from("usuarios").update({
-    xbox_gamertag: null, xbox_xuid: null, xbox_sincronizado_en: null, xbox_reconectar: false,
-  }).eq("id", usuarioId);
-  const error = e1 ?? e2;
+  let q = sb.from("cuentas_plataforma").delete().eq("usuario_id", usuarioId).eq("fuente", "xbox");
+  if (cuentaId) q = q.eq("id", cuentaId);
+  const { error } = await q; // en cascada: la biblioteca de esa cuenta
   if (error) throw new ErrorXbox("bd", "No se ha podido desvincular: " + error.message, 500);
+  await resumirUsuario(usuarioId);
   return { ok: true };
 }
 
@@ -435,24 +497,26 @@ Deno.serve(async (req) => {
     }
     const uid = String(c.usuario_id ?? "");
     switch (c.accion) {
-      case "vincular": return json(await vincular(uid, String(c.gamertag ?? "")));
-      case "sincronizar": return json(await sincronizar(uid));
-      case "desvincular": return json(await desvincular(uid));
+      case "vincular": return json(await vincular(uid, String(c.gamertag ?? ""), c.etiqueta ? String(c.etiqueta) : undefined));
+      case "sincronizar": return json(await sincronizar(uid, c.cuenta_id ? String(c.cuenta_id) : undefined));
+      case "desvincular": return json(await desvincular(uid, c.cuenta_id ? String(c.cuenta_id) : undefined));
       case "estado": return json(await estado());
       case "horas": {
-        const u = await usuario(uid);
-        if (!u.xbox_xuid) throw new ErrorXbox("sin_vincular", "Primero vincula tu gamertag de Xbox.");
-        return json({ ok: true, ...(await rellenarHoras(uid, u.xbox_xuid, 3)) });
+        const cs = await cuentasDe(uid);
+        if (!cs.length) throw new ErrorXbox("sin_vincular", "Primero vincula tu gamertag de Xbox.");
+        let pedidas = 0, quedan = 0;
+        for (const cx of cs) { const r = await rellenarHoras(cx, 3); pedidas += r.pedidas; quedan += r.quedan; }
+        return json({ ok: true, pedidas, quedan });
       }
       case "tarea_horaria": return json(await tareaHoraria());
       case "depurar_horas": {
         // Diagnóstico: respuesta en bruto de /player/stats para unos títulos, pidiendo
         // MinutesPlayed suelto y dentro del grupo "Hero". Gasta 2 peticiones.
-        const u = await usuario(uid);
-        if (!u.xbox_xuid) throw new ErrorXbox("sin_vincular", "Sin Xbox vinculada.");
+        const [cx] = await cuentasDe(uid);
+        if (!cx) throw new ErrorXbox("sin_vincular", "Sin Xbox vinculada.");
         const ids = (Array.isArray(c.title_ids) ? c.title_ids : []).map(String).slice(0, 10);
-        const suelto = await api("player/stats", false, { maximo: MAX_HORAS, cuerpo: { xuids: [u.xbox_xuid], stats: ids.map((titleId) => ({ name: "MinutesPlayed", titleId })) } });
-        const hero = await api("player/stats", false, { maximo: MAX_HORAS, cuerpo: { xuids: [u.xbox_xuid], groups: ids.map((titleId) => ({ name: "Hero", titleId })) } });
+        const suelto = await api("player/stats", false, { maximo: MAX_HORAS, cuerpo: { xuids: [cx.externo_id], stats: ids.map((titleId) => ({ name: "MinutesPlayed", titleId })) } });
+        const hero = await api("player/stats", false, { maximo: MAX_HORAS, cuerpo: { xuids: [cx.externo_id], groups: ids.map((titleId) => ({ name: "Hero", titleId })) } });
         return json({ ok: true, suelto, hero });
       }
       default: throw new ErrorXbox("parametros", 'Acción desconocida (usa "vincular", "sincronizar", "desvincular" o "estado")', 400);

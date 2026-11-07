@@ -59,9 +59,10 @@ export function abrirValorar(igdbId, op = {}) {
   const previa = datos.miValoracion(yo.id, id);
   const online = datos.esOnline(id);
   const estados = online ? ESTADOS_ONLINE : ESTADOS;
-  // Horas de PlayStation de este juego (si las hay) y, si las hay, las puestas a mano.
-  const horasPsn = metricas.bibliotecaDeJuego(id).get(yo.id)?.horas || null;
-  const conHoras = !datos.estado.valoraciones.length || datos.estado.valoraciones.some((v) => 'horas' in v); // migración 005
+  // Horas: las sincronizadas (solo lectura, por plataforma y cuenta) + las extra a mano.
+  const horas = metricas.desgloseDe(yo.id, id);
+  const conHoras = Array.isArray(datos.estado.horasExtra); // migración 011
+  const conSinc = horas.sinc.length > 0;
 
   // Plataformas del juego (si IGDB no trae ninguna, las de siempre).
   let plataformas = juego.plataformas?.length ? [...juego.plataformas] : [...PLATAFORMAS_GENERICAS];
@@ -167,13 +168,19 @@ export function abrirValorar(igdbId, op = {}) {
 
         ${conHoras ? `
           <div class="bloque-campo" data-bloque="horas">
-            <label for="hoja-horas" class="campo-titulo">Horas jugadas <span class="campo-opcional">(opcional)</span></label>
+            ${conSinc ? `
+              <span class="campo-titulo">Horas</span>
+              <ul class="horas-desglose">
+                ${horas.sinc.map((p) => `<li><span>${esc(p.plataforma)}${p.cuenta ? ` <small>${esc(p.cuenta)}</small>` : ''}</span><span>${esc(metricas.textoHoras(p.horas))}</span></li>`).join('')}
+              </ul>
+              <label for="hoja-horas" class="campo-titulo campo-sub">+ Horas extra <span class="campo-opcional">(otras plataformas o cuentas)</span></label>`
+            : `<label for="hoja-horas" class="campo-titulo">Horas jugadas <span class="campo-opcional">(opcional)</span></label>`}
             <div class="campo-horas">
               <input id="hoja-horas" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done"
-                placeholder="${horasPsn ? esc(String(Math.round(horasPsn))) : '0'}" value="${previa?.horas != null ? esc(String(previa.horas).replace('.', ',')) : ''}">
+                placeholder="0" value="${horas.extra ? esc(String(horas.extra).replace('.', ',')) : ''}">
               <span aria-hidden="true">h</span>
             </div>
-            ${horasPsn ? `<span class="campo-ayuda">En tu biblioteca: ${esc(metricas.textoDesglose(metricas.bibliotecaDeJuego(id).get(yo.id)) || metricas.textoHoras(horasPsn))}. Si escribes otras, se usan las tuyas.</span>` : ''}
+            ${conSinc ? `<div class="horas-total"><span>Total</span><strong data-ref="horas-total">${esc(metricas.textoHoras(horas.total))}</strong></div>` : ''}
             <span class="campo-ayuda error" data-ref="horas-error" hidden>Escribe solo un número, por ejemplo 12 o 12,5.</span>
           </div>` : ''}
 
@@ -296,6 +303,13 @@ export function abrirValorar(igdbId, op = {}) {
     pintarNota();
   });
   resena.addEventListener('input', pintarContador);
+  // Total de horas en vivo (sincronizadas + extra).
+  $('#hoja-horas')?.addEventListener('input', (e) => {
+    const t = $('[data-ref="horas-total"]');
+    const extra = leerHoras(e.target.value);
+    $('[data-ref="horas-error"]').hidden = extra !== undefined;
+    if (t && extra !== undefined) t.textContent = metricas.textoHoras(Math.round((horas.horasSinc + (extra ?? 0)) * 10) / 10);
+  });
 
   const alTeclado = (e) => { if (e.key === 'Escape') cerrar(); };
   document.addEventListener('keydown', alTeclado);
@@ -344,10 +358,10 @@ export function abrirValorar(igdbId, op = {}) {
     const conNota = s.estado !== 'pendiente';
     // Horas: solo si hay campo y no es "Pendiente" (undefined = no tocar las que hubiera).
     const campoHoras = $('#hoja-horas');
-    let horas;
+    let extra;
     if (campoHoras && conNota) {
-      horas = leerHoras(campoHoras.value);
-      if (horas === undefined) {
+      extra = leerHoras(campoHoras.value);
+      if (extra === undefined) {
         $('[data-ref="horas-error"]').hidden = false;
         campoHoras.focus();
         return;
@@ -362,13 +376,14 @@ export function abrirValorar(igdbId, op = {}) {
       recomendado: conNota ? s.recomendado : null,
       plataforma: s.plataforma,
       resena: resena.value.slice(0, MAX_RESENA),
-      horas,
     }, aviso).then((ok) => {
       // Si el juego solo se conocía por Buscar, completar su ficha en la tabla.
       if (ok && !datos.juego(id)?.resumen && !datos.juego(id)?.desarrolladora) {
         fichaJuego(id).then((j) => j && datos.recordarJuego(j)).catch(() => {});
       }
     });
+    // Horas extra: tabla aparte; solo si han cambiado.
+    if (extra !== undefined && (extra ?? 0) !== horas.extra) datos.guardarHorasExtra(yo.id, id, extra, aviso);
     cerrar();
     aviso(s.estado === 'pendiente' ? 'Añadido a pendientes' : previa ? 'Valoración actualizada' : 'Valoración guardada');
   }

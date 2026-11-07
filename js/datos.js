@@ -8,7 +8,7 @@ const CLAVE = 'cvj.datos.v1';
 const LIMITE_ACTIVIDAD = 60;
 const VENTANA_ACTIVIDAD_MS = 10 * 60 * 1000; // agrupar cambios del mismo juego en 10 min
 
-const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sagas: [], servicios: [], cargadoEn: null });
+const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sagas: [], servicios: [], cuentas: [], horasExtra: [], cargadoEn: null });
 
 // Versión de los datos: sube cada vez que cambian (refresco, escritura o reversión).
 // metricas.js la usa para memoizar los cálculos.
@@ -40,7 +40,7 @@ function guardarCache() {
   } catch { /* sin espacio o modo privado */ }
 }
 
-const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sagas, s.servicios]);
+const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sagas, s.servicios, s.cuentas, s.horasExtra]);
 
 /** Pinta desde caché (síncrono) y lanza el refresco en segundo plano. */
 export function iniciar() {
@@ -61,7 +61,7 @@ export function refrescar() {
     const sb = await cliente();
     // Extras que pueden no existir aún (migraciones): si fallan, se sigue con lo de antes.
     const extra = (q, previo) => q.then((r) => (r.error ? { data: previo } : r), () => ({ data: previo }));
-    const [u, v, j, a, bib, emp, ali, rech, sag, serv] = await Promise.all([
+    const [u, v, j, a, bib, emp, ali, rech, sag, serv, cue, hex] = await Promise.all([
       leerUsuarios(sb),
       sb.from('valoraciones').select('*'),
       sb.from('juegos').select('*'),
@@ -73,13 +73,15 @@ export function refrescar() {
       extra(sb.from('fusiones_rechazadas').select('*'), estado.rechazadas),
       extra(sb.from('sagas_usuario').select('*'), estado.sagas),
       extra(sb.from('estado_servicios').select('*'), estado.servicios),
+      extra(sb.from('cuentas_plataforma').select('*').order('creado_en'), estado.cuentas),
+      extra(sb.from('horas_extra').select('*'), estado.horasExtra),
     ]);
     const error = u.error || v.error || j.error || a.error;
     if (error) throw new Error(error.message);
     if (escriturasEnCurso) { refrescoAplazado = true; return; }
     const nuevo = {
       usuarios: u.data, valoraciones: v.data, juegos: j.data, actividad: a.data, biblioteca: bib.data ?? [], psnIgdb: emp.data ?? [],
-      alias: ali.data ?? [], rechazadas: rech.data ?? [], sagas: sag.data ?? [], servicios: serv.data ?? [],
+      alias: ali.data ?? [], rechazadas: rech.data ?? [], sagas: sag.data ?? [], servicios: serv.data ?? [], cuentas: cue.data ?? [], horasExtra: hex.data ?? [],
     };
     const cambia = firma(nuevo) !== firma(estado);
     Object.assign(estado, nuevo, { cargadoEn: new Date().toISOString() });
@@ -174,7 +176,13 @@ function construirIndices(s) {
     if (!bibJuego.has(jid)) bibJuego.set(jid, []);
     bibJuego.get(jid).push(b);
   }
-  return { usuarios, juegos, porJuego, psnIgdb, bibUsuario, bibJuego, canon, vals, aliasA };
+  // Horas extra a mano por usuario y juego principal (las de versiones fusionadas se suman).
+  const extraHoras = new Map();
+  for (const h of s.horasExtra ?? []) {
+    const k = `${h.usuario_id}:${canon(h.juego_id)}`;
+    extraHoras.set(k, (extraHoras.get(k) ?? 0) + Number(h.horas ?? 0));
+  }
+  return { usuarios, juegos, porJuego, psnIgdb, bibUsuario, bibJuego, canon, vals, aliasA, extraHoras };
 }
 
 /** Juego (principal) de una fila de biblioteca: lo de psn_igdb manda; colecciones y no-juegos, ninguno. */
@@ -190,6 +198,14 @@ export const usuario = (id) => indices.usuarios.get(id) ?? null;
 export const juego = (igdbId) => indices.juegos.get(Number(igdbId)) ?? null;
 /** Juego de la tabla o, si no está, lo que se sepa de él por Buscar. */
 export const juegoConocido = (igdbId) => juego(igdbId) ?? parciales.get(Number(igdbId)) ?? null;
+/** Horas extra a mano de un usuario en un juego (0 si no hay). */
+export const horasExtra = (usuarioId, igdbId) => indices.extraHoras.get(`${usuarioId}:${canonico(igdbId)}`) ?? 0;
+/** ¿Hay tabla de horas extra? (migración 011) */
+export const hayHorasExtra = () => Array.isArray(estado.horasExtra) && (estado.horasExtra.length > 0 || estado.cuentas?.length > 0);
+/** Cuentas de plataforma de un usuario (opcionalmente de una fuente: psn, xbox, steam). */
+export const cuentasDe = (usuarioId, fuente) => (estado.cuentas ?? []).filter((c) => c.usuario_id === usuarioId && (!fuente || c.fuente === fuente));
+export const cuenta = (id) => (estado.cuentas ?? []).find((c) => c.id === id) ?? null;
+
 /** Juego principal de un juego (el mismo si no está fusionado con otro). */
 export const canonico = (igdbId) => indices.canon(igdbId);
 /** Versiones fusionadas con este principal. */
@@ -266,6 +282,7 @@ async function escribirOptimista(aplicar, guardar, onError, mensajeError = 'No s
   const copia = {
     valoraciones: estado.valoraciones, actividad: estado.actividad, juegos: estado.juegos, usuarios: estado.usuarios,
     psnIgdb: estado.psnIgdb, biblioteca: estado.biblioteca, alias: estado.alias, rechazadas: estado.rechazadas, sagas: estado.sagas,
+    horasExtra: estado.horasExtra, cuentas: estado.cuentas,
   };
   escriturasEnCurso++;
   aplicar(estado);
@@ -430,6 +447,43 @@ export function marcarOnline(igdbId, valor, onError) {
     async (sb) => { comprobar(await sb.from('juegos').update(cambios).eq('igdb_id', id)); },
     onError,
     'No se ha podido cambiar. Se ha deshecho el cambio.',
+  );
+}
+
+/**
+ * Horas extra a mano (plataformas o cuentas que no se sincronizan) de un usuario en un
+ * juego. null o 0 = quitarlas. La sincronización nunca las toca.
+ */
+export function guardarHorasExtra(usuarioId, igdbId, horas, onError) {
+  const id = canonico(igdbId);
+  const valor = horas != null && horas > 0 ? Math.round(horas * 10) / 10 : null;
+  const fila = valor ? { usuario_id: usuarioId, juego_id: id, horas: valor, actualizado_en: new Date().toISOString() } : null;
+  const conocido = juegoConocido(id);
+  const faltaJuego = !juego(id) && conocido;
+  return escribirOptimista(
+    (s) => {
+      if (faltaJuego) s.juegos = [...s.juegos, filaJuego(conocido)];
+      s.horasExtra = [...(s.horasExtra ?? []).filter((h) => !(h.usuario_id === usuarioId && canonico(h.juego_id) === id)), ...(fila ? [fila] : [])];
+    },
+    async (sb) => {
+      if (faltaJuego) comprobar(await sb.from('juegos').upsert(filaJuego(conocido), { onConflict: 'igdb_id', ignoreDuplicates: true }));
+      const ids = [id, ...aliasDe(id)];
+      comprobar(await sb.from('horas_extra').delete().eq('usuario_id', usuarioId).in('juego_id', ids));
+      if (fila) comprobar(await sb.from('horas_extra').insert(fila));
+    },
+    onError,
+    'No se han podido guardar las horas. Se ha deshecho el cambio.',
+  );
+}
+
+/** Etiqueta de una cuenta de plataforma ("Cuenta principal", "Cuenta 2"...). */
+export function cambiarEtiqueta(cuentaId, etiqueta, onError) {
+  const valor = String(etiqueta ?? '').trim().slice(0, 40) || null;
+  return escribirOptimista(
+    (s) => { s.cuentas = (s.cuentas ?? []).map((c) => (c.id === cuentaId ? { ...c, etiqueta: valor } : c)); },
+    async (sb) => { comprobar(await sb.from('cuentas_plataforma').update({ etiqueta: valor }).eq('id', cuentaId)); },
+    onError,
+    'No se ha podido guardar la etiqueta.',
   );
 }
 

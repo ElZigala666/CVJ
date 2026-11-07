@@ -1249,6 +1249,14 @@ body.sin-barra #aviso-version { bottom: calc(96px + env(safe-area-inset-bottom))
 .campo-ayuda { font-size: 12px; color: var(--texto-2); line-height: 1.4; }
 .campo-ayuda.error { color: var(--peligro); }
 .bloque-campo[hidden] { display: none; }
+.horas-desglose { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.horas-desglose li { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; color: var(--texto-2); }
+.horas-desglose li span:last-child { color: var(--texto); font-weight: 700; }
+.horas-desglose small { font-size: 12px; opacity: .8; }
+.campo-titulo.campo-sub { margin-top: 6px; }
+.horas-total { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid var(--borde); }
+.horas-total span { color: var(--texto-2); font-weight: 700; }
+.horas-total strong { font: 800 26px var(--fuente-titulos); color: var(--texto); }
 
 /* Ficha: juego online / sin final */
 .ficha-online { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 2px; font-size: 14px; color: var(--texto-2); }
@@ -1413,3 +1421,30 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 .interruptor input:checked::after { transform: translateX(18px); }
 .interruptor-texto { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
 .interruptor-texto small { font-size: 12px; color: var(--texto-2); line-height: 1.4; }
+
+/* Ajustes → Plataformas: varias cuentas por plataforma */
+.cuentas-lista { display: grid; gap: 8px; }
+.cuenta-fila { display: grid; gap: 8px; padding: 12px 14px; border-radius: 14px; background: var(--superficie); border: 1px solid var(--borde); }
+.cuenta-fila.caducada { border-color: var(--peligro); }
+.cuenta-cab { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cuenta-texto { display: grid; gap: 2px; min-width: 0; }
+.cuenta-texto strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cuenta-texto span { font-size: 13px; color: var(--texto-2); }
+.cuenta-fila.caducada .cuenta-texto span { color: var(--peligro); }
+.cuenta-quitar { flex: none; font-size: 13px; }
+.cuenta-etiqueta {
+  width: 100%; height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--borde);
+  background: var(--fondo); color: var(--texto); font: inherit; font-size: 14px;
+}
+.cuenta-etiqueta:focus { outline: none; border-color: var(--acento); }
+.cuenta-anadir { justify-self: start; }
+
+/* Ficha: "Tus horas" */
+.ficha-horas { display: grid; gap: 10px; margin: 16px 0 0; padding: 14px 16px; border-radius: 16px; background: var(--superficie); }
+.ficha-horas .horas-total { border-top: 0; padding-top: 0; }
+.ficha-horas .horas-desglose { padding-top: 10px; border-top: 1px solid var(--borde); }
+
+/* Horas discretas: Inicio y tier list */
+.tarjeta-horas { font-size: 12px; color: var(--texto-2); line-height: 1.2; }
+.actividad-horas { font-size: 12px; font-weight: 700; color: var(--texto-2); }
+.tier-horas { display: block; font-family: var(--fuente-texto); font-size: 8px; font-weight: 700; opacity: .85; text-align: right; }

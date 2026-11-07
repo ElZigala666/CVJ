@@ -118,7 +118,7 @@ export function render(el, { params }) {
   return desuscribir;
 }
 
-/** Horas totales (PSN y las puestas a mano), top 5 por horas y reparto por plataforma (todas las fuentes). */
+/** Horas totales (sincronizadas de todas las cuentas + extra), top 5 por horas y reparto por plataforma. */
 function tiempoDeJuego(u, bib, t) {
   if (!t.total && !bib.total) {
     return `

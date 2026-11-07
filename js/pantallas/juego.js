@@ -187,11 +187,8 @@ export function render(el, { params }) {
   function extraPsn(uid) {
     const b = metricas.bibliotecaDeJuego(id).get(uid);
     const partes = [];
-    // Las horas puestas a mano mandan sobre las de PSN.
-    // Varias plataformas: "PS5 40 h · Xbox Series 12 h · Total 52 h" (si no hay horas a mano).
-    const manual = datos.miValoracion(uid, id)?.horas;
-    const desglose = manual == null && b ? metricas.textoDesglose(b) : '';
-    const h = desglose || metricas.textoHoras(metricas.horasDe(uid, id));
+    // El total de cada uno (sincronizadas de todas sus cuentas + extra); el desglose, en "Tus horas".
+    const h = metricas.textoHoras(metricas.horasDe(uid, id));
     if (h) partes.push(h);
     if (b?.progreso) partes.push(`${b.progreso} % trofeos`);
     return partes.length ? ` · ${partes.join(' · ')}` : '';
@@ -254,6 +251,25 @@ export function render(el, { params }) {
       </p>`;
   }
 
+  /** "Tus horas": total grande y desglose por plataforma, cuenta y extra. */
+  function bloqueTusHoras() {
+    if (!yo) return '';
+    const d = metricas.desgloseDe(yo.id, id);
+    if (!d.total) return '';
+    const partes = [...d.sinc, ...(d.extra ? [{ plataforma: 'Horas extra', horas: d.extra }] : [])];
+    return `
+      <section class="ficha-horas">
+        <div class="horas-total">
+          <span>Tus horas</span>
+          <strong>${esc(metricas.textoHoras(d.total))}</strong>
+        </div>
+        ${partes.length > 1 || d.extra ? `
+          <ul class="horas-desglose">
+            ${partes.map((p) => `<li><span>${esc(p.plataforma)}${p.cuenta ? ` <small>${esc(p.cuenta)}</small>` : ''}</span><span>${esc(metricas.textoHoras(p.horas))}</span></li>`).join('')}
+          </ul>` : ''}
+      </section>`;
+  }
+
   function pintarCuerpo() {
     const st = datos.statsJuego(id);
     const filas = [...st.valoraciones].sort((a, b) => {
@@ -269,6 +285,7 @@ export function render(el, { params }) {
     const hayGrupo = filas.length || soloBiblioteca.length;
     $('cuerpo').innerHTML = `
       ${bloqueMetricas(st)}
+      ${bloqueTusHoras()}
       ${hayGrupo ? `
         <section class="ficha-grupo">
           <div class="seccion-cab">

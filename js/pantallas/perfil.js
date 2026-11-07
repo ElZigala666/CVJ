@@ -13,6 +13,7 @@ import { botonFoto } from '../foto-perfil.js';
 import { normalizarBusqueda } from '../psn-nombres.js';
 import { tarjetaSaga } from './revisar.js';
 import { iconoFuente, plataformaParaValorar } from '../plataformas-ui.js';
+import { cuentasDe } from '../cuentas-ui.js';
 import { abrirValorar } from '../hoja-valorar.js';
 import { textoHoras } from '../metricas.js';
 import { volver, rutaPerfil } from '../navegacion.js';
@@ -227,8 +228,8 @@ function renderPerfil(el, id, alSalir) {
     if (!lista.length) {
       return `<p class="historial-tab-vacia">${fHist.texto ? 'Ningún juego con ese nombre.' : textoVacio(activa, esMio, u.nombre)}</p>`;
     }
-    const conHoras = fHist.orden === 'horas';
-    const item = (v, i) => itemRejilla(v, i, conHoras ? metricas.horasDe(id, v.juego_id) : undefined);
+    // Las horas, siempre junto a la nota (si hay).
+    const item = (v, i) => itemRejilla(v, i, metricas.horasDe(id, v.juego_id) ?? undefined);
     const lista2 = metricas.agruparSagas(id, lista, (v) => Number(v.juego_id));
     return `<div class="rejilla">${lista2.map((x, i) => (x.saga
       ? bloqueGrupo(`saga:${x.saga.id}`, x.hijos.map((v) => datos.juegoConocido(v.juego_id)), `${x.saga.nombre} (saga)`,
@@ -560,12 +561,22 @@ function bloqueBibliotecas(u, esMio, vinculado, bib) {
           ? (esMio ? '<button type="button" class="boton-secundario boton-pequeno" data-accion="vincular-psn">Reconectar</button>' : '<span class="etiqueta-gris">Caducada</span>')
           : '<span class="etiqueta-acento">Conectada</span>'}
     </div>`;
-  const horasDe = (fuente) => Math.round(datos.bibliotecaDe(u.id).filter((f) => (f.fuente ?? 'psn') === fuente && !f.oculto).reduce((t, f) => t + Number(f.horas ?? 0), 0));
-  if ('psn_account_id' in u) {
-    filas.push(fila('psn', 'PlayStation', vinculado, u.psn_online_id, bib.porFuente?.psn ?? 0, horasDe('psn'), u.psn_sincronizado_en, !!u.psn_reconectar));
-  }
-  if ('xbox_xuid' in u) {
-    filas.push(fila('xbox', 'Xbox', !!u.xbox_xuid, u.xbox_gamertag, bib.porFuente?.xbox ?? 0, horasDe('xbox'), u.xbox_sincronizado_en, false));
+  // Una fila por cuenta (puede haber varias de la misma plataforma); sin cuentas, la de "Conectar".
+  const visibles = datos.bibliotecaDe(u.id).filter((f) => !f.oculto);
+  const deCuenta = (c, fuente) => {
+    const suyas = visibles.filter((f) => (f.fuente ?? 'psn') === fuente && (!c.id || f.cuenta_id === c.id));
+    return [suyas.length, Math.round(metricas.sumarHoras(suyas, u.id).total)];
+  };
+  const nombres = { psn: 'PlayStation', xbox: 'Xbox' };
+  for (const fuente of ['psn', 'xbox']) {
+    if (!((fuente === 'psn' ? 'psn_account_id' : 'xbox_xuid') in u)) continue;
+    const cuentas = cuentasDe(u, fuente);
+    if (!cuentas.length) { filas.push(fila(fuente, nombres[fuente], false, null, 0, 0, null, false)); continue; }
+    for (const c of cuentas) {
+      const [juegos, horas] = deCuenta(c, fuente);
+      const id = c.etiqueta && cuentas.length > 1 ? `${c.nombre ?? ''} (${c.etiqueta})` : c.nombre;
+      filas.push(fila(fuente, nombres[fuente], true, id, juegos, horas, c.sincronizado_en, !!c.reconectar));
+    }
   }
   if (!filas.length) {
     return '<div class="bibliotecas"><div class="bibliotecas-fila"><span>Plataformas</span><span class="etiqueta-gris">Próximamente</span></div></div>';
@@ -694,7 +705,7 @@ function renderTiers(el, id) {
                     return `
                       <a class="tier-item" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}" aria-label="${esc(j.nombre)}, ${formatearNota(v.nota)}">
                         ${portada(j, { clase: 'portada-tier', titulo: 'arriba', prioridad: n++ < 12 })}
-                        <span class="tier-nota">${formatearNota(v.nota)}</span>
+                        <span class="tier-nota">${formatearNota(v.nota)}${(() => { const h = metricas.horasDe(id, v.juego_id); return h ? `<small class="tier-horas">${esc(textoHoras(h))}</small>` : ''; })()}</span>
                       </a>`;
                   }).join('')
                 : '<span class="tier-vacio">Ningún juego en este tier</span>'}

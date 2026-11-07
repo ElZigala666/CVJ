@@ -145,6 +145,7 @@ export const ORDENES = [
   { id: 'nota', nombre: 'Nota media' },
   { id: 'recomendados', nombre: 'Más recomendados' },
   { id: 'jugados', nombre: 'Más jugados' },
+  { id: 'horas', nombre: 'Más horas' },
   { id: 'polemicos', nombre: 'Más polémicos' },
   { id: 'online', nombre: 'Online' },
 ];
@@ -171,6 +172,8 @@ function juegosDelGrupo() {
           jugadores: vals.filter((v) => v.estado !== 'pendiente').length,
           desviacion: desviacionTipica(vals),
           online: datos.esOnline(id),
+          // Horas de todo el grupo (sincronizadas + extra de cada uno)
+          horas: Math.round(usuarios().reduce((t, u) => t + (horasDe(u.id, id) ?? 0), 0) * 10) / 10,
         };
       })
       .filter((x) => x.juego);
@@ -188,6 +191,10 @@ export function ranking(orden) {
     if (orden === 'jugados') {
       return l.filter((x) => x.jugadores > 0)
         .sort((a, b) => b.jugadores - a.jugadores || (b.media ?? -1) - (a.media ?? -1) || nombre(a, b));
+    }
+    if (orden === 'horas') {
+      return l.filter((x) => x.horas > 0)
+        .sort((a, b) => b.horas - a.horas || (b.media ?? -1) - (a.media ?? -1) || nombre(a, b));
     }
     if (orden === 'online') {
       return l.filter((x) => x.online && x.votos >= 1)
@@ -258,10 +265,10 @@ export function comparar(idA, idB) {
  * entradas que acaban en el mismo juego de IGDB o, si no lo tienen, con el mismo
  * nombre limpio (p. ej. la versión de PS4 y la de PS5). Una sola entrada con las
  * horas sumadas y las plataformas combinadas.
- * Cada entrada: { clave, igdbId, juego, filas, nombre, imagen, horas, horasPsn,
- *                 horasManual, plataformas, plataformaPrincipal, ultimaVez,
+ * Cada entrada: { clave, igdbId, juego, filas, nombre, imagen, horas, horasSinc,
+ *                 horasExtra, desglose, plataformas, plataformaPrincipal, ultimaVez,
  *                 progreso, valoracion, oculto }
- * Las horas puestas a mano en la valoración mandan sobre las de PSN.
+ * horas = sincronizadas (todas las cuentas, sin repetir) + extra a mano.
  */
 export function biblioteca(uid) {
   return memoizar(`biblioteca:${uid}`, () => {
@@ -281,7 +288,7 @@ export function biblioteca(uid) {
       const clave = coleccion ? `col:${coleccion.igdb_id ?? f.psn_title_id}` : igdbId != null ? `igdb:${igdbId}` : `nombre:${cn || f.psn_title_id}`;
       if (!grupos.has(clave)) {
         grupos.set(clave, {
-          clave, igdbId, juego: igdbId != null ? datos.juegoConocido(igdbId) : null, filas: [], horasPsn: 0, ultimaVez: null, progreso: null,
+          clave, igdbId, juego: igdbId != null ? datos.juegoConocido(igdbId) : null, filas: [], ultimaVez: null, progreso: null,
           // Colección (bundle): sus juegos; las horas de PSN son de la colección entera.
           coleccion: coleccion ? {
             id: coleccion.igdb_id ?? null,
@@ -293,17 +300,6 @@ export function biblioteca(uid) {
       }
       const g = grupos.get(clave);
       g.filas.push(f);
-      // Horas: se suman por plataforma (son partidas distintas), pero dentro de la MISMA
-      // fuente, dos filas con las mismas horas y la misma última vez son el mismo dato repetido.
-      const huella = `${f.fuente ?? 'psn'}|${f.horas ?? ''}|${f.ultima_vez ?? ''}`;
-      g.huellas ??= new Set();
-      g.desglose ??= new Map();
-      if (f.horas != null && !g.huellas.has(huella)) {
-        g.huellas.add(huella);
-        g.horasPsn += Number(f.horas);
-        const pl = f.plataforma ?? 'Otra';
-        g.desglose.set(pl, (g.desglose.get(pl) ?? 0) + Number(f.horas));
-      }
       if (f.ultima_vez && (!g.ultimaVez || f.ultima_vez > g.ultimaVez)) g.ultimaVez = f.ultima_vez;
       if (f.progreso_trofeos != null) g.progreso = Math.max(g.progreso ?? 0, Number(f.progreso_trofeos));
     }
@@ -311,13 +307,15 @@ export function biblioteca(uid) {
       // La fila con más horas da el nombre, la imagen y la plataforma "principal".
       const principal = [...g.filas].sort((a, b) => Number(b.horas ?? 0) - Number(a.horas ?? 0))[0];
       const valoracion = g.igdbId != null ? datos.miValoracion(uid, g.igdbId) : null;
-      const horasPsn = Math.round(g.horasPsn * 10) / 10;
-      const horasManual = valoracion?.horas != null ? Number(valoracion.horas) : null;
+      // Horas = sincronizadas (todas las fuentes y cuentas, sin repetir el mismo dato) + extra a mano.
+      const visibles = g.filas.filter((f) => !f.oculto);
+      const sinc = sumarHoras(visibles.length ? visibles : g.filas, uid);
+      const extra = g.igdbId != null ? datos.horasExtra(uid, g.igdbId) : 0;
       return {
         ...g,
-        horasPsn,
-        horasManual,
-        horas: horasManual ?? horasPsn,
+        horasSinc: sinc.total,
+        horasExtra: extra,
+        horas: Math.round((sinc.total + extra) * 10) / 10,
         nombre: g.juego?.nombre ?? principal.nombre_psn,
         imagen: principal.imagen_psn,
         psnTitleId: principal.psn_title_id,
@@ -330,8 +328,8 @@ export function biblioteca(uid) {
         oculto: g.filas.every((f) => f.oculto || (g.emp?.tipo === 'no_juego' && f.oculto_usuario == null)),
         porRevisar: g.filas.some((f) => f.por_revisar),
         revision: revisionDe(g),
-        // "PS5 40 h · Xbox Series 12 h" (las horas a mano, si las hay, mandan sobre el total)
-        desglose: [...(g.desglose ?? new Map())].filter(([, h]) => h > 0).sort((a, b) => b[1] - a[1]).map(([plataforma, h]) => ({ plataforma, horas: Math.round(h * 10) / 10 })),
+        // "PS5 40 h · Xbox Series 12 h · Extra 50 h"
+        desglose: [...sinc.desglose, ...(extra ? [{ plataforma: 'Extra', cuenta: null, horas: extra, extra: true }] : [])],
         fuentes: [...new Set(g.filas.map((f) => f.fuente ?? 'psn'))],
         enMisJuegos: g.filas.some((f) => f.en_mis_juegos === true) ? true : g.filas.some((f) => f.en_mis_juegos === false) ? false : null,
       };
@@ -349,7 +347,7 @@ export function biblioteca(uid) {
         if (!plat.has(p)) plat.set(p, { nombre: p, juegos: 0, horas: 0 });
         plat.get(p).juegos++;
       }
-      for (const f of x.filas) if (f.plataforma && plat.has(f.plataforma)) plat.get(f.plataforma).horas += Number(f.horas ?? 0);
+      for (const d of x.desglose) if (plat.has(d.plataforma)) plat.get(d.plataforma).horas += d.horas;
     }
     const porFuente = {};
     for (const x of juegos) {
@@ -378,17 +376,19 @@ export function biblioteca(uid) {
 }
 
 /**
- * Tiempo de juego de un usuario: su biblioteca de PSN (sin ocultos) más las horas
- * puestas a mano en juegos que no están en ella. { total, top, juegos: Map(igdbId → horas) }
+ * Tiempo de juego de un usuario: su biblioteca (sin ocultos; sincronizadas + extra) más
+ * las horas extra de juegos que no están en ella. { total, top, juegos: Map(igdbId → horas) }
  */
 export function tiempo(uid) {
   return memoizar(`tiempo:${uid}`, () => {
     const bib = biblioteca(uid);
     const lista = bib.juegos.map((x) => ({ nombre: x.nombre, horas: x.horas, igdbId: x.igdbId }));
     const enBib = new Set(bib.juegos.filter((x) => x.igdbId != null).map((x) => x.igdbId));
-    for (const v of valoracionesDe(uid)) {
-      if (v.horas == null || enBib.has(Number(v.juego_id))) continue;
-      lista.push({ nombre: datos.juegoConocido(v.juego_id)?.nombre ?? '', horas: Number(v.horas), igdbId: Number(v.juego_id) });
+    for (const h of datos.estado.horasExtra ?? []) {
+      const id = datos.canonico(h.juego_id);
+      if (h.usuario_id !== uid || enBib.has(id)) continue;
+      enBib.add(id);
+      lista.push({ nombre: datos.juegoConocido(id)?.nombre ?? '', horas: datos.horasExtra(uid, id), igdbId: id });
     }
     lista.sort((a, b) => b.horas - a.horas);
     return {
@@ -397,6 +397,38 @@ export function tiempo(uid) {
       juegos: new Map(lista.filter((x) => x.igdbId != null).map((x) => [x.igdbId, x.horas])),
     };
   });
+}
+
+/**
+ * Horas sincronizadas de unas filas de biblioteca (de un usuario y un juego):
+ *  - se suman por cuenta y plataforma (son partidas distintas);
+ *  - dentro de una MISMA cuenta, dos filas con las mismas horas y la misma última vez
+ *    son el mismo dato repetido (p. ej. las versiones de PS4 y PS5) y cuentan una vez;
+ *  - si el juego está en Steam, los "PC detectado" de Xbox no suman (mandan las de Steam).
+ * → { total, desglose: [{ plataforma, cuenta, horas }] }
+ */
+export function sumarHoras(filas, uid) {
+  const conSteam = filas.some((f) => f.fuente === 'steam' && f.horas != null);
+  const variasCuentas = (fuente) => datos.cuentasDe(uid, fuente).length > 1;
+  const vistas = new Set();
+  const porClave = new Map();
+  let total = 0;
+  for (const f of filas) {
+    if (f.horas == null) continue;
+    if (conSteam && f.fuente === 'xbox' && f.detectado) continue;
+    const huella = `${f.cuenta_id ?? f.fuente ?? 'psn'}|${f.horas}|${f.ultima_vez ?? ''}`;
+    if (vistas.has(huella)) continue;
+    vistas.add(huella);
+    const c = f.cuenta_id ? datos.cuenta(f.cuenta_id) : null;
+    const cuenta = c && variasCuentas(f.fuente) ? (c.etiqueta || c.nombre) : null;
+    const clave = `${f.plataforma ?? 'Otra'}|${cuenta ?? ''}`;
+    const d = porClave.get(clave) ?? { plataforma: f.plataforma ?? 'Otra', cuenta, horas: 0 };
+    d.horas += Number(f.horas);
+    porClave.set(clave, d);
+    total += Number(f.horas);
+  }
+  const desglose = [...porClave.values()].map((d) => ({ ...d, horas: Math.round(d.horas * 10) / 10 })).filter((d) => d.horas > 0).sort((a, b) => b.horas - a.horas);
+  return { total: Math.round(total * 10) / 10, desglose };
 }
 
 // ---------------------------------------------------------------------------
@@ -426,39 +458,56 @@ export function esProbado(x, umbral) {
   return x.progreso == null || x.progreso < 5;
 }
 
-/** Texto "PS5 40 h · Xbox Series 12 h · Total 52 h" (o solo el total si hay una plataforma). */
+/** "PS5 40 h", "Xbox Series (Cuenta 2) 12 h", "Extra 50 h" */
+export const textoParte = (p) => `${p.plataforma}${p.cuenta ? ` (${p.cuenta})` : ''} ${textoHoras(p.horas)}`;
+
+/** Texto "PS5 40 h · Xbox Series 12 h · Extra 50 h · Total 102 h" (vacío si hay una sola parte). */
 export function textoDesglose(x) {
-  const d = x.desglose ?? [];
+  const d = x?.desglose ?? [];
   if (d.length < 2) return '';
-  return [...d.map((p) => `${p.plataforma} ${textoHoras(p.horas)}`), `Total ${textoHoras(d.reduce((t, p) => t + p.horas, 0))}`].join(' · ');
+  return [...d.map(textoParte), `Total ${textoHoras(d.reduce((t, p) => t + p.horas, 0))}`].join(' · ');
 }
 
-/** Horas de un usuario en un juego: las puestas a mano o, si no hay, las de PSN. */
+/** Horas totales de un usuario en un juego: sincronizadas (todas sus cuentas) + extra a mano. */
 export function horasDe(uid, igdbId) {
-  const manual = datos.miValoracion(uid, igdbId)?.horas;
-  if (manual != null) return Number(manual);
-  return bibliotecaDeJuego(igdbId).get(uid)?.horas ?? null;
+  const b = bibliotecaDeJuego(igdbId).get(uid);
+  const total = (b?.horasSinc ?? 0) + datos.horasExtra(uid, igdbId);
+  return total > 0 ? Math.round(total * 10) / 10 : null;
+}
+
+/** Desglose de horas de un usuario en un juego: sincronizadas por plataforma y cuenta + extra. */
+export function desgloseDe(uid, igdbId) {
+  const b = bibliotecaDeJuego(igdbId).get(uid);
+  const extra = datos.horasExtra(uid, igdbId);
+  return {
+    sinc: b?.desgloseSinc ?? [],
+    horasSinc: b?.horasSinc ?? 0,
+    extra,
+    total: Math.round(((b?.horasSinc ?? 0) + extra) * 10) / 10,
+  };
 }
 
 /** Horas y trofeos de cada usuario en un juego: Map(usuario_id → { horas, progreso, plataformas }). */
 export function bibliotecaDeJuego(igdbId) {
+  igdbId = datos.canonico(igdbId); // una versión fusionada da lo del juego principal
   return memoizar(`bibJuego:${igdbId}`, () => {
     const m = new Map();
     for (const f of datos.bibliotecaDeJuego(igdbId)) {
       if (!datos.usuario(f.usuario_id) || f.oculto) continue;
-      const x = m.get(f.usuario_id) ?? { horas: 0, progreso: null, plataformas: [], filas: [], huellas: new Set(), desglose: [] };
-      // Igual que en la biblioteca: dentro de una fuente, el mismo dato repetido cuenta una vez.
-      const huella = `${f.fuente ?? 'psn'}|${f.horas ?? ''}|${f.ultima_vez ?? ''}`;
-      if (f.horas != null && !x.huellas.has(huella)) {
-        x.huellas.add(huella);
-        x.horas += Number(f.horas);
-        const d = x.desglose.find((p) => p.plataforma === (f.plataforma ?? 'Otra'));
-        if (d) d.horas += Number(f.horas); else x.desglose.push({ plataforma: f.plataforma ?? 'Otra', horas: Number(f.horas) });
-      }
+      const x = m.get(f.usuario_id) ?? { horas: 0, progreso: null, plataformas: [], filas: [] };
       if (f.progreso_trofeos != null) x.progreso = Math.max(x.progreso ?? 0, Number(f.progreso_trofeos));
       if (f.plataforma && !x.plataformas.includes(f.plataforma)) x.plataformas.push(f.plataforma);
       x.filas.push(f);
       m.set(f.usuario_id, x);
+    }
+    // Horas: sincronizadas (sin repetir el mismo dato) + extra; desglose con las dos.
+    for (const [uid, x] of m) {
+      const sinc = sumarHoras(x.filas, uid);
+      const extra = datos.horasExtra(uid, igdbId);
+      x.horasSinc = sinc.total;
+      x.desgloseSinc = sinc.desglose;
+      x.horas = Math.round((sinc.total + extra) * 10) / 10;
+      x.desglose = [...sinc.desglose, ...(extra ? [{ plataforma: 'Extra', cuenta: null, horas: extra, extra: true }] : [])];
     }
     return m;
   });

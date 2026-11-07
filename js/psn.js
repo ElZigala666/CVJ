@@ -69,9 +69,10 @@ export async function llamarPsn(accion, extra = {}, signal) {
 // Acciones del usuario (botones de Ajustes)
 // ---------------------------------------------------------------------------
 /** Conecta la cuenta con el NPSSO ya validado; la función hace la primera sincronización. */
-export async function conectar(usuarioId, npsso) {
+/** etiqueta: opcional ("Cuenta 2"); si la cuenta ya estaba, se reconecta. */
+export async function conectar(usuarioId, npsso, etiqueta) {
   try { localStorage.setItem(CLAVE_INTENTO, String(Date.now())); } catch { /* nada */ }
-  const r = await llamarPsn('conectar', { usuario_id: usuarioId, npsso });
+  const r = await llamarPsn('conectar', { usuario_id: usuarioId, npsso, ...(etiqueta ? { etiqueta } : {}) });
   if (r.ok) { await datos.refrescar(); refrescarLuego(r.sincronizacion); }
   return r;
 }
@@ -82,8 +83,9 @@ function refrescarLuego(r) {
   for (const ms of [15_000, 45_000, 100_000, 150_000]) setTimeout(() => datos.refrescar(), ms);
 }
 
-export async function desconectar(usuarioId) {
-  const r = await llamarPsn('desconectar', { usuario_id: usuarioId });
+/** Desconecta una cuenta (cuentaId) o, sin ella, todas las de PSN. */
+export async function desconectar(usuarioId, cuentaId) {
+  const r = await llamarPsn('desconectar', { usuario_id: usuarioId, ...(cuentaId ? { cuenta_id: cuentaId } : {}) });
   if (r.ok) await datos.refrescar();
   return r;
 }

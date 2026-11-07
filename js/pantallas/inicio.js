@@ -181,6 +181,7 @@ function tarjetaJugando(x, i) {
           ${etiqueta}
         </div>
         ${nombrePerfil(u, 'span', 'tarjeta-nombre')}
+        ${(() => { const h = metricas.horasDe(u.id, j.igdb_id); return h ? `<span class="tarjeta-horas">${esc(metricas.textoHoras(h))}</span>` : ''; })()}
       </a>`;
   }
   // Juego de PSN sin emparejar: su imagen de PSN; tocarla lleva a elegir qué juego es.
@@ -317,21 +318,22 @@ function actividad() {
     .slice(0, MAX_ACTIVIDAD);
 
   const contenido = filas.length
-    ? filas.map(({ a, u, j }) => `
+    ? filas.map(({ a, u, j }) => { const h = metricas.horasDe(u.id, j.igdb_id); return `
         <a class="actividad-fila" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}">
           ${avatarPerfil(u, 36)}
           <div class="actividad-texto">
             <span class="actividad-frase">${nombrePerfil(u, 'strong')} ${VERBOS[a.tipo] ?? 'actualizó'} <strong>${esc(j.nombre)}</strong></span>
-            ${a.nota != null || a.recomendado != null ? `
+            ${a.nota != null || a.recomendado != null || h ? `
               <div class="actividad-nota">
                 ${a.nota != null ? notaConLetra(a.nota, 'act') : ''}
                 ${iconoRecomendacion(a.recomendado, 16)}
+                ${h ? `<span class="actividad-horas">${esc(metricas.textoHoras(h))}</span>` : ''}
               </div>` : ''}
             ${a.texto ? `<p class="actividad-resena">«${esc(a.texto)}»</p>` : ''}
             <span class="actividad-tiempo" data-fecha="${esc(a.creado_en)}">${tiempoRelativo(a.creado_en, ahora)}</span>
           </div>
           ${portada(j, { clase: 'portada-actividad' })}
-        </a>`).join('')
+        </a>`; }).join('')
     : `<p class="seccion-vacia">${icono('pendiente', { tam: 20, color: 'var(--texto-2)', trazo: 'var(--fondo)' })}<span>Todavía no hay actividad.</span></p>`;
 
   return `

@@ -53,15 +53,16 @@ function refrescarLuego(r) {
 }
 
 /** Vincula un gamertag (y la función hace la primera sincronización). */
-export async function vincular(usuarioId, gamertag) {
+export async function vincular(usuarioId, gamertag, etiqueta) {
   try { localStorage.setItem(CLAVE_INTENTO, String(Date.now())); } catch { /* nada */ }
-  const r = await llamarXbox('vincular', { usuario_id: usuarioId, gamertag });
+  const r = await llamarXbox('vincular', { usuario_id: usuarioId, gamertag, ...(etiqueta ? { etiqueta } : {}) });
   if (r.ok) { await datos.refrescar(); refrescarLuego(r.sincronizacion); }
   return r;
 }
 
-export async function desvincular(usuarioId) {
-  const r = await llamarXbox('desvincular', { usuario_id: usuarioId });
+/** Desvincula una cuenta (cuentaId) o, sin ella, todas las de Xbox. */
+export async function desvincular(usuarioId, cuentaId) {
+  const r = await llamarXbox('desvincular', { usuario_id: usuarioId, ...(cuentaId ? { cuenta_id: cuentaId } : {}) });
   if (r.ok) await datos.refrescar();
   return r;
 }
@@ -82,7 +83,10 @@ export function sincronizar(usuarioId) {
 
 /** Milisegundos que faltan para poder volver a pulsar "Sincronizar ahora" (0 si ya se puede). */
 export function esperaRestante(u) {
-  const ultima = u?.xbox_sincronizado_en ? new Date(u.xbox_sincronizado_en).getTime() : 0;
+  // Con varias cuentas, se puede en cuanto alguna esté libre (la más antigua).
+  const cs = u ? datos.cuentasDe(u.id, 'xbox') : [];
+  const fechas = cs.length ? cs.map((c) => c.sincronizado_en) : [u?.xbox_sincronizado_en];
+  const ultima = Math.min(...fechas.map((f) => (f ? new Date(f).getTime() : 0)));
   return Math.max(0, ultima + ESPERA_MS - Date.now());
 }
 

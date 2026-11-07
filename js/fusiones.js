@@ -71,7 +71,6 @@ export function abrirFusion(uid, a, b) {
   };
   const ha = metricas.horasDe(uid, a) ?? 0;
   const hb = metricas.horasDe(uid, b) ?? 0;
-  const manual = va?.horas != null || vb?.horas != null;
 
   const opcion = (j, campo, valor, extra = '') => `
     <button type="button" class="fusion-opcion${s[campo] === valor ? ' activa' : ''}" data-${campo}="${valor}" aria-pressed="${s[campo] === valor}">
@@ -115,8 +114,6 @@ export function abrirFusion(uid, a, b) {
           principal: s.principal,
           alias,
           notaDe: s.nota == null || s.nota === s.principal ? 'principal' : 'alias',
-          // Si alguna tenía horas a mano, se guardan sumadas; si no, ya las suma PSN.
-          horas: manual ? Math.round((ha + hb) * 10) / 10 : null,
         }, aviso);
         if (ok) aviso('Fusionados: ahora cuentan como un solo juego');
         cerrar();

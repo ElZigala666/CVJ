@@ -122,7 +122,7 @@ function fila(x, marcada) {
   const f = x.filas[0];
   const r = x.revision;
   const seguro = r.seguro;
-  const horas = textoHoras(x.horasPsn);
+  const horas = textoHoras(x.horasSinc);
   let propuesta;
   if (x.coleccion) {
     const j = x.coleccion.juego ?? x.coleccion.juegos[0];

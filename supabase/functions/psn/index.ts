@@ -65,6 +65,7 @@ const MARGEN_MS = 2 * 60 * 1000;
 
 type Tokens = { access_token: string; refresh_token?: string; expires_in: number; refresh_token_expires_in?: number };
 type Cuenta = {
+  cuenta_id: string;   // cuentas_plataforma.id (un usuario puede tener varias cuentas de PSN)
   usuario_id: string;
   account_id: string;
   online_id: string;
@@ -120,9 +121,27 @@ async function canjearNpsso(npsso: string): Promise<Tokens> {
   return t;
 }
 
-async function marcarReconectar(usuarioId: string) {
-  const { error } = await sb.from("usuarios").update({ psn_reconectar: true }).eq("id", usuarioId);
-  if (error) console.error("Marcando psn_reconectar:", error.message);
+async function marcarReconectar(c: Cuenta) {
+  const { error } = await sb.from("cuentas_plataforma").update({ reconectar: true }).eq("id", c.cuenta_id);
+  if (error) console.error("Marcando reconectar:", error.message);
+  await resumirUsuario(c.usuario_id);
+}
+
+/**
+ * usuarios.psn_* resume sus cuentas de PSN (para la app): la primera cuenta da el ID,
+ * la última sincronización es la más reciente y "reconectar" si alguna lo necesita.
+ */
+async function resumirUsuario(usuarioId: string) {
+  const { data } = await sb.from("cuentas_plataforma").select("externo_id, nombre, sincronizado_en, reconectar, creado_en")
+    .eq("usuario_id", usuarioId).eq("fuente", "psn").order("creado_en");
+  const cs = data ?? [];
+  const ultima = cs.map((c) => c.sincronizado_en).filter(Boolean).sort().pop() ?? null;
+  await sb.from("usuarios").update({
+    psn_account_id: cs[0]?.externo_id ?? null,
+    psn_online_id: cs[0]?.nombre ?? null,
+    psn_sincronizado_en: ultima,
+    psn_reconectar: cs.some((c) => c.reconectar),
+  }).eq("id", usuarioId);
 }
 
 const errorReconectar = () =>
@@ -151,14 +170,14 @@ class SesionPsn {
             expira_en: this.c.expira_en,
             refresh_expira_en: this.c.refresh_expira_en,
             actualizado_en: new Date().toISOString(),
-          }).eq("usuario_id", this.c.usuario_id);
+          }).eq("cuenta_id", this.c.cuenta_id);
           if (error) console.error("Guardando tokens:", error.message);
         }
         return this.c.access_token;
       }
     }
     // El refresh token ha caducado o Sony lo ha revocado: hay que volver a conectar.
-    if (this.guardar) await marcarReconectar(this.c.usuario_id);
+    if (this.guardar) await marcarReconectar(this.c);
     throw errorReconectar();
   }
 
@@ -171,7 +190,7 @@ class SesionPsn {
     if (r.status === 401) {
       r = await pedir(await this.token(true)); // token revocado: renovarlo una vez
       if (r.status === 401) {
-        if (this.guardar) await marcarReconectar(this.c.usuario_id);
+        if (this.guardar) await marcarReconectar(this.c);
         throw errorReconectar();
       }
     }
@@ -546,21 +565,25 @@ async function usuario(id: string) {
   return data;
 }
 
-async function leerCuenta(usuarioId: string): Promise<Cuenta | null> {
-  const { data, error } = await sb.from("psn_cuentas")
-    .select("usuario_id, account_id, online_id, access_token, refresh_token, expira_en, refresh_expira_en")
-    .eq("usuario_id", usuarioId).maybeSingle();
+/** Las cuentas de PSN (con sus tokens) de un usuario; o solo una si se pasa cuentaId. */
+async function leerCuentas(usuarioId: string, cuentaId?: string): Promise<Cuenta[]> {
+  let q = sb.from("psn_cuentas")
+    .select("cuenta_id, usuario_id, account_id, online_id, access_token, refresh_token, expira_en, refresh_expira_en")
+    .eq("usuario_id", usuarioId);
+  if (cuentaId) q = q.eq("cuenta_id", cuentaId);
+  const { data, error } = await q;
   if (error) throw new ErrorPsn("bd", "No se ha podido leer la conexión: " + error.message, 500);
-  return data as Cuenta | null;
+  return (data ?? []) as Cuenta[];
 }
 
-async function conectar(usuarioId: string, textoNpsso: string) {
-  const u = await usuario(usuarioId);
+/** Conecta (o vuelve a conectar) una cuenta de PSN. Se pueden tener varias. */
+async function conectar(usuarioId: string, textoNpsso: string, etiqueta?: string) {
+  await usuario(usuarioId);
   const npsso = extraerNpsso(textoNpsso);
   const tokens = await canjearNpsso(npsso); // el NPSSO acaba aquí: no se guarda
 
   const c: Cuenta = {
-    usuario_id: usuarioId, account_id: "", online_id: "",
+    cuenta_id: "", usuario_id: usuarioId, account_id: "", online_id: "",
     access_token: "", refresh_token: "", expira_en: "", refresh_expira_en: "",
   };
   aplicarTokens(c, tokens);
@@ -569,61 +592,56 @@ async function conectar(usuarioId: string, textoNpsso: string) {
   c.account_id = id.accountId;
   c.online_id = id.onlineId;
 
-  // Otra cuenta de PlayStation distinta de la de antes: su biblioteca vieja fuera.
-  if (u.psn_account_id && u.psn_account_id !== c.account_id) {
-    await sb.from("biblioteca").delete().eq("usuario_id", usuarioId);
-  }
+  // La cuenta (si ya estaba, se reconecta; si es otra, se añade).
+  const fila: Record<string, unknown> = { usuario_id: usuarioId, fuente: "psn", externo_id: c.account_id, nombre: c.online_id, reconectar: false };
+  if (etiqueta?.trim()) fila.etiqueta = etiqueta.trim().slice(0, 40);
+  const { data: cuenta, error: e0 } = await sb.from("cuentas_plataforma")
+    .upsert(fila, { onConflict: "usuario_id,fuente,externo_id" }).select("id").single();
+  if (e0 || !cuenta) throw new ErrorPsn("bd", "No se ha podido guardar la cuenta: " + (e0?.message ?? ""), 500);
+  c.cuenta_id = cuenta.id;
   const ahora = new Date().toISOString();
-  const { error } = await sb.from("psn_cuentas").upsert({ ...c, actualizado_en: ahora }, { onConflict: "usuario_id" });
+  const { error } = await sb.from("psn_cuentas").upsert({ ...c, actualizado_en: ahora }, { onConflict: "cuenta_id" });
   if (error) throw new ErrorPsn("bd", "No se ha podido guardar la conexión: " + error.message, 500);
-  const { error: e2 } = await sb.from("usuarios").update({
-    psn_online_id: c.online_id,
-    psn_account_id: c.account_id,
-    psn_reconectar: false,
-  }).eq("id", usuarioId);
-  if (e2) throw new ErrorPsn("bd", "No se ha podido guardar el usuario: " + e2.message, 500);
+  await resumirUsuario(usuarioId);
 
   // Primera sincronización. Si falla, la conexión ya está hecha: se puede reintentar.
   let sincronizacion: Record<string, unknown>;
   try {
-    sincronizacion = await sincronizar(usuarioId);
+    sincronizacion = await sincronizarCuenta(usuarioId, c);
   } catch (e) {
     sincronizacion = e instanceof ErrorPsn
       ? { ok: false, codigo: e.codigo, error: e.message }
       : { ok: false, codigo: "interno", error: (e as Error).message };
     if (!(e instanceof ErrorPsn)) console.error(e);
   }
-  return { ok: true, online_id: c.online_id, sincronizacion };
+  return { ok: true, online_id: c.online_id, cuenta_id: c.cuenta_id, sincronizacion };
 }
 
-async function desconectar(usuarioId: string) {
+/** Desconecta una cuenta (o todas las de PSN): se borran sus tokens y su biblioteca. */
+async function desconectar(usuarioId: string, cuentaId?: string) {
   await usuario(usuarioId);
-  const { error: e1 } = await sb.from("psn_cuentas").delete().eq("usuario_id", usuarioId);
-  // Solo lo de PlayStation (con la migración 007 hay otras fuentes, como Xbox).
-  let { error: e2 } = await sb.from("biblioteca").delete().eq("usuario_id", usuarioId).eq("fuente", "psn");
-  if (e2 && /fuente/.test(e2.message)) ({ error: e2 } = await sb.from("biblioteca").delete().eq("usuario_id", usuarioId));
-  const { error: e3 } = await sb.from("usuarios").update({
-    psn_online_id: null, psn_account_id: null, psn_sincronizado_en: null, psn_reconectar: false,
-  }).eq("id", usuarioId);
-  const error = e1 ?? e2 ?? e3;
+  let q = sb.from("cuentas_plataforma").delete().eq("usuario_id", usuarioId).eq("fuente", "psn");
+  if (cuentaId) q = q.eq("id", cuentaId);
+  const { error } = await q; // en cascada: psn_cuentas y biblioteca de esa cuenta
   if (error) throw new ErrorPsn("bd", "No se ha podido desconectar: " + error.message, 500);
+  await resumirUsuario(usuarioId);
   return { ok: true };
 }
 
-/** Estado de la conexión de un usuario (sin tokens). */
+/** Estado de las cuentas de PSN de un usuario (sin tokens). */
 async function estado(usuarioId: string) {
   await usuario(usuarioId);
-  const c = await leerCuenta(usuarioId);
-  if (!c) return { ok: true, conectado: false };
+  const cs = await leerCuentas(usuarioId);
   const ahora = Date.now();
   return {
     ok: true,
-    conectado: true,
-    online_id: c.online_id,
-    account_id: c.account_id,
-    token_caduca_en: c.expira_en,
-    refresh_caduca_en: c.refresh_expira_en,
-    refresh_dias_restantes: Math.max(0, Math.floor((caduca(c.refresh_expira_en) - ahora) / 86400000)),
+    conectado: cs.length > 0,
+    cuentas: cs.map((c) => ({
+      cuenta_id: c.cuenta_id,
+      online_id: c.online_id,
+      token_caduca_en: c.expira_en,
+      refresh_dias_restantes: Math.max(0, Math.floor((caduca(c.refresh_expira_en) - ahora) / 86400000)),
+    })),
   };
 }
 
@@ -683,10 +701,47 @@ async function reprocesarTodos() {
   return { ok: true, usuarios: porUsuario.size, pendientes: todos.length };
 }
 
-async function sincronizar(usuarioId: string) {
+/** Sincroniza todas las cuentas de PSN de un usuario (o solo una) y suma el resultado. */
+async function sincronizar(usuarioId: string, cuentaId?: string) {
   await usuario(usuarioId);
-  const c = await leerCuenta(usuarioId);
-  if (!c) throw new ErrorPsn("sin_conectar", "Primero conecta tu cuenta de PlayStation.");
+  const cs = await leerCuentas(usuarioId, cuentaId);
+  if (!cs.length) throw new ErrorPsn("sin_conectar", "Primero conecta tu cuenta de PlayStation.");
+  const res: Record<string, any>[] = [];
+  let primerError: unknown = null;
+  for (const c of cs) {
+    try {
+      res.push({ ...(await sincronizarCuenta(usuarioId, c)), online_id: c.online_id });
+    } catch (e) {
+      primerError ??= e;
+      res.push({ ok: false, online_id: c.online_id, codigo: (e as ErrorPsn).codigo ?? "interno", error: (e as Error).message });
+    }
+  }
+  if (!res.some((r) => r.ok)) throw primerError;
+  const suma = (k: string) => res.reduce((t, r) => t + Number(r[k] ?? 0), 0);
+  return {
+    ok: true,
+    juegos: suma("juegos"), horas: suma("horas"), emparejados_ahora: suma("emparejados_ahora"),
+    pendientes: suma("pendientes"), nuevos: suma("nuevos"), sin_emparejar: suma("sin_emparejar"),
+    sincronizado_en: new Date().toISOString(),
+    cuentas: res,
+  };
+}
+
+/** Tarea de cada hora: vuelve a sincronizar las cuentas de PSN que lleven más de 12 h sin hacerlo. */
+async function tareaHoraria() {
+  const limite = new Date(Date.now() - 12 * 3600 * 1000).toISOString();
+  const { data } = await sb.from("cuentas_plataforma").select("id, usuario_id, sincronizado_en").eq("fuente", "psn")
+    .or(`sincronizado_en.is.null,sincronizado_en.lt.${limite}`).eq("reconectar", false);
+  let hechas = 0;
+  for (const cp of data ?? []) {
+    const [c] = await leerCuentas(cp.usuario_id, cp.id);
+    if (!c) continue;
+    try { await sincronizarCuenta(cp.usuario_id, c); hechas++; } catch (e) { console.warn("Tarea horaria PSN:", (e as Error).message); }
+  }
+  return { ok: true, cuentas: (data ?? []).length, sincronizadas: hechas };
+}
+
+async function sincronizarCuenta(usuarioId: string, c: Cuenta) {
   const s = new SesionPsn(c);
 
   // De uno en uno: así, si hay que renovar el token, se renueva una sola vez.
@@ -711,6 +766,8 @@ async function sincronizar(usuarioId: string) {
     if (t) usados.add(t);
     filas.set(j.titleId, {
       usuario_id: usuarioId,
+      cuenta_id: c.cuenta_id,
+      fuente: "psn",
       psn_title_id: j.titleId,
       nombre_psn: nombre,
       plataforma: String(j.category ?? "").startsWith("ps5") ? "PS5" : "PS4",
@@ -729,6 +786,8 @@ async function sincronizar(usuarioId: string) {
     if (usados.has(t) || !/PS4|PS5/.test(String(t.trophyTitlePlatform ?? ""))) continue;
     filas.set(t.npCommunicationId, {
       usuario_id: usuarioId,
+      cuenta_id: c.cuenta_id,
+      fuente: "psn",
       psn_title_id: t.npCommunicationId,
       nombre_psn: t.trophyTitleName,
       plataforma: String(t.trophyTitlePlatform).includes("PS5") ? "PS5" : "PS4",
@@ -744,7 +803,7 @@ async function sincronizar(usuarioId: string) {
   // Emparejamientos ya conocidos (compartidos entre usuarios) y lo que ya tenía este usuario.
   const ids = [...filas.keys()];
   const conocidos = await leerConocidos(ids);
-  const { data: previas } = await sb.from("biblioteca").select("psn_title_id").eq("usuario_id", usuarioId);
+  const { data: previas } = await sb.from("biblioteca").select("psn_title_id").eq("cuenta_id", c.cuenta_id);
   const yaTenia = new Set((previas ?? []).map((x) => x.psn_title_id));
 
   // Guardar la biblioteca: lo nuevo entra "por revisar" (y oculto si no es un juego);
@@ -772,15 +831,16 @@ async function sincronizar(usuarioId: string) {
   const viejasSinHoras = viejas.filter((f) => !("horas" in f));
   for (const [grupo, extra] of [[nuevas, true], [viejasConHoras, false], [viejasSinHoras, false]] as const) {
     for (let i = 0; i < grupo.length; i += 200) {
-      let { error } = await sb.from("biblioteca").upsert(grupo.slice(i, i + 200), { onConflict: "usuario_id,psn_title_id" });
+      let { error } = await sb.from("biblioteca").upsert(grupo.slice(i, i + 200), { onConflict: "cuenta_id,psn_title_id" });
       if (error && /por_revisar|primera_vez/.test(error.message)) { // sin la migración 006
-        ({ error } = await sb.from("biblioteca").upsert(grupo.slice(i, i + 200).map(({ por_revisar: _a, primera_vez: _b, ...r }) => r), { onConflict: "usuario_id,psn_title_id" }));
+        ({ error } = await sb.from("biblioteca").upsert(grupo.slice(i, i + 200).map(({ por_revisar: _a, primera_vez: _b, ...r }) => r), { onConflict: "cuenta_id,psn_title_id" }));
       }
       if (error) throw new ErrorPsn("bd", "No se ha podido guardar la biblioteca: " + error.message, 500);
     }
     void extra;
   }
-  await sb.from("usuarios").update({ psn_sincronizado_en: ahora, psn_reconectar: false }).eq("id", usuarioId);
+  await sb.from("cuentas_plataforma").update({ sincronizado_en: ahora, reconectar: false }).eq("id", c.cuenta_id);
+  await resumirUsuario(usuarioId);
 
   // Emparejar lo que falte (no-juegos y locales ahora; IGDB en segundo plano).
   const emp = await emparejarFilas(usuarioId, lista, conocidos);
@@ -813,9 +873,10 @@ Deno.serve(async (req) => {
     }
     const uid = String(c.usuario_id ?? "");
     switch (c.accion) {
-      case "conectar": return json(await conectar(uid, String(c.npsso ?? "")));
-      case "sincronizar": return json(await sincronizar(uid));
-      case "desconectar": return json(await desconectar(uid));
+      case "conectar": return json(await conectar(uid, String(c.npsso ?? ""), c.etiqueta ? String(c.etiqueta) : undefined));
+      case "sincronizar": return json(await sincronizar(uid, c.cuenta_id ? String(c.cuenta_id) : undefined));
+      case "desconectar": return json(await desconectar(uid, c.cuenta_id ? String(c.cuenta_id) : undefined));
+      case "tarea_horaria": return json(await tareaHoraria());
       case "estado": return json(await estado(uid));
       case "reprocesar": return json(await reprocesar(uid));
       case "reprocesar_todos": return json(await reprocesarTodos());

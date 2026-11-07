@@ -49,6 +49,7 @@ export function render(el) {
   // Aviso de reconectar PlayStation: abre el asistente en Ajustes.
   const alPulsar = (e) => {
     if (e.target.closest('[data-accion="reconectar-psn"]')) psn.abrirAsistente();
+    if (e.target.closest('[data-accion="conectar-plataformas"]')) window.dispatchEvent(new CustomEvent('cvj:ajustes-plataformas'));
     const leido = e.target.closest('[data-aviso-leido]');
     if (leido) datos.marcarAvisoLeido(leido.dataset.avisoLeido, aviso);
   };
@@ -82,6 +83,7 @@ function html() {
         <h1 class="inicio-vacio-titulo">Aún no hay nada por aquí</h1>
         <p class="vacio-texto">Cuando el grupo empiece a valorar, aquí verás qué está jugando cada uno, los juegos mejor valorados y lo último que ha pasado.</p>
         <a class="boton-principal enlace" href="#valorar">${icono('mas', { tam: 20, color: 'currentColor' })}<span>Valorar mi primer juego</span></a>
+        ${datos.cuentasDe(yo?.id).length ? '' : '<button type="button" class="boton-secundario" data-accion="conectar-plataformas">Conectar PlayStation, Xbox o Steam</button>'}
       </div>`;
   }
   return `
@@ -90,6 +92,7 @@ function html() {
     ${avisoPsn()}
     ${avisoRevisar()}
     ${avisosPersonales()}
+    ${bienvenida()}
     <div class="inicio">
       ${jugandoAhora()}
       <section class="inicio-seccion">
@@ -138,7 +141,7 @@ function jugandoAhora() {
 /** Fila de avatares con todo el grupo: tocar uno abre su perfil. */
 function elGrupo() {
   const yo = usuarioActual();
-  const lista = [...datos.estado.usuarios].sort((a, b) => (a.id === yo?.id ? -1 : b.id === yo?.id ? 1 : a.nombre.localeCompare(b.nombre, 'es')));
+  const lista = datos.estado.usuarios.filter((u) => u.activo !== false).sort((a, b) => (a.id === yo?.id ? -1 : b.id === yo?.id ? 1 : a.nombre.localeCompare(b.nombre, 'es')));
   if (lista.length < 2) return '';
   return `
     <section class="el-grupo" aria-label="El grupo">
@@ -219,6 +222,31 @@ function avisoRevisar() {
 }
 
 /** Mis avisos (p. ej. "tenías valoración en dos versiones de un juego"): Ver y Vale. */
+/**
+ * Primer arranque de alguien nuevo (sin valoraciones ni plataformas): bienvenida con
+ * los dos primeros pasos. Se va sola en cuanto valora algo y conecta una plataforma.
+ */
+function bienvenida() {
+  const yo = usuarioActual();
+  if (!yo) return '';
+  const sinValorar = !datos.valoracionesEfectivas().some((v) => v.usuario_id === yo.id);
+  const sinPlataformas = !datos.cuentasDe(yo.id).length;
+  if (!sinValorar && !sinPlataformas) return '';
+  if (!sinValorar && sinPlataformas && datos.valoracionesEfectivas().filter((v) => v.usuario_id === yo.id).length > 3) return '';
+  return `
+    <section class="bienvenida">
+      <h2 class="bienvenida-titulo">${sinValorar ? `Hola, ${esc(yo.nombre)}` : 'Tu biblioteca, sola'}</h2>
+      <p class="bienvenida-texto">${sinValorar
+        ? 'Así funciona CVJ: valoras los juegos que juegas y ves qué opina el grupo. Empieza por aquí:'
+        : 'Conecta tus plataformas y tus juegos y tus horas se cargarán solos.'}</p>
+      <div class="bienvenida-pasos">
+        ${sinValorar ? `<a class="boton-principal enlace con-icono" href="#valorar">${icono('mas', { tam: 20, color: 'currentColor' })}<span>Valorar mi primer juego</span></a>` : ''}
+        ${sinPlataformas ? `<button type="button" class="boton-secundario con-icono" data-accion="conectar-plataformas">${icono('jugando', { tam: 20, color: 'currentColor', trazo: 'var(--superficie)' })}<span>Conectar PlayStation, Xbox o Steam</span></button>` : ''}
+      </div>
+      <p class="ajustes-nota">Nunca se crean valoraciones solas: la biblioteca solo sirve para tener tus horas y lo que has jugado a mano.</p>
+    </section>`;
+}
+
 function avisosPersonales() {
   const yo = usuarioActual();
   if (!yo) return '';

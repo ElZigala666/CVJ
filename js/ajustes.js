@@ -12,6 +12,7 @@ import { VERSION_CORTA } from './version.js';
 import { montarPsn } from './ajustes-psn.js';
 import { montarXbox } from './ajustes-xbox.js';
 import { montarSteam } from './ajustes-steam.js';
+import { montarGrupo } from './ajustes-grupo.js';
 import { botonFoto } from './foto-perfil.js';
 import { avatar } from './ui.js';
 
@@ -69,7 +70,7 @@ function bloqueInstalar(modo, abierto) {
 }
 
 /** Abre la hoja de Ajustes. alSalir: cierra la sesión (lo pasa app.js). */
-export function abrirAjustes(alSalir, { psn = false, steam = false } = {}) {
+export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas = false } = {}) {
   let pasosAbiertos = false;
   abrirHoja({
     titulo: 'Ajustes',
@@ -84,6 +85,7 @@ export function abrirAjustes(alSalir, { psn = false, steam = false } = {}) {
           <div data-ref="steam"></div>
         </section>
         <div data-ref="biblioteca"></div>
+        <div data-ref="grupo"></div>
         <div data-ref="instalar"></div>
         <button type="button" class="boton-secundario neutro ajustes-salir" data-accion="salir">Cerrar sesión en este móvil</button>
         <p class="ajustes-version">CVJ · versión ${esc(VERSION_CORTA)}</p>
@@ -133,15 +135,16 @@ export function abrirAjustes(alSalir, { psn = false, steam = false } = {}) {
       const quitarPsn = montarPsn(cuerpo.querySelector('[data-ref="psn"]'));
       const quitarXbox = montarXbox(cuerpo.querySelector('[data-ref="xbox"]'));
       const quitarSteam = montarSteam(cuerpo.querySelector('[data-ref="steam"]'));
+      const quitarGrupo = montarGrupo(cuerpo.querySelector('[data-ref="grupo"]'));
       // Abierta desde el aviso de "Reconectar": directamente al bloque de PlayStation.
-      if (psn || steam) {
+      if (psn || steam || plataformas) {
         setTimeout(() => {
-          const bloque = cuerpo.querySelector(steam ? '#ajustes-steam' : '#ajustes-psn');
+          const bloque = cuerpo.querySelector(steam ? '#ajustes-steam' : plataformas ? '#ajustes-plataformas' : '#ajustes-psn');
           const scroll = bloque?.closest('.hoja-cuerpo');
           if (bloque && scroll) scroll.scrollTop += bloque.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 8;
         }, 450);
       }
-      const vigilar = new MutationObserver(() => { if (!cuerpo.isConnected) { quitarPsn(); quitarXbox(); quitarSteam(); quitarFoto(); vigilar.disconnect(); } });
+      const vigilar = new MutationObserver(() => { if (!cuerpo.isConnected) { quitarPsn(); quitarXbox(); quitarSteam(); quitarGrupo(); quitarFoto(); vigilar.disconnect(); } });
       vigilar.observe(document.body, { childList: true });
 
       // --- Apariencia ---------------------------------------------------------

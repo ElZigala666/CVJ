@@ -226,7 +226,7 @@ function elegirUsuario(cual, params) {
   const otro = cual === 'a' ? b : a;
   const actual = cual === 'a' ? a : b;
   const uOtro = datos.usuario(otro);
-  const candidatos = metricas.usuarios().filter((u) => u.id !== otro);
+  const candidatos = metricas.usuariosActivos().filter((u) => u.id !== otro);
   abrirHoja({
     titulo: 'Comparar con…',
     antetitulo: uOtro ? `Frente a ${uOtro.nombre}` : '',

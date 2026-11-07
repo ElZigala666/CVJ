@@ -40,14 +40,18 @@ export async function entrar(codigo) {
   let resp;
   try {
     const sb = await cliente();
-    resp = await sb.from('usuarios').select(CAMPOS_USUARIO).eq('codigo_hash', hash).maybeSingle();
+    resp = await sb.from('usuarios').select(CAMPOS_USUARIO + ', activo').eq('codigo_hash', hash).maybeSingle();
+    if (resp.error && /activo/.test(resp.error.message)) resp = await sb.from('usuarios').select(CAMPOS_USUARIO).eq('codigo_hash', hash).maybeSingle();
   } catch (e) {
     throw Object.assign(new Error('Sin conexión'), { tipo: 'red', causa: e });
   }
   if (resp.error) throw Object.assign(new Error(resp.error.message), { tipo: 'red' });
   if (!resp.data) throw Object.assign(new Error('Código no válido'), { tipo: 'codigo' });
-  guardar({ usuario: resp.data, desde: new Date().toISOString() });
-  return resp.data;
+  // Desactivado por el admin: no puede entrar (se dice igual que un código que no vale).
+  if (resp.data.activo === false) throw Object.assign(new Error('Código no válido'), { tipo: 'codigo' });
+  const { activo: _, ...usuario } = resp.data;
+  guardar({ usuario, desde: new Date().toISOString() });
+  return usuario;
 }
 
 /** Actualiza los datos del usuario guardado (nombre, color, acento...) si han cambiado. */

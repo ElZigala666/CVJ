@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.steam]
 verify_jwt = false
+
+[functions.admin]
+verify_jwt = false

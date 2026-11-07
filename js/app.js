@@ -162,6 +162,8 @@ function iniciarDatos() {
     // Si cambian mis datos (nombre, color, acento) en el servidor, actualizarlos aquí.
     const yo = usuarioActual();
     const fresco = yo && datos.usuario(yo.id);
+    // Desactivado por el admin: se cierra la sesión en este móvil.
+    if (fresco?.activo === false) { alSalir(); return; }
     if (fresco && (fresco.acento !== yo.acento || fresco.color !== yo.color || fresco.nombre !== yo.nombre || (fresco.foto_url ?? null) !== (yo.foto_url ?? null))) {
       refrescarUsuario(fresco);
       aplicarAcento(fresco.acento);
@@ -192,6 +194,8 @@ document.addEventListener('click', (e) => {
   if (u) abrirEditorFoto(u);
 });
 window.addEventListener('cvj:psn-asistente', () => { if (usuarioActual()) abrirAjustes(alSalir, { psn: true }); });
+// "Conectar PlayStation, Xbox o Steam" (bienvenida de Inicio): Ajustes en Plataformas.
+window.addEventListener('cvj:ajustes-plataformas', () => { if (usuarioActual()) abrirAjustes(alSalir, { plataformas: true }); });
 // Vuelta del inicio de sesión de Steam (?steam=vuelta&openid.…): validar y enseñar el resultado en Ajustes.
 steam.revisarVuelta()?.then(() => { if (usuarioActual()) abrirAjustes(alSalir, { steam: true }); });
 // Refresco en segundo plano: al volver a la app y cada minuto mientras se ve.

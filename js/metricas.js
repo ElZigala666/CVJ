@@ -48,6 +48,9 @@ export function usuarios() {
   return memoizar('usuarios', () => [...datos.estado.usuarios].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')));
 }
 
+/** Los que salen en listas y selectores: sin los desactivados (sus datos sí cuentan). */
+export const usuariosActivos = () => usuarios().filter((u) => u.activo !== false);
+
 // ---------------------------------------------------------------------------
 // Perfil
 // ---------------------------------------------------------------------------
@@ -264,7 +267,7 @@ export const juegosEnComun = (idA, idB) => comunes(idA, idB).length;
 /** El usuario con más juegos en común con nota (para el lado B por defecto). */
 export function masAfin(uid) {
   return memoizar(`masAfin:${uid}`, () => {
-    const otros = usuarios().filter((u) => u.id !== uid);
+    const otros = usuariosActivos().filter((u) => u.id !== uid);
     if (!otros.length) return null;
     return otros
       .map((u) => ({ u, n: juegosEnComun(uid, u.id) }))

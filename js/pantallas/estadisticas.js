@@ -15,7 +15,7 @@ export function render(el, { params }) {
 
   const pintar = () => {
     const u = datos.usuario(id);
-    const todos = metricas.usuarios();
+    const todos = metricas.usuariosActivos();
     if (!u) {
       el.innerHTML = `${cabeceraAtras('Estadísticas')}${estadoVacio({ icono: 'perfil', titulo: 'Este perfil no existe', texto: 'Puede que esa persona ya no esté en el grupo.' })}`;
       return;

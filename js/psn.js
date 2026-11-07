@@ -137,7 +137,7 @@ export function revisarAutomatico() {
 }
 
 let reprocesoHecho = false;
-const ALGORITMO = 5; // el de la función psn: lo emparejado con uno anterior (y no confirmado) se recalcula
+const ALGORITMO = 6; // el de la función psn: lo emparejado con uno anterior (y no confirmado) se recalcula
 /**
  * Una vez por sesión: si mi biblioteca tiene títulos emparejados con reglas antiguas
  * (y no confirmados a mano), la función los recalcula con las nuevas (migración 006).

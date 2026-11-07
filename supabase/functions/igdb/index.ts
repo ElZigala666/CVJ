@@ -481,14 +481,15 @@ export function variantesBusqueda(nombre: string): string[] {
   const salida = [limpio, sinSufijoEdicion(nombre), sinPalabrasEdicion(sinSufijoEdicion(nombre)), sinPalabrasEdicion(limpio)];
   const base = salida[2] || salida[0];
   const palabras = base.split(" ").filter(Boolean);
+  // Quitando palabras del principio ("tom clancys rainbow six siege" → "rainbow six siege"),
+  // antes que los recortes del final: suelen ser marcas o sagas que IGDB no pone.
+  for (let n = 1; n <= 2 && palabras.length - n >= 2; n++) salida.push(palabras.slice(n).join(" "));
   for (let n = palabras.length - 1; n >= 1; n--) {
     const trozo = palabras.slice(0, n);
     const significativas = trozo.filter((w) => !VACIA.test(w) && w.length >= 3);
     if (significativas.length >= 2 || (significativas.length === 1 && significativas[0].length >= 5 && n === 1)) salida.push(trozo.join(" "));
-    if (salida.length >= 10) break;
+    if (salida.length >= 12) break;
   }
-  // Quitando palabras del principio ("tom clancys rainbow six siege" → "rainbow six siege").
-  for (let n = 1; n <= 2 && palabras.length - n >= 2; n++) salida.push(palabras.slice(n).join(" "));
   // Colecciones en español con la palabra al final, como suelen llamarse en inglés
   // ("trilogia mafia" → "mafia trilogy").
   const t = base.match(/^(trilogia|coleccion|antologia|trilogy|collection|anthology)\s+(.+)$/);
@@ -945,7 +946,7 @@ async function emparejarPsn(e: EntradaPsn & { titleId?: string }) {
       const r = elegirCandidato(e, [...vistos.values()], bundle);
       if (!mejor || r.confianza > mejor.confianza || (!mejor.candidato && r.candidato)) mejor = r;
       if (r.id) break; // aceptado: no hace falta seguir
-      if (vistos.size >= 25 && r.confianza >= 50) break;
+      if (vistos.size >= 40 && r.confianza >= 65) break; // ya hay uno sólido y muchos vistos
     }
     elegido = mejor;
   }

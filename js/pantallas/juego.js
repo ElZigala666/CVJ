@@ -300,8 +300,11 @@ export function render(el, { params }) {
       .sort((a, b) => b[1].horas - a[1].horas);
     const hayGrupo = filas.length || soloBiblioteca.length;
     $('cuerpo').innerHTML = `
+      <div class="ficha-izq">
       ${bloqueMetricas(st)}
       ${bloqueTusHoras()}
+      </div>
+      <div class="ficha-der">
       ${hayGrupo ? `
         <section class="ficha-grupo">
           <div class="seccion-cab">
@@ -314,7 +317,8 @@ export function render(el, { params }) {
         </section>` : ''}
       ${bloqueColumnas({ juego: id })}
       ${bloqueVersiones()}
-      ${bloqueSagas()}`;
+      ${bloqueSagas()}
+      </div>`;
   }
 
   /** "Parte de la saga {nombre}": fila de portadas de los otros juegos y enlace a la saga. */

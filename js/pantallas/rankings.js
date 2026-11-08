@@ -108,6 +108,12 @@ function filaRanking(x, i) {
             ${extra ? `<span class="ranking-extra">${extra}</span>` : ''}
           </div>
         </div>
+        <span class="ranking-datos" aria-hidden="true">
+          <span><strong>${x.votos ?? 0}</strong> ${x.votos === 1 ? 'nota' : 'notas'}</span>
+          <span><strong>${x.rec?.total ? `${x.rec.si}/${x.rec.total}` : '—'}</strong> recomiendan</span>
+          <span><strong>${x.jugadores ?? 0}</strong> ${x.jugadores === 1 ? 'jugador' : 'jugadores'}</span>
+          <span><strong>${x.horas ? metricas.textoHoras(x.horas) : '—'}</strong> del grupo</span>
+        </span>
         ${x.media !== null ? `<span class="ranking-nota">${notaConLetra(x.media, 'rk')}</span>` : ''}
       </a>
     </li>`;

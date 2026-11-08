@@ -1,0 +1,238 @@
+/* =============================================================================
+   CVJ · Escritorio y tableta
+   Esta hoja solo se carga con media="(min-width: 768px)" (index.html): por debajo
+   de 768 px no se aplica nada de aquí y el móvil queda exactamente igual.
+     · 768-1023 px: barra lateral estrecha (solo iconos) y contenido a todo el ancho.
+     · ≥1024 px: barra lateral con texto, buscador y "Valorar"; contenido centrado
+       (máx. ~1320 px) con rejillas y dos columnas.
+   ============================================================================= */
+
+:root {
+  --ancho-lateral: 84px;
+  --ancho-contenido: 1320px;
+  --ancho-max: 100%;
+}
+
+/* ---------------------------------------------------------------------------
+   Navegación: la barra inferior pasa a ser una barra lateral fija
+   --------------------------------------------------------------------------- */
+#barra, #barra[hidden] {
+  top: 0; bottom: 0; left: 0; transform: none;
+  width: var(--ancho-lateral); max-width: none; height: auto;
+  padding: 18px 12px; gap: 6px;
+  flex-direction: column; align-items: stretch; justify-content: flex-start;
+  border-top: 0; border-right: 1px solid var(--borde);
+  display: flex;
+}
+.barra-logo { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 4px 0 14px; text-decoration: none; color: var(--texto); }
+.barra-logo span { display: none; font-family: var(--fuente-titulos); font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+.barra-tab {
+  width: auto; flex-direction: column; gap: 4px; padding: 10px 4px; border-radius: 14px;
+  font-size: 11px;
+}
+.barra-fab { order: -1; width: 56px; height: 56px; margin: 0 auto 10px; align-self: center; }
+.barra-logo { order: -3; }
+.barra-buscar { order: -2; }
+
+/* El contenido a la derecha de la barra */
+#app { max-width: none; margin: 0 0 0 var(--ancho-lateral); }
+.pantalla, body.sin-barra .pantalla { padding-bottom: 40px; }
+#aviso, body.sin-barra #aviso { bottom: 28px; left: calc(50% + var(--ancho-lateral) / 2); }
+
+/* Ratón: cursores y estados hover */
+a, button, label[for], summary, [role="button"], .chip, .pestana { cursor: pointer; }
+@media (hover: hover) {
+  .barra-tab:hover { background: var(--superficie); color: var(--texto); }
+  .barra-fab:hover { filter: brightness(1.08); }
+  .rejilla-item:hover, .tier-item:hover, .tarjeta-jugando:hover .tarjeta-jugando-portada,
+  .tarjeta-destacado:hover, .fila-elegir:hover { filter: brightness(1.04); }
+  .rejilla-item:hover .portada, .tier-item:hover .portada, .tarjeta-destacado:hover .portada { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0, 0, 0, .18); }
+  .portada { transition: transform 160ms var(--curva), box-shadow 160ms var(--curva); }
+  .ranking-fila:hover, .actividad-fila:hover, .enlace-fila:hover, .col-tarjeta:hover, .col-nuevo:hover,
+  .saga-ranking a:hover, .plat-linea:hover, .grupo-persona-cab:hover, .menu-opcion:hover { background: var(--superficie-2, var(--superficie)); }
+  .boton-principal:hover, .boton-secundario:hover { filter: brightness(1.06); }
+  .enlace-discreto:hover { text-decoration: underline; }
+}
+
+/* ---------------------------------------------------------------------------
+   Hojas inferiores → modales centrados
+   --------------------------------------------------------------------------- */
+.hoja {
+  top: 50%; bottom: auto; width: min(560px, calc(100% - 48px)); max-height: min(88dvh, 860px);
+  border-radius: 24px; transform: translate(-50%, -46%) scale(.98); opacity: 0;
+  transition: transform 160ms var(--curva), opacity 160ms var(--curva);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .35);
+}
+.capa-hoja.visible .hoja { transform: translate(-50%, -50%); opacity: 1; }
+.hoja-asa { display: none; }
+.hoja-arrastre { padding-top: 20px; cursor: default; }
+.hoja-cuerpo { padding-bottom: 24px; }
+.capa-hoja { left: var(--ancho-lateral); }
+/* La hoja de Valorar se arrastraba con el dedo: en escritorio, quieta. */
+.hoja.arrastrando { transform: translate(-50%, -50%) !important; }
+
+/* ===========================================================================
+   ≥1024 px: escritorio
+   =========================================================================== */
+@media (min-width: 1024px) {
+  :root { --ancho-lateral: 248px; }
+  #barra, #barra[hidden] { padding: 22px 16px; gap: 4px; }
+  .barra-logo { justify-content: flex-start; padding: 2px 8px 18px; }
+  .barra-logo span { display: inline; }
+  .barra-buscar {
+    display: flex; align-items: center; gap: 8px; height: 44px; margin: 0 0 14px; padding: 0 12px;
+    border-radius: 12px; background: var(--superficie); border: 1px solid var(--borde); cursor: text;
+  }
+  .barra-buscar:focus-within { border-color: var(--acento); }
+  .barra-buscar input { flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: none; font-size: 14px; }
+  .barra-buscar input::-webkit-search-cancel-button { display: none; }
+  .barra-buscar kbd { font: 600 11px var(--fuente-texto); color: var(--texto-2); padding: 2px 6px; border-radius: 6px; border: 1px solid var(--borde); }
+  .barra-fab {
+    width: 100%; height: 48px; margin: 0 0 18px; border-radius: 14px; gap: 8px;
+    color: var(--sobre-acento); text-decoration: none;
+  }
+  .barra-fab svg { width: 22px; height: 22px; }
+  .barra-fab-texto { display: inline; font-weight: 700; font-size: 15px; }
+  .barra-tab { flex-direction: row; justify-content: flex-start; gap: 14px; padding: 11px 14px; font-size: 15px; }
+  .barra-tab.activa { background: var(--acento-suave); }
+}
+
+/* ---------------------------------------------------------------------------
+   Contenido centrado (tableta y escritorio)
+   --------------------------------------------------------------------------- */
+.pantalla { max-width: var(--ancho-contenido); margin: 0 auto; }
+/* Galería de fichas y barras fijas: dentro del área de contenido */
+.galeria-indicador { left: calc(50% + var(--ancho-lateral) / 2); }
+.editor-formato { left: var(--ancho-lateral); }
+
+/* Tableta (768-1023): el diseño del móvil, más ancho y con más columnas */
+@media (max-width: 1023px) {
+  :root { --ancho-contenido: 760px; }
+  .rejilla { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .ficha-barra { left: calc(var(--ancho-lateral) + (100% - var(--ancho-lateral)) / 2); max-width: 760px; }
+  .barra-accion { left: calc(50% + var(--ancho-lateral) / 2); max-width: 760px; }
+}
+
+/* ===========================================================================
+   ≥1024 px
+   =========================================================================== */
+@media (min-width: 1024px) {
+  .pantalla { padding-left: 40px; padding-right: 40px; }
+  .cabecera .marca { visibility: hidden; } /* el logo ya está en la barra lateral */
+  .cabecera { padding-left: 0; padding-right: 0; }
+
+  /* ---------------- Inicio: principal + actividad al lado ---------------- */
+  .el-grupo, .aviso-revisar, .aviso-psn, .aviso-personal, .col-nuevo, .bienvenida, .inicio-sugerencias { margin-left: 0; margin-right: 0; }
+  .inicio {
+    display: grid; grid-template-columns: minmax(0, 1fr) 380px; column-gap: 40px; row-gap: 32px; align-items: start;
+  }
+  .inicio > .inicio-seccion { grid-column: 1; }
+  .inicio > .actividad { grid-column: 2; grid-row: 1 / span 3; padding: 18px 20px; border-radius: 20px; background: var(--superficie); position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow-y: auto; }
+  .inicio .carrusel { flex-wrap: wrap; overflow: visible; padding-left: 0; padding-right: 0; gap: 18px 16px; }
+  .inicio .seccion-titulo.con-margen, .inicio .pestanas { padding-left: 0; padding-right: 0; margin-left: 0; }
+  .inicio .tarjeta-jugando { width: 120px; }
+  .inicio .portada-jugando { width: 120px; }
+  .inicio .tarjeta-destacado { width: 150px; }
+  .inicio .portada-destacado { width: 150px; }
+  .actividad .actividad-fila { padding-left: 4px; padding-right: 4px; border-radius: 12px; }
+  .el-grupo-fila { padding-left: 0; padding-right: 0; }
+
+  /* ---------------- Ficha (juego y colección): dos columnas ----------------
+     La pantalla es la rejilla: la ficha "se abre" (display: contents) y la barra de
+     acciones (Valorar) entra como una pieza más, bajo el título, sin tapar nada. */
+  .pantalla:has(> .ficha) {
+    display: grid; grid-template-columns: 380px minmax(0, 1fr); grid-template-rows: auto auto auto auto 1fr;
+    column-gap: 48px; row-gap: 22px; align-content: start; padding-bottom: 60px;
+  }
+  .pantalla > .ficha { display: contents; }
+  .ficha-hero {
+    grid-column: 1 / -1; grid-row: 1; justify-content: flex-start;
+    margin: 0 -40px; padding: 72px 40px 28px; border-radius: 0 0 28px 28px;
+  }
+  .portada-ficha { width: 380px; }
+  .ficha-info { grid-column: 1; grid-row: 2; padding: 0; }
+  .ficha-barra {
+    position: static; grid-column: 1; grid-row: 3; transform: none;
+    width: auto; max-width: none; padding: 0; border: 0; background: none;
+  }
+  .ficha-cuerpo { display: contents; }
+  .ficha-izq { display: flex; flex-direction: column; gap: 24px; grid-column: 1; grid-row: 4; }
+  .ficha-der { display: flex; flex-direction: column; gap: 24px; grid-column: 2; grid-row: 2 / span 4; }
+  .ficha-izq > *, .ficha-der > * { margin-left: 0; margin-right: 0; padding-left: 0; padding-right: 0; }
+  .ficha-izq .ficha-metricas, .ficha-izq .ficha-horas { padding-left: 18px; padding-right: 18px; }
+  .ficha-der .ficha-grupo, .ficha-der .ficha-versiones, .ficha-der .ficha-saga-parte, .ficha-der .ficha-columnas { padding-left: 0; padding-right: 0; }
+  .barra-accion { left: calc(50% + var(--ancho-lateral) / 2); max-width: 680px; border-radius: 20px 20px 0 0; }
+
+  /* ---------------- Perfil: datos al lado; historial y biblioteca en rejilla ancha ---------------- */
+  .perfil {
+    display: grid; grid-template-columns: 340px minmax(0, 1fr); column-gap: 48px; align-items: start;
+    padding-top: 32px;
+  }
+  .perfil-lado { display: flex; flex-direction: column; gap: 20px; position: sticky; top: 24px; }
+  .perfil-principal { display: flex; flex-direction: column; gap: 32px; min-width: 0; }
+  .perfil-lado > .tarjetas-3, .perfil-lado > .enlaces-perfil, .perfil-lado > .perfil-comparar { margin: 0; }
+  .perfil-lado .perfil-cab { margin-top: 0; padding: 0; }
+  .perfil-lado .perfil-barra { padding: 0; }
+  .perfil-lado .aviso-revisar { margin: 0; }
+  .perfil-principal .perfil-seccion { padding: 0; }
+  .perfil .rejilla { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 14px; }
+  .perfil-principal .pestanas { padding: 0; }
+
+  /* Tier list y estadísticas, centradas */
+  .tiers { padding-left: 0; padding-right: 0; }
+  .tier-fila { min-height: 104px; }
+  .portada-tier { width: 66px; }
+  .stats-seccion { padding-left: 0; padding-right: 0; }
+
+  /* ---------------- Rankings: tabla con más datos por fila ---------------- */
+  .rankings { max-width: 1100px; margin: 0 auto; }
+  .ranking-lista { padding: 0; }
+  .ranking-fila { padding: 12px 10px; border-radius: 12px; }
+  .ranking-datos {
+    display: grid; grid-template-columns: repeat(4, 96px); gap: 8px; margin-left: auto; margin-right: 16px; flex: 0 0 auto;
+    font-size: 12px; color: var(--texto-2); text-align: right;
+  }
+  .ranking-datos span { display: flex; flex-direction: column; }
+  .ranking-datos strong { font-size: 15px; color: var(--texto); }
+  .ranking-info { flex: 1 1 auto; min-width: 0; }
+  .ranking-nota { flex: 0 0 auto; }
+  /* Comparar: las dos listas lado a lado */
+  .comparar-seccion { padding: 0; }
+
+  /* ---------------- Buscador: resultados en rejilla ---------------- */
+  .buscar-cab { padding: 0; }
+  .lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 4px 24px; padding: 0; }
+  .lista > .lista-cuenta, .lista > .lista-mensaje { grid-column: 1 / -1; }
+  .buscar .chips { padding-left: 0; padding-right: 0; }
+
+  /* ---------------- Saga, columnas y lectura ---------------- */
+  .saga-cab { margin: 0 -40px; padding-left: 40px; padding-right: 40px; border-radius: 0 0 28px 28px; grid-template-columns: minmax(260px, 520px) minmax(0, 1fr); align-items: end; column-gap: 32px; }
+  .saga-cab .ficha-volver { left: 40px; }
+  .saga-mosaico { width: 100%; }
+  .saga-resumen, .saga-bloque { padding-left: 0; padding-right: 0; }
+  .saga-lista { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 12px 32px; }
+  .saga-ranking { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+  .columna { max-width: 980px; margin: 0 auto; }
+  .columna-lista { display: grid; grid-template-columns: 1fr 1fr; column-gap: 32px; }
+  .col-entrada.destacada { flex-direction: row; align-items: center; gap: 28px; }
+  .portada-col-grande { max-width: 260px; }
+  .lectura-articulo { padding-top: 48px; }
+  .lectura-cuerpo { font-size: 21px; }
+  .lectura-cuerpo figure { margin-left: -60px; margin-right: -60px; }
+  .editor { max-width: 780px; }
+  .revisar { max-width: 980px; margin: 0 auto; }
+}
+
+/* Entre 1024 y 1279: una columna de datos menos en los rankings */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .ranking-datos { grid-template-columns: repeat(3, 92px); }
+  .ranking-datos span:nth-child(4) { display: none; }
+}
+
+/* Pantallas muy anchas: un poco más de aire */
+@media (min-width: 1600px) {
+  .pantalla:has(> .ficha) { grid-template-columns: 420px minmax(0, 1fr); column-gap: 64px; }
+  .portada-ficha { width: 420px; }
+  .perfil { grid-template-columns: 380px minmax(0, 1fr); column-gap: 64px; }
+  .inicio { grid-template-columns: minmax(0, 1fr) 420px; }
+}

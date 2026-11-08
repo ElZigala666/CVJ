@@ -126,6 +126,7 @@ function renderPerfil(el, id, alSalir) {
 
     el.innerHTML = `
       <section class="perfil">
+        <div class="perfil-lado">
         <div class="perfil-barra">
           ${esMio ? '<span></span>' : `<button type="button" class="boton-cuadrado" data-accion="atras" aria-label="Volver">${icono('atras', { tam: 20, color: 'var(--texto)' })}</button>`}
           ${esMio ? `<button type="button" class="boton-cuadrado" data-accion="ajustes" aria-label="Ajustes">${icono('ajustes', { tam: 22, color: 'var(--texto)' })}</button>` : '<span></span>'}
@@ -183,6 +184,8 @@ function renderPerfil(el, id, alSalir) {
             ${icono('adelante', { tam: 16, color: 'var(--texto-2)' })}
           </a>` : ''}
 
+        </div>
+        <div class="perfil-principal">
         <section class="perfil-seccion">
           <h2 class="seccion-titulo">Historial</h2>
           <div data-ref="historial"></div>
@@ -210,6 +213,7 @@ function renderPerfil(el, id, alSalir) {
           <h2 class="seccion-titulo">Bibliotecas</h2>
           ${bloqueBibliotecas(u, esMio, vinculado, bib)}
         </section>
+        </div>
       </section>`;
     pintarHistorial(u, p);
     if (hayBiblioteca) pintarBiblioteca(bib);
@@ -395,6 +399,9 @@ function renderPerfil(el, id, alSalir) {
   el.addEventListener('pointerup', cancelarLargo);
   el.addEventListener('pointercancel', cancelarLargo);
   el.addEventListener('contextmenu', (e) => {
+    // Historial (escritorio): clic derecho = el menú de los tres puntos.
+    const delHistorial = !e.target.closest('[data-bib-celda]') && e.target.closest('.bib-celda')?.querySelector('[data-menu-item]');
+    if (delHistorial) { e.preventDefault(); delHistorial.click(); return; }
     const c = e.target.closest('[data-bib-celda]');
     if (!c || !esMio) return;
     e.preventDefault();

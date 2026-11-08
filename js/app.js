@@ -64,13 +64,64 @@ let datosIniciados = false;
 // Barra inferior
 // ---------------------------------------------------------------------------
 function pintarBarra() {
-  barra.innerHTML = PESTANAS.map(([ruta, texto]) => {
+  // En escritorio (css/escritorio.css) esta barra es la lateral: con logo, buscador y
+  // "Valorar" con texto. En móvil esas piezas no se ven (display: none).
+  barra.innerHTML = `
+    <a class="barra-logo" href="#inicio" aria-label="CVJ, ir a Inicio">${icono('logo', { tam: 30, color: 'var(--acento)' })}<span>CVJ</span></a>
+    <label class="barra-buscar">${icono('buscar', { tam: 18, color: 'var(--texto-2)' })}<input type="search" data-buscar-global placeholder="Buscar un juego" autocomplete="off" aria-label="Buscar un juego"><kbd>/</kbd></label>
+  ` + PESTANAS.map(([ruta, texto]) => {
     if (!texto) {
-      return `<a class="barra-fab" href="#${ruta}" data-ruta="${ruta}" aria-label="Valorar un juego">${icono('mas', { tam: 26, color: 'var(--sobre-acento)' })}</a>`;
+      return `<a class="barra-fab" href="#${ruta}" data-ruta="${ruta}" aria-label="Valorar un juego">${icono('mas', { tam: 26, color: 'var(--sobre-acento)' })}<span class="barra-fab-texto">Valorar</span></a>`;
     }
     return `<a class="barra-tab" href="#${ruta}" data-ruta="${ruta}">${icono(ruta, { tam: 24 })}<span>${texto}</span></a>`;
   }).join('');
 }
+
+// Buscador de la barra lateral (escritorio): lo que se escribe va al buscador de la app.
+// El texto (y el cursor) pasan al buscador de la pantalla Buscar en cuanto existe, y se
+// sigue escribiendo ahí. Si se teclea deprisa mientras se abre, va siempre lo último.
+let textoPendiente = null;
+function pasarABuscar() {
+  const q = document.getElementById('q');
+  if (!q || textoPendiente == null) return false;
+  const texto = textoPendiente;
+  textoPendiente = null;
+  q.value = texto;
+  q.dispatchEvent(new Event('input', { bubbles: true }));
+  q.focus();
+  q.setSelectionRange(texto.length, texto.length);
+  const g = barra.querySelector('[data-buscar-global]');
+  if (g) g.value = '';
+  return true;
+}
+function alBuscarGlobal(texto) {
+  const esperando = textoPendiente != null;
+  textoPendiente = texto;
+  if (location.hash.startsWith('#buscar') && pasarABuscar()) return;
+  if (esperando) return; // ya hay una espera en marcha: se llevará el último texto
+  const intentar = (n = 0) => { if (!pasarABuscar() && n < 60) requestAnimationFrame(() => intentar(n + 1)); };
+  if (!location.hash.startsWith('#buscar')) {
+    window.addEventListener('hashchange', () => requestAnimationFrame(() => intentar()), { once: true });
+    location.hash = '#buscar';
+  } else intentar();
+}
+barra.addEventListener('input', (e) => { if (e.target.matches('[data-buscar-global]')) alBuscarGlobal(e.target.value); });
+barra.addEventListener('keydown', (e) => {
+  if (!e.target.matches('[data-buscar-global]')) return;
+  if (e.key === 'Escape') { e.target.value = ''; e.target.blur(); }
+  if (e.key === 'Enter') alBuscarGlobal(e.target.value);
+});
+// Teclado de escritorio: "/" enfoca el buscador (el de la barra lateral si se ve).
+document.addEventListener('keydown', (e) => {
+  if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target.closest?.('input, textarea, select, [contenteditable="true"]') || document.body.classList.contains('hoja-abierta')) return;
+  const global = barra.querySelector('[data-buscar-global]');
+  e.preventDefault();
+  if (global && global.offsetParent !== null) { global.focus(); global.select(); return; }
+  if (location.hash.startsWith('#buscar')) { document.getElementById('q')?.focus(); return; }
+  window.addEventListener('hashchange', () => requestAnimationFrame(() => document.getElementById('q')?.focus()), { once: true });
+  location.hash = '#buscar';
+});
 
 function marcarBarra(ruta, params) {
   // Perfil propio, sus tiers y estadísticas marcan "Perfil"; los de otros, nada.

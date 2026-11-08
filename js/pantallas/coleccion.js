@@ -209,8 +209,11 @@ export function render(el, { params }) {
     const resto = metricas.usuarios().filter((u) => !conVal.has(u.id) && metricas.horasColeccion(u.id, id).total > 0)
       .sort((a, b) => metricas.horasColeccion(b.id, id).total - metricas.horasColeccion(a.id, id).total);
     $('cuerpo').innerHTML = `
+      <div class="ficha-izq">
       ${bloqueEditar(sg)}
       ${bloqueMetricas(st)}
+      </div>
+      <div class="ficha-der">
       ${filas.length || resto.length ? `
         <section class="ficha-grupo">
           <div class="seccion-cab"><h2 class="seccion-titulo">El grupo</h2></div>
@@ -218,7 +221,8 @@ export function render(el, { params }) {
           ${resto.map((u) => filaGrupo(u.id, null)).join('')}
         </section>` : ''}
       ${bloqueColumnas({ coleccion: sg.id })}
-      ${bloqueIncluye(sg)}`;
+      ${bloqueIncluye(sg)}
+      </div>`;
   }
 
   function pintarBarra() {

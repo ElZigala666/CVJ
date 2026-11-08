@@ -87,6 +87,10 @@ body.sin-barra .pantalla { padding-bottom: 0; }
   z-index: 10;
 }
 #barra[hidden] { display: none; }
+.barra-logo, .barra-buscar, .barra-fab-texto { display: none; } /* solo en escritorio */
+/* Envoltorios y datos de escritorio (css/escritorio.css): en móvil no generan caja ni se ven. */
+.perfil-lado, .perfil-principal, .ficha-izq, .ficha-der { display: contents; }
+.ranking-datos { display: none; }
 
 .barra-tab {
   width: 64px;
@@ -757,7 +761,8 @@ button.boton-mas { border: 0; padding: 0; }
    06 · Perfil
    --------------------------------------------------------------------------- */
 .perfil { display: flex; flex-direction: column; gap: 24px; padding-top: calc(16px + env(safe-area-inset-top)); }
-.perfil > .tarjetas-3, .perfil > .enlaces-perfil, .perfil > .perfil-comparar { margin: 0 20px; }
+.perfil > .tarjetas-3, .perfil > .enlaces-perfil, .perfil > .perfil-comparar,
+.perfil-lado > .tarjetas-3, .perfil-lado > .enlaces-perfil, .perfil-lado > .perfil-comparar { margin: 0 20px; }
 .perfil-barra { display: flex; justify-content: space-between; padding: 0 16px; min-height: 44px; }
 .perfil-cab { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: -28px; text-align: center; padding: 0 20px; }
 .perfil-cab .avatar { font-family: var(--fuente-titulos); font-size: 52px; }

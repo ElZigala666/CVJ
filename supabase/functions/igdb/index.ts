@@ -803,6 +803,42 @@ async function guardarJuegos(filas: Record<string, unknown>[]) {
   if (error) console.error("Upsert juegos:", error.message);
 }
 
+/**
+ * Tiempo para terminar (game_time_to_beats, en segundos): se guarda en juegos.ttb_*, en
+ * horas. Se piden los que nunca se han mirado; se refrescan cada 30 días (los que no
+ * tenían datos, cada 7: a los juegos nuevos les llegan más tarde).
+ */
+async function actualizarTiempos(limite = 500) {
+  const dias = (n: number) => new Date(Date.now() - n * 86400000).toISOString();
+  const sinDatos = "ttb_historia.is.null,ttb_extras.is.null,ttb_completo.is.null";
+  const { data, error } = await sb.from("juegos").select("igdb_id")
+    .or(`ttb_en.is.null,ttb_en.lt.${dias(30)},and(${sinDatos},ttb_en.lt.${dias(7)})`)
+    .order("ttb_en", { ascending: true, nullsFirst: true }).limit(limite);
+  if (error) throw new Error("tiempos: " + error.message);
+  const ids = (data ?? []).map((x) => Number(x.igdb_id));
+  const horas = (seg: unknown) => (Number(seg) > 0 ? Math.round((Number(seg) / 3600) * 10) / 10 : null);
+  const ahora = new Date().toISOString();
+  let conDatos = 0;
+  for (let i = 0; i < ids.length; i += 200) {
+    const trozo = ids.slice(i, i + 200);
+    const r = await igdb<Record<string, unknown>[]>("game_time_to_beats", `fields game_id,hastily,normally,completely; where game_id = (${trozo.join(",")}); limit 500;`);
+    const porJuego = new Map(r.map((t) => [Number(t.game_id), t]));
+    const nada = trozo.filter((id) => !porJuego.has(id));
+    if (nada.length) {
+      const { error: e } = await sb.from("juegos").update({ ttb_historia: null, ttb_extras: null, ttb_completo: null, ttb_en: ahora }).in("igdb_id", nada);
+      if (e) throw new Error("tiempos: " + e.message);
+    }
+    for (const [id, t] of porJuego) {
+      const { error: e } = await sb.from("juegos").update({
+        ttb_historia: horas(t.hastily), ttb_extras: horas(t.normally), ttb_completo: horas(t.completely), ttb_en: ahora,
+      }).eq("igdb_id", id);
+      if (e) throw new Error("tiempos: " + e.message);
+      conDatos++;
+    }
+  }
+  return { ok: true, mirados: ids.length, con_datos: conDatos };
+}
+
 async function juego(igdbId: number) {
   const [j] = await igdb<JuegoIGDB[]>("games", `fields ${CAMPOS_FICHA}; where id = ${igdbId}; limit 1;`);
   if (!j) throw new ErrorPublico("Ese juego no existe en IGDB", 404);
@@ -1183,6 +1219,8 @@ Deno.serve(async (req) => {
         return json(await generarSagas(cuerpo.todas === true));
       case "steam_appids":
         return json(await porAppidSteam(Array.isArray(cuerpo.appids) ? cuerpo.appids.map(String) : []));
+      case "tiempos":
+        return json(await actualizarTiempos());
       case "fusionar_versiones":
         return json(await fusionarVersiones());
       case "juego": {

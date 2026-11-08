@@ -90,6 +90,7 @@ export function abrirValorar(igdbId, op = {}) {
   })() : metricas.desgloseDe(yo.id, id);
   const conHoras = coleccion ? true : Array.isArray(datos.estado.horasExtra); // migración 011
   const conSinc = horas.sinc.length > 0;
+  const conLineas = conSinc || !!horas.estimada;
 
   // Plataformas del juego (si IGDB no trae ninguna, las de siempre).
   let plataformas = juego.plataformas?.length ? [...juego.plataformas] : [...PLATAFORMAS_GENERICAS];
@@ -215,12 +216,13 @@ export function abrirValorar(igdbId, op = {}) {
 
         ${conHoras ? `
           <div class="bloque-campo" data-bloque="horas">
-            ${conSinc ? `
-              <span class="campo-titulo">Horas</span>
+            ${(coleccion ? conSinc : conLineas) ? '<span class="campo-titulo">Horas</span>' : ''}
+            ${!coleccion ? `<div class="horas-control" data-ref="horas-lineas">${lineasHoras(yo.id, id)}</div>` : ''}
+            ${(coleccion ? conSinc : conLineas) ? `
               ${coleccion ? `
               <ul class="horas-desglose">
                 ${horas.sinc.map((p) => `<li><span>${esc(p.plataforma)}${p.cuenta ? ` <small>${esc(p.cuenta)}</small>` : ''}</span><span>${esc(metricas.textoHoras(p.horas))}</span></li>`).join('')}
-              </ul>` : `<div class="horas-control" data-ref="horas-lineas">${lineasHoras(yo.id, id)}</div>`}
+              </ul>` : ''}
               <label for="hoja-horas" class="campo-titulo campo-sub">+ Horas extra <span class="campo-opcional">(${coleccion ? 'de la colección, aparte de sus juegos' : 'otras plataformas o cuentas'})</span></label>`
             : `<label for="hoja-horas" class="campo-titulo">Horas jugadas <span class="campo-opcional">(opcional)</span></label>`}
             <div class="campo-horas">
@@ -228,7 +230,8 @@ export function abrirValorar(igdbId, op = {}) {
                 placeholder="0" value="${horas.extra ? esc(String(horas.extra).replace('.', ',')) : ''}">
               <span aria-hidden="true">h</span>
             </div>
-            ${conSinc ? `<div class="horas-total"><span>Total</span><strong data-ref="horas-total">${esc(metricas.textoHoras(horas.total))}</strong></div>` : ''}
+            ${coleccion ? (conSinc ? `<div class="horas-total"><span>Total</span><strong data-ref="horas-total">${esc(metricas.textoHoras(horas.total))}</strong></div>` : '')
+              : `<div class="horas-total" data-ref="caja-total"${conLineas ? '' : ' style="display:none"'}><span>Total</span><strong data-ref="horas-total">${esc(metricas.textoAprox(horas.total, horas.estimada?.horas ?? 0))}</strong></div>`}
             <span class="campo-ayuda error" data-ref="horas-error" hidden>Escribe solo un número, por ejemplo 12 o 12,5.</span>
           </div>` : ''}
 
@@ -371,7 +374,9 @@ export function abrirValorar(igdbId, op = {}) {
     const campo = $('#hoja-horas');
     const extra = campo ? leerHoras(campo.value) : 0;
     if (campo) $('[data-ref="horas-error"]').hidden = extra !== undefined;
-    if (t && extra !== undefined) t.textContent = metricas.textoHoras(Math.round((horas.horasSinc + (extra ?? 0)) * 10) / 10) || '0 h';
+    // La estimación automática deja de contar en cuanto hay horas extra a mano.
+    const est = horas.estimada && !(horas.estimada.auto && (extra ?? 0) > 0) ? horas.estimada.horas : 0;
+    if (t && extra !== undefined) t.textContent = metricas.textoAprox(Math.round((horas.horasSinc + (extra ?? 0) + est) * 10) / 10, est) || '0 h';
   };
   $('#hoja-horas')?.addEventListener('input', pintarTotalHoras);
   // "Contar", "Fue en PC" y los atajos de posible duplicado: se guardan al momento.
@@ -380,7 +385,10 @@ export function abrirValorar(igdbId, op = {}) {
     const repintarLineas = () => {
       const d = metricas.desgloseDe(yo.id, id);
       horas.horasSinc = d.horasSinc;
+      horas.estimada = d.estimada;
       lineas.innerHTML = lineasHoras(yo.id, id);
+      const caja = $('[data-ref="caja-total"]');
+      if (caja && (d.sinc.length || d.estimada)) caja.style.display = '';
       pintarTotalHoras();
     };
     lineas.addEventListener('change', (e) => { e.stopPropagation(); manejarHoras(e, yo.id, repintarLineas); });

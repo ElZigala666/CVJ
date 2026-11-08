@@ -28,10 +28,12 @@ import * as steam from './steam.js';
 import { anotarNavegacion, corregirRuta } from './navegacion.js';
 import { olvidarGaleria } from './galeria.js';
 import { iniciarSeleccion, alCambiarPantalla } from './seleccion.js';
+import { iniciarEstimaciones } from './estimaciones.js';
 
 const vista = document.getElementById('vista');
 const barra = document.getElementById('barra');
 iniciarSeleccion(vista);
+iniciarEstimaciones();
 
 const RUTAS = {
   inicio,

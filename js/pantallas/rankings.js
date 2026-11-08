@@ -93,7 +93,7 @@ function filaRanking(x, i) {
   let extra = x.rec.total ? `${x.rec.si} de ${x.rec.total}` : '';
   if (orden === 'jugados') extra = `${x.jugadores} ${x.jugadores === 1 ? 'jugador' : 'jugadores'}`;
   if (orden === 'recomendados') extra = `${x.rec.si} de ${x.rec.total} · ${x.rec.porcentaje}%`;
-  if (orden === 'horas') extra = `${metricas.textoHoras(x.horas)} entre todos`;
+  if (orden === 'horas') extra = `${metricas.textoAprox(x.horas, x.horasEstimadas)} entre todos`;
   if (orden === 'polemicos') extra = `${x.votos} notas · se separan ${x.desviacion.toFixed(1)}`;
   if (orden === 'online') extra = `${x.votos} ${x.votos === 1 ? 'nota' : 'notas'}${x.rec.total ? ` · ${x.rec.si} de ${x.rec.total}` : ''}`;
   return `
@@ -112,7 +112,7 @@ function filaRanking(x, i) {
           <span><strong>${x.votos ?? 0}</strong> ${x.votos === 1 ? 'nota' : 'notas'}</span>
           <span><strong>${x.rec?.total ? `${x.rec.si}/${x.rec.total}` : '—'}</strong> recomiendan</span>
           <span><strong>${x.jugadores ?? 0}</strong> ${x.jugadores === 1 ? 'jugador' : 'jugadores'}</span>
-          <span><strong>${x.horas ? metricas.textoHoras(x.horas) : '—'}</strong> del grupo</span>
+          <span><strong>${x.horas ? metricas.textoAprox(x.horas, x.horasEstimadas) : '—'}</strong> del grupo</span>
         </span>
         ${x.media !== null ? `<span class="ranking-nota">${notaConLetra(x.media, 'rk')}</span>` : ''}
       </a>

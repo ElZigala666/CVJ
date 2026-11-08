@@ -67,7 +67,7 @@ export function render(el, { params }) {
             </a>` : ''}
           <div class="saga-dato">
             <span class="saga-dato-etq">Horas del grupo</span>
-            <strong class="saga-num">${r.horasGrupo ? esc(metricas.textoHoras(r.horasGrupo)) : '—'}</strong>
+            <strong class="saga-num">${r.horasGrupo ? esc(metricas.textoAprox(r.horasGrupo, r.estimadasGrupo)) : '—'}</strong>
           </div>
           ${r.masJugador ? `
             <div class="saga-dato">
@@ -100,7 +100,7 @@ export function render(el, { params }) {
                     <small>${[x.juego.anio, x.jugado ? '' : 'Nadie del grupo lo ha jugado'].filter(Boolean).join(' · ')}</small>
                     ${x.jugado ? `<small class="saga-juego-mio">${[
                       x.mia?.nota != null ? `Tu nota ${esc(formatearNota(x.mia.nota))}` : '',
-                      x.misHoras ? `${esc(metricas.textoHoras(x.misHoras))} tuyas` : '',
+                      x.misHoras ? `${esc(metricas.textoHorasDe(yo.id, x.id))} tuyas` : '',
                     ].filter(Boolean).join(' · ')}</small>` : ''}
                   </span>
                   ${x.media != null ? `<span class="saga-juego-nota">${notaConLetra(x.media, 'act')}</span>` : ''}

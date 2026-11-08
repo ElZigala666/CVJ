@@ -135,6 +135,7 @@ function tiempoDeJuego(u, bib, t) {
     <div class="tarjeta-dato grande">
       ${t.total ? `<span class="dato-num grande">${t.total}<span class="dato-de"> h</span></span>` : '<span class="dato-num grande apagado">—</span>'}
       <span class="dato-etq">jugadas${bib.total ? ` · ${bib.total} ${bib.total === 1 ? 'juego' : 'juegos'} en su biblioteca` : ''}</span>
+      ${t.estimadas ? `<span class="dato-etq">Incluye ≈${t.estimadas} h estimadas</span>` : ''}
     </div>
     ${t.top.length ? `
       <span class="stats-nota">Los más jugados</span>
@@ -143,7 +144,7 @@ function tiempoDeJuego(u, bib, t) {
           <div class="barra-plataforma">
             <span class="barra-plataforma-nombre largo" title="${esc(x.nombre)}">${esc(x.nombre)}</span>
             <div class="barra-plataforma-pista"><div style="width:${Math.max(4, Math.round((x.horas / max) * 100))}%"></div></div>
-            <span class="barra-plataforma-n ancho">${textoHoras(x.horas)}</span>
+            <span class="barra-plataforma-n ancho">${esc(metricas.textoAprox(x.horas, x.estimadas))}</span>
           </div>`).join('')}
       </div>` : ''}
     ${bib.plataformas.length > 1 ? `

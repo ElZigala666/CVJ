@@ -124,7 +124,7 @@ export function render(el, { params }) {
     const u = datos.usuario(uid);
     if (!u) return '';
     const h = metricas.horasColeccion(uid, id).total;
-    const sub = [v ? (v.desdeJuego ? nombreEstado(v.estado) : ESTADO_COLECCION[v.estado] ?? nombreEstado(v.estado)) : 'Sin valorar la colección', h ? metricas.textoHoras(h) : ''].filter(Boolean).join(' · ');
+    const sub = [v ? (v.desdeJuego ? nombreEstado(v.estado) : ESTADO_COLECCION[v.estado] ?? nombreEstado(v.estado)) : 'Sin valorar la colección', h ? metricas.textoAprox(h, metricas.horasColeccion(uid, id).estimadas) : ''].filter(Boolean).join(' · ');
     const dj = v?.desdeJuego;
     const derecha = v?.nota != null
       ? `<div class="grupo-nota">${notaConLetra(v.nota, 'lg')}${iconoRecomendacion(v.recomendado, 20)}</div>`
@@ -183,7 +183,7 @@ export function render(el, { params }) {
           if (!j) return '';
           const h = yo ? metricas.horasDe(yo.id, gid) : null;
           const mia = yo ? datos.miValoracion(yo.id, gid) : null;
-          const sub = [j.anio, h ? `${metricas.textoHoras(h)} tuyas` : '', mia?.nota != null ? `tu nota ${String(mia.nota).replace('.', ',')}` : ''].filter(Boolean).join(' · ');
+          const sub = [j.anio, h ? `${metricas.textoHorasDe(yo.id, gid)} tuyas` : '', mia?.nota != null ? `tu nota ${String(mia.nota).replace('.', ',')}` : ''].filter(Boolean).join(' · ');
           return `
             <li class="coleccion-juego" data-sel="${j.igdb_id}" data-sel-tipo="fila">
               <a href="#juego/${j.igdb_id}" class="coleccion-juego-enlace" data-precarga="${esc(j.cover_id ?? '')}">

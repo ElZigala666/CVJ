@@ -538,7 +538,7 @@ function itemDeColeccion(j, i, esMio, uid) {
 }
 
 function itemBiblioteca(x, i, esMio) {
-  const horas = textoHoras(x.horas);
+  const horas = metricas.textoAprox(x.horas, x.horasEstimadas);
   const v = x.valoracion;
   const n = v?.nota != null ? formatearNota(v.nota) : null;
   const pie = `
@@ -558,7 +558,7 @@ function itemBiblioteca(x, i, esMio) {
         ${portada(x.juego, { clase: 'portada-rejilla', titulo: 'arriba', prioridad: i < 6 })}
         ${pie}
       </a>
-      ${x.desglose?.filter((d) => !d.excluida).length > 1 ? `<span class="rejilla-plataformas">${esc(x.desglose.filter((d) => !d.excluida).map((d) => `${d.plataforma.replace('Xbox Series', 'Series').replace('Xbox One', 'One')} ${textoHoras(d.horas)}`).join(' · '))}</span>` : ''}
+      ${x.desglose?.filter((d) => !d.excluida).length > 1 ? `<span class="rejilla-plataformas">${esc(x.desglose.filter((d) => !d.excluida).map((d) => `${d.plataforma.replace('Xbox Series', 'Series').replace('Xbox One', 'One').replace('Estimado (IGDB)', 'Estimado')} ${d.estimada ? '≈' : ''}${textoHoras(d.horas)}`).join(' · '))}</span>` : ''}
       ${esMio ? `<button type="button" class="bib-menu" data-bib-menu="${esc(x.clave)}" aria-label="Opciones de ${esc(x.nombre)}">${icono('opciones', { tam: 18, color: '#FFFFFF' })}</button>` : ''}
     </div>`;
 }
@@ -596,7 +596,7 @@ function itemRejilla(v, i, horas, conMenu = false) {
   const j = v.esColeccion ? datos.comoJuego(datos.coleccion(v.coleccion_id)) : datos.juegoConocido(v.juego_id);
   if (!j) return '';
   const n = v.nota != null ? formatearNota(v.nota) : null;
-  const h = horas !== undefined ? textoHoras(horas) : '';
+  const h = horas !== undefined ? metricas.textoAprox(horas, v.esColeccion ? metricas.horasColeccion(v.usuario_id, v.coleccion_id).estimadas : metricas.estimadasDe(v.usuario_id, j.igdb_id)) : '';
   const clave = v.esColeccion ? `coleccion:${v.coleccion_id}` : String(j.igdb_id);
   return `
     <div class="bib-celda"${v.esColeccion ? '' : ` data-sel="${j.igdb_id}"`}>
@@ -611,7 +611,7 @@ function itemRejilla(v, i, horas, conMenu = false) {
 
 /** Biblioteca: tarjeta de una colección con los juegos que junta (los que no tienen valoración propia). */
 function itemColeccionBib(x, i, esMio) {
-  const horas = textoHoras(x.horas);
+  const horas = metricas.textoAprox(x.horas, x.horasEstimadas);
   const v = x.valoracion;
   const n = v?.nota != null ? formatearNota(v.nota) : null;
   return `
@@ -663,7 +663,7 @@ function renderTiers(el, id) {
                       <a class="tier-item${v.esColeccion ? ' es-coleccion' : ''}"${v.esColeccion ? '' : ` data-sel="${j.igdb_id}"`} href="${metricas.rutaDe(j)}" data-precarga="${esc(j.cover_id ?? '')}" aria-label="${esc(j.nombre)}${v.esColeccion ? ' (coleccion)' : ''}, ${formatearNota(v.nota)}">
                         ${portada(j, { clase: 'portada-tier', titulo: 'arriba', prioridad: n++ < 12 })}
                         ${v.esColeccion ? '<span class="sello-coleccion mini">Colección</span>' : ''}
-                        <span class="tier-nota">${formatearNota(v.nota)}${h ? `<small class="tier-horas">${esc(textoHoras(h))}</small>` : ''}</span>
+                        <span class="tier-nota">${formatearNota(v.nota)}${h ? `<small class="tier-horas">${esc(metricas.textoAprox(h, v.esColeccion ? metricas.horasColeccion(id, v.coleccion_id).estimadas : metricas.estimadasDe(id, v.juego_id)))}</small>` : ''}</span>
                       </a>`;
                   }).join('')
                 : '<span class="tier-vacio">Ningún juego en este tier</span>'}

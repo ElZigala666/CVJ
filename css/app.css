@@ -1890,3 +1890,13 @@ body.seleccionando #barra { visibility: hidden; }
 .aviso-por-coleccion { display: grid; gap: 10px; padding: 12px 14px; margin-bottom: 18px; border-radius: 14px; background: var(--acento-suave); }
 .aviso-por-coleccion p { margin: 0; font-size: 14px; line-height: 1.45; color: var(--texto); }
 .aviso-por-coleccion-botones { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Horas estimadas (tiempo para terminar de IGDB) */
+.ficha-tiempo { display: block; margin-top: 2px; }
+.horas-linea.estimada .horas-linea-nombre, .horas-linea.estimada .horas-linea-h { font-style: italic; }
+.horas-linea.estimada .horas-linea-control { flex: 1 0 100%; }
+.horas-estimar summary { display: inline-block; cursor: pointer; font-size: 13px; list-style: none; }
+.horas-estimar summary::-webkit-details-marker { display: none; }
+.horas-estimar-opciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.horas-estimar-opciones .boton-principal { width: auto; height: 38px; padding: 0 14px; font-size: 13px; border-radius: 12px; }
+.horas-estimar .ajustes-nota { margin: 8px 0 0; }

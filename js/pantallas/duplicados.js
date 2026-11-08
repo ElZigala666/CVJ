@@ -53,7 +53,7 @@ export function render(el) {
 }
 
 function fila(x) {
-  const lineas = x.desglose.filter((d) => !d.extra);
+  const lineas = x.desglose.filter((d) => !d.extra && !d.estimada);
   return `
     <div class="dup-fila" data-sel="${x.igdbId}" data-sel-tipo="fila">
       <a class="dup-cab" href="#juego/${x.igdbId}" data-precarga="${esc(x.juego.cover_id ?? '')}">

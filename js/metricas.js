@@ -211,6 +211,7 @@ function juegosDelGrupo() {
         online: datos.esOnline(id),
         // Horas de todo el grupo (sincronizadas + extra de cada uno)
         horas: Math.round(usuarios().reduce((t, u) => t + (horasDe(u.id, id) ?? 0), 0) * 10) / 10,
+        horasEstimadas: usuarios().reduce((t, u) => t + estimadasDe(u.id, id), 0),
       }))
       // Los juegos de una colección no salen sueltos: cuentan dentro de ella (regla 2).
       .filter((x) => x.juego && !datos.coleccionDeJuego(x.juego.igdb_id))
@@ -229,6 +230,7 @@ function coleccionesDelGrupo() {
       ...resumenNotas(vals),
       online: !!sg.es_online,
       horas: Math.round(usuarios().reduce((t, u) => t + horasColeccion(u.id, sg.id).total, 0) * 10) / 10,
+      horasEstimadas: usuarios().reduce((t, u) => t + horasColeccion(u.id, sg.id).estimadas, 0),
     };
   });
 }
@@ -386,11 +388,13 @@ export function biblioteca(uid) {
       const extra = g.igdbId != null ? datos.horasExtra(uid, g.igdbId) : 0;
       const aj = datos.ajusteHoras(uid, g.igdbId);
       const plataformaDe = (f) => aj.plataformas?.[datos.claveLineaHoras(f)] ?? f.plataforma;
+      const est = g.igdbId != null ? estimacionVigente(uid, g.igdbId, sinc.total, extra) : null;
       return {
         ...g,
         horasSinc: sinc.total,
         horasExtra: extra,
-        horas: Math.round((sinc.total + extra) * 10) / 10,
+        horasEstimadas: est ? Number(est.horas) : 0,
+        horas: Math.round((sinc.total + extra + (est ? Number(est.horas) : 0)) * 10) / 10,
         nombre: g.juego?.nombre ?? principal.nombre_psn,
         imagen: principal.imagen_psn,
         psnTitleId: principal.psn_title_id,
@@ -405,7 +409,7 @@ export function biblioteca(uid) {
         porRevisar: g.filas.some((f) => f.por_revisar),
         revision: revisionDe(g),
         // "PS5 40 h · Xbox Series 12 h · Extra 50 h"
-        desglose: [...sinc.desglose, ...(extra ? [{ plataforma: 'Extra', cuenta: null, horas: extra, extra: true }] : [])],
+        desglose: [...sinc.desglose, ...(extra ? [{ plataforma: 'Extra', cuenta: null, horas: extra, extra: true }] : []), ...(est ? [lineaEstimada(est)] : [])],
         fuentes: [...new Set(g.filas.map((f) => f.fuente ?? 'psn'))],
         enMisJuegos: g.filas.some((f) => f.en_mis_juegos === true) ? true : g.filas.some((f) => f.en_mis_juegos === false) ? false : null,
       };
@@ -458,17 +462,21 @@ export function biblioteca(uid) {
 export function tiempo(uid) {
   return memoizar(`tiempo:${uid}`, () => {
     const bib = biblioteca(uid);
-    const lista = bib.juegos.map((x) => ({ nombre: x.nombre, horas: x.horas, igdbId: x.igdbId }));
+    const lista = bib.juegos.map((x) => ({ nombre: x.nombre, horas: x.horas, igdbId: x.igdbId, estimadas: x.horasEstimadas ?? 0 }));
     const enBib = new Set(bib.juegos.filter((x) => x.igdbId != null).map((x) => x.igdbId));
-    for (const h of datos.estado.horasExtra ?? []) {
+    // Lo que no está en la biblioteca: horas extra y estimaciones.
+    for (const h of [...(datos.estado.horasExtra ?? []), ...datos.estimacionesDe(uid)]) {
       const id = datos.canonico(h.juego_id);
       if (h.usuario_id !== uid || enBib.has(id)) continue;
+      const horas = horasDe(uid, id);
+      if (!horas) continue;
       enBib.add(id);
-      lista.push({ nombre: datos.juegoConocido(id)?.nombre ?? '', horas: datos.horasExtra(uid, id), igdbId: id });
+      lista.push({ nombre: datos.juegoConocido(id)?.nombre ?? '', horas, igdbId: id, estimadas: estimadasDe(uid, id) });
     }
     lista.sort((a, b) => b.horas - a.horas);
     return {
       total: Math.round(lista.reduce((t, x) => t + x.horas, 0)),
+      estimadas: Math.round(lista.reduce((t, x) => t + (x.estimadas ?? 0), 0)),
       top: lista.filter((x) => x.horas > 0).slice(0, 5),
       juegos: new Map(lista.filter((x) => x.igdbId != null).map((x) => [x.igdbId, x.horas])),
     };
@@ -580,7 +588,7 @@ export function esProbado(x, umbral) {
 }
 
 /** "PS5 40 h", "Xbox Series (Cuenta 2) 12 h", "Extra 50 h" */
-export const textoParte = (p) => `${p.plataforma}${p.cuenta ? ` (${p.cuenta})` : ''} ${textoHoras(p.horas)}${p.excluida ? ' (no cuenta)' : ''}`;
+export const textoParte = (p) => `${p.plataforma}${p.cuenta ? ` (${p.cuenta})` : ''} ${p.estimada ? '≈' : ''}${textoHoras(p.horas)}${p.excluida ? ' (no cuenta)' : ''}`;
 
 /** Texto "PS5 40 h · Xbox Series 12 h · Extra 50 h · Total 102 h" (vacío si hay una sola parte). */
 export function textoDesglose(x) {
@@ -592,20 +600,90 @@ export function textoDesglose(x) {
 /** Horas totales de un usuario en un juego: sincronizadas (todas sus cuentas) + extra a mano. */
 export function horasDe(uid, igdbId) {
   const b = bibliotecaDeJuego(igdbId).get(uid);
-  const total = (b?.horasSinc ?? 0) + datos.horasExtra(uid, igdbId);
+  const total = (b?.horasSinc ?? 0) + datos.horasExtra(uid, igdbId) + estimadasDe(uid, igdbId);
   return total > 0 ? Math.round(total * 10) / 10 : null;
+}
+
+// ---------------------------------------------------------------------------
+// Horas estimadas (tiempo para terminar de IGDB)
+// ---------------------------------------------------------------------------
+export const NOMBRE_ESTIMACION = { historia: 'Historia', extras: 'Historia + extras', completo: 'Completo' };
+
+/** La estimación que cuenta. La automática se retira sola si hay horas reales o extra a mano. */
+function estimacionVigente(uid, igdbId, sincTotal, extra) {
+  const r = datos.estimacion(uid, igdbId);
+  if (!r || r.descartada || !(Number(r.horas) > 0)) return null;
+  if (r.auto && (sincTotal > 0 || extra > 0)) return null;
+  return r;
+}
+const lineaEstimada = (r) => ({ plataforma: 'Estimado (IGDB)', cuenta: null, horas: Number(r.horas), estimada: true, tipo: r.tipo, auto: !!r.auto });
+
+/** Horas estimadas que cuentan de un usuario en un juego (0 si ninguna). */
+export function estimadasDe(uid, igdbId) {
+  const r = estimacionVigente(uid, igdbId, bibliotecaDeJuego(igdbId).get(uid)?.horasSinc ?? 0, datos.horasExtra(uid, igdbId));
+  return r ? Number(r.horas) : 0;
+}
+
+/** "≈17 h" si incluye estimaciones; si no, "17 h". */
+export const textoAprox = (horas, estimadas) => { const t = textoHoras(horas); return t && estimadas > 0 ? `≈${t}` : t; };
+export const textoHorasDe = (uid, igdbId) => textoAprox(horasDe(uid, igdbId), estimadasDe(uid, igdbId));
+
+/** ¿Platino o 100 % de logros o trofeos? */
+function juegoAlCien(uid, igdbId) {
+  const b = bibliotecaDeJuego(igdbId).get(uid);
+  return !!b && (Number(b.progreso) >= 100 || b.filas.some((f) => Number(f.trofeos?.platinum) > 0));
+}
+
+/** Las opciones de "Usar tiempo estimado", con la propuesta marcada (Completo si está al 100 %; si no, Historia). */
+export function opcionesEstimacion(uid, igdbId) {
+  const t = datos.tiempoParaTerminar(igdbId);
+  if (!t) return [];
+  const orden = juegoAlCien(uid, igdbId) ? ['completo', 'extras', 'historia'] : ['historia', 'extras', 'completo'];
+  const propuesta = orden.find((k) => t[k] != null);
+  return ['historia', 'extras', 'completo'].filter((k) => t[k] != null)
+    .map((k) => ({ tipo: k, nombre: NOMBRE_ESTIMACION[k], horas: t[k], propuesta: k === propuesta }));
+}
+
+/**
+ * Qué tiene que hacer el automático (Ajustes → Biblioteca) para un usuario. Encendido: a
+ * todo Completado sin horas reales que cuenten ni extra a mano, su tiempo estimado. Se
+ * quitan las automáticas que ya no toquen (horas reales, ya no completado o apagado).
+ * Nunca toca las elegidas a mano ni las que el usuario borró. → { poner, quitar }
+ */
+export function planEstimaciones(uid) {
+  const u = datos.usuario(uid);
+  if (!u) return { poner: [], quitar: [] };
+  const poner = [];
+  const siguen = new Set();
+  if (u.estimar_horas === true) {
+    for (const v of valoracionesDe(uid)) {
+      if (v.estado !== 'completado') continue;
+      const id = datos.canonico(v.juego_id);
+      if ((bibliotecaDeJuego(id).get(uid)?.horasSinc ?? 0) > 0 || datos.horasExtra(uid, id) > 0) continue;
+      const r = datos.estimacion(uid, id);
+      if (r && !r.auto) continue;
+      const p = opcionesEstimacion(uid, id).find((o) => o.propuesta);
+      if (!p) continue;
+      siguen.add(id);
+      if (!r || Number(r.horas) !== p.horas || r.tipo !== p.tipo) poner.push({ juego_id: id, horas: p.horas, tipo: p.tipo });
+    }
+  }
+  const quitar = datos.estimacionesDe(uid).filter((r) => r.auto && !siguen.has(datos.canonico(r.juego_id))).map((r) => Number(r.juego_id));
+  return { poner, quitar };
 }
 
 /** Desglose de horas de un usuario en un juego: sincronizadas por plataforma y cuenta + extra. */
 export function desgloseDe(uid, igdbId) {
   const b = bibliotecaDeJuego(igdbId).get(uid);
   const extra = datos.horasExtra(uid, igdbId);
+  const est = estimacionVigente(uid, igdbId, b?.horasSinc ?? 0, extra);
   return {
     sinc: b?.desgloseSinc ?? [],
     duplicado: b?.duplicado ?? null,
     horasSinc: b?.horasSinc ?? 0,
     extra,
-    total: Math.round(((b?.horasSinc ?? 0) + extra) * 10) / 10,
+    estimada: est ? lineaEstimada(est) : null,
+    total: Math.round(((b?.horasSinc ?? 0) + extra + (est ? Number(est.horas) : 0)) * 10) / 10,
   };
 }
 
@@ -632,8 +710,10 @@ export function bibliotecaDeJuego(igdbId) {
       x.duplicado = sinc.duplicado;
       x.horasSinc = sinc.total;
       x.desgloseSinc = sinc.desglose;
-      x.horas = Math.round((sinc.total + extra) * 10) / 10;
-      x.desglose = [...sinc.desglose, ...(extra ? [{ plataforma: 'Extra', cuenta: null, horas: extra, extra: true }] : [])];
+      const est = estimacionVigente(uid, igdbId, sinc.total, extra);
+      x.horasEstimadas = est ? Number(est.horas) : 0;
+      x.horas = Math.round((sinc.total + extra + x.horasEstimadas) * 10) / 10;
+      x.desglose = [...sinc.desglose, ...(extra ? [{ plataforma: 'Extra', cuenta: null, horas: extra, extra: true }] : []), ...(est ? [lineaEstimada(est)] : [])];
     }
     return m;
   });
@@ -753,7 +833,8 @@ export function horasColeccion(uid, coleccionId) {
     const porJuego = datos.juegosDeColeccion(coleccionId).map((id) => ({ id, horas: horasDe(uid, id) ?? 0 }));
     const juegos = porJuego.reduce((t, x) => t + x.horas, 0);
     const extra = Number(datos.miValoracionColeccion(uid, coleccionId)?.horas_extra ?? 0);
-    return { porJuego, juegos: Math.round(juegos * 10) / 10, extra, total: Math.round((juegos + extra) * 10) / 10 };
+    const estimadas = porJuego.reduce((t, x) => t + estimadasDe(uid, x.id), 0);
+    return { porJuego, juegos: Math.round(juegos * 10) / 10, extra, estimadas, total: Math.round((juegos + extra) * 10) / 10 };
   });
 }
 
@@ -821,7 +902,7 @@ export function agruparColecciones(uid, items, idDe) {
     if (!bloques.has(sg.id)) {
       const b = {
         esColeccion: true, coleccion: sg, juego: datos.comoJuego(sg), hijos: [], clave: `coleccion:${sg.id}`,
-        horas: horasColeccion(uid, sg.id).total, valoracion: datos.miValoracionColeccion(uid, sg.id),
+        horas: horasColeccion(uid, sg.id).total, horasEstimadas: horasColeccion(uid, sg.id).estimadas, valoracion: datos.miValoracionColeccion(uid, sg.id),
       };
       bloques.set(sg.id, b);
       salida.push(b);
@@ -924,6 +1005,7 @@ export function resumenSaga(sagaId, uid) {
         mia: uid ? datos.miValoracion(uid, id) : null,
         misHoras: uid ? horasDe(uid, id) : null,
         horasGrupo: Math.round(usuarios().reduce((t, u) => t + (horasDe(u.id, id) ?? 0), 0) * 10) / 10,
+        estimadasGrupo: usuarios().reduce((t, u) => t + estimadasDe(u.id, id), 0),
         jugadoPor,
         jugado: jugadoPor.size > 0,
       };
@@ -939,6 +1021,7 @@ export function resumenSaga(sagaId, uid) {
       ranking,
       mejor: ranking[0] ?? null,
       horasGrupo: Math.round(juegos.reduce((t, x) => t + x.horasGrupo, 0) * 10) / 10,
+      estimadasGrupo: juegos.reduce((t, x) => t + x.estimadasGrupo, 0),
       masJugador: masId ? { usuario: datos.usuario(masId), n: masN } : null,
       jugados: juegos.filter((x) => x.jugado).length,
     };

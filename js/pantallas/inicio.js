@@ -212,7 +212,7 @@ function tarjetaJugando(x, i) {
           ${etiqueta}
         </div>
         ${nombrePerfil(u, 'span', 'tarjeta-nombre')}
-        ${(() => { const h = metricas.horasDe(u.id, j.igdb_id); return h ? `<span class="tarjeta-horas">${esc(metricas.textoHoras(h))}</span>` : ''; })()}
+        ${(() => { const h = metricas.textoHorasDe(u.id, j.igdb_id); return h ? `<span class="tarjeta-horas">${esc(h)}</span>` : ''; })()}
       </a>`;
   }
   // Juego de PSN sin emparejar: su imagen de PSN; tocarla lleva a elegir qué juego es.
@@ -414,7 +414,7 @@ function actividad() {
     .slice(0, MAX_ACTIVIDAD);
 
   const contenido = filas.length
-    ? filas.map(({ a, u, j, columna: ce, lote }) => { if (ce) return filaColumna(ce, u, ahora); if (lote) return filaLote(a, u, lote, ahora); const h = metricas.horasDe(u.id, j.igdb_id); return `
+    ? filas.map(({ a, u, j, columna: ce, lote }) => { if (ce) return filaColumna(ce, u, ahora); if (lote) return filaLote(a, u, lote, ahora); const h = j.igdb_id ? metricas.textoHorasDe(u.id, j.igdb_id) : ''; return `
         <a class="actividad-fila" href="${metricas.rutaDe(j)}" data-precarga="${esc(j.cover_id ?? '')}">
           ${avatarPerfil(u, 36)}
           <div class="actividad-texto">
@@ -423,7 +423,7 @@ function actividad() {
               <div class="actividad-nota">
                 ${a.nota != null ? notaConLetra(a.nota, 'act') : ''}
                 ${iconoRecomendacion(a.recomendado, 16)}
-                ${h ? `<span class="actividad-horas">${esc(metricas.textoHoras(h))}</span>` : ''}
+                ${h ? `<span class="actividad-horas">${esc(h)}</span>` : ''}
               </div>` : ''}
             ${a.texto ? `<p class="actividad-resena">«${esc(a.texto)}»</p>` : ''}
             <span class="actividad-tiempo" data-fecha="${esc(a.creado_en)}">${tiempoRelativo(a.creado_en, ahora)}</span>

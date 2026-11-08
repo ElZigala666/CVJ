@@ -8,7 +8,7 @@ const CLAVE = 'cvj.datos.v1';
 const LIMITE_ACTIVIDAD = 60;
 const VENTANA_ACTIVIDAD_MS = 10 * 60 * 1000; // agrupar cambios del mismo juego en 10 min
 
-const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sugRechazadas: [], servicios: [], cuentas: [], horasExtra: [], avisos: [], coleccionesG: [], coleccionesJuegos: [], valColecciones: [], sagas: [], sagasJuegos: [], columnas: [], entradas: [], lecturas: [], horasAjustes: [], cargadoEn: null });
+const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sugRechazadas: [], servicios: [], cuentas: [], horasExtra: [], avisos: [], coleccionesG: [], coleccionesJuegos: [], valColecciones: [], sagas: [], sagasJuegos: [], columnas: [], entradas: [], lecturas: [], horasAjustes: [], horasEstimadas: [], cargadoEn: null });
 
 // Versión de los datos: sube cada vez que cambian (refresco, escritura o reversión).
 // metricas.js la usa para memoizar los cálculos.
@@ -40,7 +40,7 @@ function guardarCache() {
   } catch { /* sin espacio o modo privado */ }
 }
 
-const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sugRechazadas, s.servicios, s.cuentas, s.horasExtra, s.avisos, s.coleccionesG, s.coleccionesJuegos, s.valColecciones, s.sagas, s.sagasJuegos, s.columnas, s.entradas, s.lecturas, s.horasAjustes]);
+const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sugRechazadas, s.servicios, s.cuentas, s.horasExtra, s.avisos, s.coleccionesG, s.coleccionesJuegos, s.valColecciones, s.sagas, s.sagasJuegos, s.columnas, s.entradas, s.lecturas, s.horasAjustes, s.horasEstimadas]);
 
 /** Pinta desde caché (síncrono) y lanza el refresco en segundo plano. */
 export function iniciar() {
@@ -50,6 +50,12 @@ export function iniciar() {
 }
 
 /** Descarga todo de Supabase de golpe. Si nada ha cambiado, no repinta. */
+// ¿Ya hay datos del servidor en esta sesión? (lo que escribe solo no debe fiarse de la caché)
+let frescos = false;
+let alEstarFrescos = null;
+export const datosFrescos = () => frescos;
+export function cuandoFrescos(fn) { alEstarFrescos = fn; }
+
 export function refrescar() {
   if (escriturasEnCurso) {
     // No pisar un cambio optimista con datos del servidor que aún no lo tienen.
@@ -61,7 +67,7 @@ export function refrescar() {
     const sb = await cliente();
     // Extras que pueden no existir aún (migraciones): si fallan, se sigue con lo de antes.
     const extra = (q, previo) => q.then((r) => (r.error ? { data: previo } : r), () => ({ data: previo }));
-    const [u, v, j, a, bib, emp, ali, rech, sag, serv, cue, hex, avi, sg, sgj, vsg, sa, saj, col, ent, lec, haj] = await Promise.all([
+    const [u, v, j, a, bib, emp, ali, rech, sag, serv, cue, hex, avi, sg, sgj, vsg, sa, saj, col, ent, lec, haj, hes] = await Promise.all([
       leerUsuarios(sb),
       sb.from('valoraciones').select('*'),
       sb.from('juegos').select('*'),
@@ -87,6 +93,7 @@ export function refrescar() {
       extra(sb.from('entradas').select(COLUMNAS_ENTRADA).or(`estado.eq.publicada,usuario_id.eq.${usuarioDeSesion() ?? '00000000-0000-0000-0000-000000000000'}`), estado.entradas),
       extra(sb.from('lecturas').select('*').eq('usuario_id', usuarioDeSesion() ?? '00000000-0000-0000-0000-000000000000'), estado.lecturas),
       extra(sb.from('horas_ajustes').select('*'), estado.horasAjustes),
+      extra(sb.from('horas_estimadas').select('*'), estado.horasEstimadas),
     ]);
     const error = u.error || v.error || j.error || a.error;
     if (error) throw new Error(error.message);
@@ -97,6 +104,7 @@ export function refrescar() {
       coleccionesG: sg.data ?? [], coleccionesJuegos: sgj.data ?? [], valColecciones: vsg.data ?? [],
       sagas: sa.data ?? [], sagasJuegos: saj.data ?? [], columnas: col.data ?? [], entradas: ent.data ?? [], lecturas: lec.data ?? [],
       horasAjustes: haj.data ?? [],
+      horasEstimadas: hes.data ?? [],
     };
     const cambia = firma(nuevo) !== firma(estado);
     Object.assign(estado, nuevo, { cargadoEn: new Date().toISOString() });
@@ -105,6 +113,8 @@ export function refrescar() {
       indices = construirIndices(estado);
       avisar();
     }
+    frescos = true;
+    alEstarFrescos?.();
   })()
     .catch((e) => {
       console.warn('[datos] No se ha podido refrescar:', e.message || e);
@@ -126,7 +136,7 @@ function usuarioDeSesion() {
  * cuentas_plataforma (los usuarios ya no guardan un resumen, migración 017).
  */
 async function leerUsuarios(sb) {
-  const r = await sb.from('usuarios').select(COLUMNAS_USUARIO + ', foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas').order('creado_en');
+  const r = await sb.from('usuarios').select(COLUMNAS_USUARIO + ', foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas, estimar_horas').order('creado_en');
   if (!r.error) return r;
   return sb.from('usuarios').select(COLUMNAS_USUARIO).order('creado_en');
 }
@@ -251,7 +261,13 @@ function construirIndices(s) {
       sagasDeJuego.get(id).push(sid);
     }
   }
-  return { usuarios, juegos, porJuego, psnIgdb, bibUsuario, bibJuego, canon, vals, aliasA, extraHoras, colecciones, coleccionDeJuego, juegosDeColeccion, valsColeccion, sagas, juegosDeSaga, sagasDeJuego, contenidas };
+  const estimadas = new Map();
+  for (const r of s.horasEstimadas ?? []) {
+    const k = `${r.usuario_id}:${canon(r.juego_id)}`;
+    const prev = estimadas.get(k);
+    if (!prev || prev.auto) estimadas.set(k, r); // la elegida a mano manda
+  }
+  return { estimadas, usuarios, juegos, porJuego, psnIgdb, bibUsuario, bibJuego, canon, vals, aliasA, extraHoras, colecciones, coleccionDeJuego, juegosDeColeccion, valsColeccion, sagas, juegosDeSaga, sagasDeJuego, contenidas };
 }
 
 /** Juego (principal) de una fila de biblioteca: lo de psn_igdb manda; colecciones y no-juegos, ninguno. */
@@ -283,6 +299,101 @@ export function ajusteHoras(usuarioId, igdbId) {
   return (estado.horasAjustes ?? []).find((x) => x.usuario_id === usuarioId && Number(x.juego_id) === id) ?? AJUSTE_VACIO;
 }
 export const hayAjustesHoras = () => Array.isArray(estado.horasAjustes);
+
+// ---------------------------------------------------------------------------
+// Horas estimadas con el tiempo para terminar de IGDB
+// ---------------------------------------------------------------------------
+/** El tiempo para terminar del juego principal o, si no tiene, el de alguna versión. */
+export function tiempoParaTerminar(igdbId) {
+  const id = canonico(igdbId);
+  for (const v of [id, ...aliasDe(id)]) {
+    const j = juego(v);
+    if (j && (j.ttb_historia != null || j.ttb_extras != null || j.ttb_completo != null)) {
+      const n = (x) => (x != null ? Number(x) : null);
+      return { historia: n(j.ttb_historia), extras: n(j.ttb_extras), completo: n(j.ttb_completo) };
+    }
+  }
+  return null;
+}
+/** La fila de estimación de un usuario en un juego (también si está descartada). */
+export const estimacion = (usuarioId, igdbId) => indices.estimadas?.get(`${usuarioId}:${canonico(igdbId)}`) ?? null;
+export const estimacionesDe = (usuarioId) => (estado.horasEstimadas ?? []).filter((r) => r.usuario_id === usuarioId);
+const esEstimacionDe = (usuarioId, ids) => (r) => r.usuario_id === usuarioId && ids.includes(Number(r.juego_id));
+
+/** "Usar tiempo estimado": la elige el usuario (no la toca el automático). */
+export function guardarEstimacion(usuarioId, igdbId, { horas, tipo }, onError) {
+  const id = canonico(igdbId);
+  const versiones = [id, ...aliasDe(id)];
+  const fila = { usuario_id: usuarioId, juego_id: id, horas, tipo, auto: false, descartada: false, actualizado_en: new Date().toISOString() };
+  const conocido = juegoConocido(id);
+  const faltaJuego = !juego(id) && conocido;
+  return escribirOptimista(
+    (s) => {
+      if (faltaJuego) s.juegos = [...s.juegos, filaJuego(conocido)];
+      s.horasEstimadas = [...(s.horasEstimadas ?? []).filter((r) => !esEstimacionDe(usuarioId, versiones)(r)), fila];
+    },
+    async (sb) => {
+      if (faltaJuego) comprobar(await sb.from('juegos').upsert(filaJuego(conocido), { onConflict: 'igdb_id', ignoreDuplicates: true }));
+      comprobar(await sb.from('horas_estimadas').delete().eq('usuario_id', usuarioId).in('juego_id', versiones));
+      comprobar(await sb.from('horas_estimadas').insert(fila));
+    },
+    onError,
+    'No se ha podido guardar la estimación. Se ha deshecho el cambio.',
+  );
+}
+
+/** Borrar una estimación: queda como descartada para que el automático no la vuelva a poner. */
+export function descartarEstimacion(usuarioId, igdbId, onError) {
+  const r = estimacion(usuarioId, igdbId);
+  if (!r) return Promise.resolve(true);
+  const fila = { ...r, auto: false, descartada: true, actualizado_en: new Date().toISOString() };
+  const misma = (x) => x.usuario_id === usuarioId && Number(x.juego_id) === Number(r.juego_id);
+  return escribirOptimista(
+    (s) => { s.horasEstimadas = [...(s.horasEstimadas ?? []).filter((x) => !misma(x)), fila]; },
+    async (sb) => { comprobar(await sb.from('horas_estimadas').upsert(fila, { onConflict: 'usuario_id,juego_id' })); },
+    onError,
+    'No se ha podido borrar la estimación. Se ha deshecho el cambio.',
+  );
+}
+
+/** "Son reales": la estimación pasa a horas extra normales (sumada a las que hubiera). */
+export function estimacionAReales(usuarioId, igdbId, onError) {
+  const id = canonico(igdbId);
+  const versiones = [id, ...aliasDe(id)];
+  const r = estimacion(usuarioId, id);
+  if (!r) return Promise.resolve(true);
+  const fila = { usuario_id: usuarioId, juego_id: id, horas: Math.round((horasExtra(usuarioId, id) + Number(r.horas)) * 10) / 10, actualizado_en: new Date().toISOString() };
+  return escribirOptimista(
+    (s) => {
+      s.horasEstimadas = (s.horasEstimadas ?? []).filter((x) => !esEstimacionDe(usuarioId, versiones)(x));
+      s.horasExtra = [...(s.horasExtra ?? []).filter((h) => !(h.usuario_id === usuarioId && canonico(h.juego_id) === id)), fila];
+    },
+    async (sb) => {
+      comprobar(await sb.from('horas_extra').delete().eq('usuario_id', usuarioId).in('juego_id', versiones));
+      comprobar(await sb.from('horas_extra').insert(fila));
+      comprobar(await sb.from('horas_estimadas').delete().eq('usuario_id', usuarioId).in('juego_id', versiones));
+    },
+    onError,
+    'No se ha podido cambiar. Se ha deshecho el cambio.',
+  );
+}
+
+/** El automático: poner y quitar estimaciones de una vez (nunca toca las elegidas a mano). */
+export function estimacionesEnLote(usuarioId, poner, quitar, onError) {
+  const ahora = new Date().toISOString();
+  const filas = poner.map((p) => ({ usuario_id: usuarioId, juego_id: Number(p.juego_id), horas: p.horas, tipo: p.tipo, auto: true, descartada: false, actualizado_en: ahora }));
+  const fuera = [...new Set([...quitar.map(Number), ...filas.map((f) => f.juego_id)])];
+  const soloQuitar = quitar.map(Number);
+  return escribirOptimista(
+    (s) => { s.horasEstimadas = [...(s.horasEstimadas ?? []).filter((r) => !(esEstimacionDe(usuarioId, fuera)(r) && r.auto !== false)), ...filas]; },
+    async (sb) => {
+      if (filas.length) comprobar(await sb.from('horas_estimadas').upsert(filas, { onConflict: 'usuario_id,juego_id' }));
+      if (soloQuitar.length) comprobar(await sb.from('horas_estimadas').delete().eq('usuario_id', usuarioId).eq('auto', true).in('juego_id', soloQuitar));
+    },
+    onError,
+    'No se han podido actualizar las horas estimadas.',
+  );
+}
 
 /**
  * Cambia lo decidido en varios juegos con una sola escritura.
@@ -641,6 +752,7 @@ async function escribirOptimista(aplicar, guardar, onError, mensajeError = 'No s
     coleccionesG: estado.coleccionesG, coleccionesJuegos: estado.coleccionesJuegos, valColecciones: estado.valColecciones,
     sagas: estado.sagas, sagasJuegos: estado.sagasJuegos, columnas: estado.columnas, entradas: estado.entradas, lecturas: estado.lecturas,
     horasAjustes: estado.horasAjustes,
+    horasEstimadas: estado.horasEstimadas,
   };
   escriturasEnCurso++;
   aplicar(estado);

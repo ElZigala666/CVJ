@@ -8,6 +8,7 @@ import { TEMAS, preferenciaTema, guardarTema } from './tema.js';
 import { PALETA, ACENTO_DEFECTO, seLeeMal, esDePaleta } from './acento.js';
 import { usuarioActual } from './sesion.js';
 import * as datos from './datos.js';
+import * as metricas from './metricas.js';
 import { VERSION_CORTA } from './version.js';
 import { montarPlataformas } from './ajustes-plataformas.js';
 import { montarGrupo } from './ajustes-grupo.js';
@@ -118,10 +119,24 @@ export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas 
               </select>
             </label>
             <p class="ajustes-nota">Sin horas conocidas, cuenta tener menos de un 5 % de logros. Valorar un juego o jugarlo en los últimos 30 días lo deja siempre en «Mis juegos».</p>
+            ${'estimar_horas' in u ? `
+              <label class="interruptor">
+                <input type="checkbox" data-estimar${u.estimar_horas ? ' checked' : ''}>
+                <span class="interruptor-texto"><strong>Estimar horas de juegos completados sin registro</strong><small>Usa el tiempo para terminar de IGDB (Completo con platino o 100 % de logros; si no, Historia). Se ve con «≈». Si llegan horas reales, se quita sola; al apagarlo se quitan todas las automáticas.</small></span>
+              </label>` : ''}
           </section>`;
       };
       pintarUmbral();
       cuerpo.addEventListener('change', (e) => {
+        const est = e.target.closest('[data-estimar]');
+        if (est) {
+          const yoId = usuarioActual()?.id;
+          if (!yoId) return;
+          datos.actualizarUsuario(yoId, { estimar_horas: est.checked }, aviso, 'No se ha podido guardar. Se ha deshecho el cambio.');
+          const { poner, quitar } = metricas.planEstimaciones(yoId);
+          aviso(est.checked ? `${poner.length} ${poner.length === 1 ? 'juego' : 'juegos'} con horas estimadas` : `${quitar.length} ${quitar.length === 1 ? 'estimación quitada' : 'estimaciones quitadas'}`);
+          return;
+        }
         const sel = e.target.closest('[data-umbral]');
         if (!sel) return;
         const yoId = usuarioActual()?.id;

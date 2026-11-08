@@ -88,6 +88,15 @@ export function render(el, { params }) {
     });
   }
 
+  /** "Para terminarlo: ~17 h historia · ~25 h completo" */
+  function textoTiempo() {
+    const t = datos.tiempoParaTerminar(id);
+    if (!t) return '';
+    const partes = [t.historia != null ? `~${metricas.textoHoras(t.historia)} historia` : '', t.completo != null ? `~${metricas.textoHoras(t.completo)} completo` : ''].filter(Boolean);
+    if (!partes.length && t.extras != null) partes.push(`~${metricas.textoHoras(t.extras)} historia + extras`);
+    return partes.length ? `Para terminarlo: ${partes.join(' · ')}` : '';
+  }
+
   function pintarInfo(j) {
     if (!j) {
       $('info').innerHTML = fallo
@@ -101,6 +110,7 @@ export function render(el, { params }) {
     $('info').innerHTML = `
       <h1 class="ficha-titulo">${esc(j.nombre)}</h1>
       ${meta ? `<span class="ficha-meta">${esc(meta)}</span>` : (pidiendo ? '<div class="sk sk-linea" style="width:55%;height:14px"></div>' : '')}
+      ${textoTiempo() ? `<span class="ficha-meta ficha-tiempo">${esc(textoTiempo())}</span>` : ''}
       ${j.plataformas?.length ? `<div class="ficha-chips">${j.plataformas.map((p) => `<span class="ficha-chip">${esc(p)}</span>`).join('')}</div>` : ''}
       ${'es_online' in j && datos.juego(id) && !esAdmin() && j.es_online ? `
         <div class="ficha-online"><span class="etiqueta-gris">Sin final (online, competitivo...)</span></div>` : ''}
@@ -195,7 +205,7 @@ export function render(el, { params }) {
     const b = metricas.bibliotecaDeJuego(id).get(uid);
     const partes = [];
     // El total de cada uno (sincronizadas de todas sus cuentas + extra); el desglose, en "Tus horas".
-    const h = metricas.textoHoras(metricas.horasDe(uid, id));
+    const h = metricas.textoHorasDe(uid, id);
     if (h) partes.push(h);
     if (b?.progreso) partes.push(`${b.progreso} % trofeos`);
     return partes.length ? ` · ${partes.join(' · ')}` : '';
@@ -273,16 +283,19 @@ export function render(el, { params }) {
   function bloqueTusHoras() {
     if (!yo) return '';
     const d = metricas.desgloseDe(yo.id, id);
-    if (!d.total && !d.sinc.length) return '';
+    // Sin horas: solo si lo ha jugado (valorado o en su biblioteca) y hay tiempo de IGDB que proponer.
+    const mia = datos.miValoracion(yo.id, id);
+    const puedeEstimar = datos.tiempoParaTerminar(id) && ((mia && mia.estado !== 'pendiente') || metricas.bibliotecaDeJuego(id).has(yo.id));
+    if (!d.total && !d.sinc.length && !puedeEstimar) return '';
     const partes = [...d.sinc, ...(d.extra ? [{ plataforma: 'Horas extra', horas: d.extra }] : [])];
     const excluidas = d.sinc.filter((x) => x.excluida).length;
     return `
       <section class="ficha-horas">
         <div class="horas-total">
           <span>Tus horas</span>
-          <strong>${esc(metricas.textoHoras(d.total))}</strong>
+          <strong>${esc(metricas.textoHorasDe(yo.id, id) || '—')}</strong>
         </div>
-        ${partes.length > 1 || d.extra || excluidas || d.duplicado ? `<div class="horas-control">${lineasHoras(yo.id, id, { extra: d.extra })}</div>` : ''}
+        ${partes.length > 1 || d.extra || excluidas || d.duplicado || d.estimada || puedeEstimar ? `<div class="horas-control">${lineasHoras(yo.id, id, { extra: d.extra })}</div>` : ''}
       </section>`;
   }
 

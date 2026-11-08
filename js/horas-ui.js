@@ -7,7 +7,7 @@ import * as datos from './datos.js';
 import * as metricas from './metricas.js';
 import { esc, aviso, avisoDeshacer } from './ui.js';
 
-const { FUENTES_PC, NOMBRE_FUENTE, textoHoras } = metricas;
+const { FUENTES_PC, NOMBRE_FUENTE, NOMBRE_ESTIMACION, textoHoras } = metricas;
 
 /** "PS5", "Xbox Series", "Xbox · PC", "Steam" */
 const nombreLinea = (d) => (FUENTES_PC.includes(d.fuente) ? NOMBRE_FUENTE[d.fuente]
@@ -51,12 +51,39 @@ export function lineasHoras(uid, igdbId, { extra = 0, textoExtra = 'Horas extra'
           <label class="interruptor mini"><input type="checkbox" data-hd-contar="${esc(x.clave)}" data-hd-juego="${igdbId}"${x.excluida ? '' : ' checked'}><span>Contar</span></label>
         </span>` : ''}
     </li>`;
+  const est = d.estimada;
+  const hayLineas = d.sinc.length || extra || est;
   return `
     ${avisoDuplicado(d.duplicado, igdbId)}
-    <ul class="horas-desglose">
-      ${d.sinc.map(linea).join('')}
-      ${extra ? `<li class="horas-linea"><span class="horas-linea-nombre">${esc(textoExtra)}</span><span class="horas-linea-h">${esc(textoHoras(extra))}</span></li>` : ''}
-    </ul>`;
+    ${hayLineas ? `
+      <ul class="horas-desglose">
+        ${d.sinc.map(linea).join('')}
+        ${extra ? `<li class="horas-linea"><span class="horas-linea-nombre">${esc(textoExtra)}</span><span class="horas-linea-h">${esc(textoHoras(extra))}</span></li>` : ''}
+        ${est ? `
+          <li class="horas-linea estimada">
+            <span class="horas-linea-nombre">Estimado (IGDB) <small>${esc(NOMBRE_ESTIMACION[est.tipo] ?? '')}${est.auto ? ' · automático' : ''}</small></span>
+            <span class="horas-linea-h">≈${esc(textoHoras(est.horas))}</span>
+            <span class="horas-linea-control">
+              <button type="button" class="enlace-discreto" data-hd-est-real="${igdbId}">Son mis horas reales</button>
+              <button type="button" class="enlace-discreto" data-hd-est-borrar="${igdbId}">Borrar</button>
+            </span>
+          </li>` : ''}
+      </ul>` : ''}
+    ${est ? '' : selectorEstimacion(uid, igdbId)}`;
+}
+
+/** "Usar tiempo estimado": se despliega con las opciones de IGDB; la propuesta, resaltada. */
+function selectorEstimacion(uid, igdbId) {
+  const ops = metricas.opcionesEstimacion(uid, igdbId);
+  if (!ops.length) return '';
+  return `
+    <details class="horas-estimar">
+      <summary class="enlace-discreto">Usar tiempo estimado</summary>
+      <div class="horas-estimar-opciones">
+        ${ops.map((o) => `<button type="button" class="${o.propuesta ? 'boton-principal' : 'boton-secundario neutro'} boton-pequeno" data-hd-usar="${o.tipo}" data-hd-horas="${o.horas}" data-hd-juego="${igdbId}">${esc(o.nombre)} (~${esc(textoHoras(o.horas))})</button>`).join('')}
+      </div>
+      <p class="ajustes-nota">Tiempos de IGDB. Se verán como «≈», aparte de tus horas reales.</p>
+    </details>`;
 }
 
 /** Contar solo PC / solo Xbox / partidas distintas, en uno o varios juegos (una escritura). */
@@ -92,6 +119,30 @@ export function manejarHoras(e, uid, alCambiar = () => {}) {
     return true;
   }
   if (e.type !== 'click') return !!contar;
+  const usar = t.closest?.('[data-hd-usar]');
+  if (usar) {
+    e.preventDefault();
+    datos.guardarEstimacion(uid, Number(usar.dataset.hdJuego), { horas: Number(usar.dataset.hdHoras), tipo: usar.dataset.hdUsar }, aviso);
+    aviso('Horas estimadas añadidas');
+    alCambiar();
+    return true;
+  }
+  const real = t.closest?.('[data-hd-est-real]');
+  if (real) {
+    e.preventDefault();
+    datos.estimacionAReales(uid, Number(real.dataset.hdEstReal), aviso);
+    aviso('Ahora son horas extra normales');
+    alCambiar();
+    return true;
+  }
+  const borrar = t.closest?.('[data-hd-est-borrar]');
+  if (borrar) {
+    e.preventDefault();
+    datos.descartarEstimacion(uid, Number(borrar.dataset.hdEstBorrar), aviso);
+    aviso('Estimación borrada');
+    alCambiar();
+    return true;
+  }
   const plat = t.closest?.('[data-hd-plataforma]');
   if (plat) {
     e.preventDefault();

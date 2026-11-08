@@ -212,7 +212,8 @@ function juegosDelGrupo() {
         // Horas de todo el grupo (sincronizadas + extra de cada uno)
         horas: Math.round(usuarios().reduce((t, u) => t + (horasDe(u.id, id) ?? 0), 0) * 10) / 10,
       }))
-      .filter((x) => x.juego)
+      // Los juegos de una colección no salen sueltos: cuentan dentro de ella (regla 2).
+      .filter((x) => x.juego && !datos.coleccionDeJuego(x.juego.igdb_id))
       .concat(coleccionesDelGrupo());
   });
 }
@@ -220,7 +221,8 @@ function juegosDelGrupo() {
 /** Colecciones en los rankings: con sus valoraciones de colección y las horas de todos en sus juegos. */
 function coleccionesDelGrupo() {
   return datos.colecciones().map((sg) => {
-    const vals = datos.valoracionesDeColeccion(sg.id).filter(usuarioValido).map((v) => ({ ...v, esColeccion: true }));
+    // Cada usuario UNA vez: su valoración de la colección o, si no, la de uno de sus juegos.
+    const vals = valoracionesColeccionEfectivas(sg.id);
     return {
       juego: datos.comoJuego(sg),
       coleccion: sg,
@@ -245,7 +247,7 @@ export function ranking(orden) {
     }
     if (orden === 'horas') {
       // Los juegos de una colección cuentan dentro de la colección ("cuántas horas al FIFA").
-      return l.filter((x) => x.horas > 0 && (x.coleccion || !datos.coleccionDeJuego(x.juego.igdb_id)))
+      return l.filter((x) => x.horas > 0)
         .sort((a, b) => b.horas - a.horas || (b.media ?? -1) - (a.media ?? -1) || nombre(a, b));
     }
     if (orden === 'online') {
@@ -265,18 +267,35 @@ export function ranking(orden) {
 // ---------------------------------------------------------------------------
 // Comparar
 // ---------------------------------------------------------------------------
-/** Juegos que ambos tienen con nota: [{ juego, a, b, dif }] */
+/**
+ * Juegos (y colecciones) que ambos tienen con nota: [{ juego, a, b, dif }]
+ *  - un juego, si los dos lo valoraron;
+ *  - una colección, si al menos uno valoró la colección y el otro la colección o alguno
+ *    de sus juegos (regla 2). Sin contar dos veces: si ese juego ya se compara suelto, no.
+ */
 function comunes(idA, idB) {
   return memoizar(`comunes:${idA}:${idB}`, () => {
-    const deB = new Map(valoracionesDe(idB).filter(tieneNota).map((v) => [Number(v.juego_id), v]));
-    return valoracionesDe(idA)
-      .filter(tieneNota)
-      .filter((v) => deB.has(Number(v.juego_id)))
-      .map((a) => {
-        const b = deB.get(Number(a.juego_id));
-        return { juego: datos.juegoConocido(a.juego_id), a, b, dif: Math.abs(nota(a) - nota(b)) };
-      })
-      .filter((x) => x.juego);
+    const conNota = (uid) => new Map(valoracionesDe(uid).filter(tieneNota).map((v) => [Number(v.juego_id), v]));
+    const deA = conNota(idA);
+    const deB = conNota(idB);
+    const pares = [];
+    const sueltos = new Set();
+    for (const [id, a] of deA) {
+      if (!deB.has(id)) continue;
+      const b = deB.get(id);
+      pares.push({ juego: datos.juegoConocido(id), a, b, dif: Math.abs(nota(a) - nota(b)) });
+      sueltos.add(id);
+    }
+    for (const sg of datos.colecciones()) {
+      const ef = valoracionesColeccionEfectivas(sg.id);
+      const a = ef.find((v) => v.usuario_id === idA);
+      const b = ef.find((v) => v.usuario_id === idB);
+      if (!a || !b || !tieneNota(a) || !tieneNota(b)) continue;
+      if (a.desdeJuego && b.desdeJuego) continue; // ninguno valoró la colección: van por juegos
+      if ((a.desdeJuego && sueltos.has(a.desdeJuego.juegoId)) || (b.desdeJuego && sueltos.has(b.desdeJuego.juegoId))) continue;
+      pares.push({ juego: datos.comoJuego(sg), a, b, dif: Math.abs(nota(a) - nota(b)) });
+    }
+    return pares.filter((x) => x.juego);
   });
 }
 
@@ -738,10 +757,41 @@ export function horasColeccion(uid, coleccionId) {
   });
 }
 
-/** Métricas del grupo en una colección (como statsJuego). */
+/**
+ * Valoraciones de una colección, UNA por usuario (regla 2): la suya de la colección o, si
+ * no la tiene, la de uno de sus juegos: el que tenga más horas (o la más reciente si no
+ * hay horas). Las que vienen de un juego llevan desdeJuego: { juegoId, nombre, otros }.
+ */
+export function valoracionesColeccionEfectivas(coleccionId) {
+  return memoizar(`valsColeccionEf:${coleccionId}`, () => {
+    const propias = datos.valoracionesDeColeccion(coleccionId).filter(usuarioValido).map((v) => ({ ...v, esColeccion: true }));
+    const con = new Set(propias.map((v) => v.usuario_id));
+    const ids = new Set(datos.juegosDeColeccion(coleccionId).map((x) => datos.canonico(x)));
+    const porUsuarioJ = new Map();
+    for (const v of datos.valoracionesEfectivas()) {
+      if (!ids.has(Number(v.juego_id)) || con.has(v.usuario_id) || !usuarioValido(v)) continue;
+      if (!porUsuarioJ.has(v.usuario_id)) porUsuarioJ.set(v.usuario_id, []);
+      porUsuarioJ.get(v.usuario_id).push(v);
+    }
+    const desdeJuegos = [...porUsuarioJ].map(([uid, vs]) => {
+      const orden = vs.map((v) => ({ v, h: horasDe(uid, v.juego_id) ?? 0 }))
+        .sort((x, y) => y.h - x.h || new Date(y.v.actualizado_en || 0) - new Date(x.v.actualizado_en || 0))
+        .map((x) => x.v);
+      const [e, ...otros] = orden;
+      const info = (v) => ({ juegoId: Number(v.juego_id), nombre: datos.juegoConocido(v.juego_id)?.nombre ?? '', nota: v.nota, recomendado: v.recomendado, estado: v.estado });
+      return {
+        ...e, id: `juego:${e.id}`, esColeccion: true, coleccion_id: coleccionId, juego_id: null,
+        desdeJuego: { ...info(e), otros: otros.map(info) },
+      };
+    });
+    return [...propias, ...desdeJuegos];
+  });
+}
+
+/** Métricas del grupo en una colección (como statsJuego), con las de sus juegos (regla 2). */
 export function statsColeccion(coleccionId) {
   return memoizar(`statsColeccion:${coleccionId}`, () => {
-    const vals = datos.valoracionesDeColeccion(coleccionId).filter(usuarioValido);
+    const vals = valoracionesColeccionEfectivas(coleccionId);
     const media = mediaGrupo(vals);
     return {
       valoraciones: vals,

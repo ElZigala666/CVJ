@@ -229,6 +229,7 @@ export function render(el, { params }) {
           </div>
           ${derecha}
         </div>
+        ${v.heredada ? `<a class="etiqueta-heredada" href="#coleccion/${esc(v.heredada.coleccionId)}">Por la colección ${esc(v.heredada.nombre)}</a>` : ''}
         ${v.resena ? `<p class="grupo-resena">${esc(v.resena)}</p>` : ''}
       </div>`;
   }

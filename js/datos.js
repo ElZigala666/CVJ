@@ -573,8 +573,26 @@ export const bibliotecaDeJuego = (igdbId) => indices.bibJuego.get(Number(igdbId)
 export const filaBiblioteca = (psnTitleId) => (estado.biblioteca ?? []).find((b) => b.psn_title_id === psnTitleId) ?? null;
 
 /** Métricas del grupo para un juego. */
+/**
+ * Valoraciones de un juego con las heredadas de su colección (regla 1): quien valoró la
+ * colección y NO tiene valoración propia de este juego sale con la de la colección
+ * (calculada, no copiada: si cambia la de la colección, cambia aquí). La propia manda.
+ * Las heredadas llevan heredada: { coleccionId, nombre }.
+ */
+export function valoracionesConHeredadas(igdbId) {
+  const id = canonico(igdbId);
+  const propias = valoracionesDeJuego(id);
+  const sg = coleccionDeJuego(id);
+  if (!sg) return propias;
+  const con = new Set(propias.map((v) => v.usuario_id));
+  const heredadas = valoracionesDeColeccion(sg.id)
+    .filter((v) => !con.has(v.usuario_id))
+    .map((v) => ({ ...v, id: `coleccion:${v.id}`, juego_id: id, plataformas: null, heredada: { coleccionId: sg.id, nombre: sg.nombre } }));
+  return [...propias, ...heredadas];
+}
+
 export function statsJuego(igdbId) {
-  const vals = valoracionesDeJuego(igdbId).filter((v) => indices.usuarios.size === 0 || indices.usuarios.has(v.usuario_id));
+  const vals = valoracionesConHeredadas(igdbId).filter((v) => indices.usuarios.size === 0 || indices.usuarios.has(v.usuario_id));
   return {
     ...mediaGrupo(vals),                 // media, letra, votos
     recomendacion: recomendacionGrupo(vals),
@@ -1146,17 +1164,45 @@ export function guardarValoracionColeccion(v, onError) {
     creado_en: antes?.creado_en ?? ahora,
     actualizado_en: ahora,
   };
+  // Actividad: UNA entrada por la colección ("Marcos valoró la colección FIFA").
+  let tipo = null;
+  if (!antes || antes.estado !== fila.estado) tipo = fila.nota != null ? 'valoro' : TIPO_POR_ESTADO[fila.estado];
+  else if (redondear(antes.nota) !== fila.nota || (antes.recomendado ?? null) !== fila.recomendado || (antes.resena || null) !== fila.resena) tipo = 'valoro';
+  let act = null;
+  let actualizarAct = false;
+  if (tipo) {
+    const reciente = estado.actividad.find((a) => a.usuario_id === v.usuarioId && a.coleccion_id === v.coleccionId
+      && Date.now() - new Date(a.creado_en).getTime() < VENTANA_ACTIVIDAD_MS);
+    const comun = { nota: fila.nota, recomendado: fila.recomendado, texto: fila.resena, creado_en: ahora };
+    if (reciente) { act = { ...reciente, ...comun, tipo: tipo === 'valoro' && reciente.tipo !== 'valoro' && fila.nota == null ? reciente.tipo : tipo }; actualizarAct = true; }
+    else act = { id: crypto.randomUUID(), usuario_id: v.usuarioId, juego_id: null, coleccion_id: v.coleccionId, tipo, ...comun };
+  }
   return escribirOptimista(
-    (s) => { s.valColecciones = [...(s.valColecciones ?? []).filter((x) => x.id !== fila.id), fila]; },
-    async (sb) => { comprobar(await sb.from('valoraciones_coleccion').upsert(fila, { onConflict: 'usuario_id,coleccion_id' })); },
+    (s) => {
+      s.valColecciones = [...(s.valColecciones ?? []).filter((x) => x.id !== fila.id), fila];
+      if (act) s.actividad = [act, ...s.actividad.filter((x) => x.id !== act.id)];
+    },
+    async (sb) => {
+      comprobar(await sb.from('valoraciones_coleccion').upsert(fila, { onConflict: 'usuario_id,coleccion_id' }));
+      if (act) {
+        if (actualizarAct) { const { id: idAct, ...cambios } = act; comprobar(await sb.from('actividad').update(cambios).eq('id', idAct)); }
+        else comprobar(await sb.from('actividad').insert(act));
+      }
+    },
     onError,
   );
 }
 
 export function quitarValoracionColeccion(usuarioId, coleccionId, onError) {
   return escribirOptimista(
-    (s) => { s.valColecciones = (s.valColecciones ?? []).filter((x) => !(x.usuario_id === usuarioId && x.coleccion_id === coleccionId)); },
-    async (sb) => { comprobar(await sb.from('valoraciones_coleccion').delete().eq('usuario_id', usuarioId).eq('coleccion_id', coleccionId)); },
+    (s) => {
+      s.valColecciones = (s.valColecciones ?? []).filter((x) => !(x.usuario_id === usuarioId && x.coleccion_id === coleccionId));
+      s.actividad = s.actividad.filter((x) => !(x.usuario_id === usuarioId && x.coleccion_id === coleccionId));
+    },
+    async (sb) => {
+      comprobar(await sb.from('valoraciones_coleccion').delete().eq('usuario_id', usuarioId).eq('coleccion_id', coleccionId));
+      comprobar(await sb.from('actividad').delete().eq('usuario_id', usuarioId).eq('coleccion_id', coleccionId));
+    },
     onError,
     'No se ha podido quitar. Se ha deshecho el cambio.',
   );

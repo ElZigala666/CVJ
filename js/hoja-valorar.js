@@ -71,6 +71,13 @@ export function abrirValorar(igdbId, op = {}) {
 
   const previa = coleccion ? datos.miValoracionColeccion(yo.id, coleccion.id) : datos.miValoracion(yo.id, id);
   const online = coleccion ? true : datos.esOnline(id); // 3 estados
+  // Juego de una colección que ya he valorado (y sin valoración propia): aviso arriba.
+  const porColeccion = (() => {
+    if (coleccion || previa) return null;
+    const sg = datos.coleccionDeJuego(id);
+    const v = sg ? datos.miValoracionColeccion(yo.id, sg.id) : null;
+    return v ? { sg, v } : null;
+  })();
   const estados = coleccion ? ESTADOS_COLECCION : online ? ESTADOS_ONLINE : ESTADOS;
   // Horas: las sincronizadas (solo lectura, por plataforma y cuenta) + las extra a mano.
   // En una colección: las totales de cada uno de sus juegos + las extra propias de la colección.
@@ -134,6 +141,14 @@ export function abrirValorar(igdbId, op = {}) {
       </div>
 
       <div class="hoja-cuerpo">
+        ${porColeccion ? `
+          <div class="aviso-por-coleccion" data-ref="por-coleccion">
+            <p>Ya lo tienes valorado por la colección <strong>${esc(porColeccion.sg.nombre)}</strong>${porColeccion.v.nota != null ? ` (${esc(formatearNota(porColeccion.v.nota))})` : ''}. Si lo valoras aparte, en este juego manda la tuya.</p>
+            <div class="aviso-por-coleccion-botones">
+              <button type="button" class="boton-secundario boton-pequeno" data-accion="aparte">Valorar este juego aparte</button>
+              <button type="button" class="boton-secundario neutro boton-pequeno" data-accion="editar-coleccion">Editar la de la colección</button>
+            </div>
+          </div>` : ''}
         <div class="estados${online ? ' estados-3' : ''}" role="radiogroup" aria-label="Estado">
           ${estados.map((e) => `
             <button type="button" class="estado-btn" role="radio" data-estado="${e.id}">
@@ -338,6 +353,8 @@ export function abrirValorar(igdbId, op = {}) {
     else if (d.accion === 'cancelar-quitar') s.confirmandoQuitar = false;
     else if (d.accion === 'quitar') return quitar();
     else if (d.accion === 'guardar') return guardar();
+    else if (d.accion === 'aparte') { $('[data-ref="por-coleccion"]')?.remove(); return; }
+    else if (d.accion === 'editar-coleccion') { const sgId = porColeccion.sg.id; cerrar(true); abrirValorar(null, { coleccion: sgId }); return; }
     else if (d.accion === 'saltar') { cerrar(true); op.serie?.siguiente(); return; }
     pintar();
   });

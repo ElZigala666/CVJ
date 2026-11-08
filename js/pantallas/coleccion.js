@@ -9,7 +9,7 @@ import * as datos from '../datos.js';
 import { usuarioActual } from '../sesion.js';
 import {
   esc, urlPortada, colorBloque, colorFondo, mejorCargada, notaConLetra, portada,
-  iconoRecomendacion, avatarInsignia, avatarPerfil, nombrePerfil, aviso,
+  iconoRecomendacion, avatarInsignia, avatarPerfil, nombrePerfil, aviso, nombreEstado,
 } from '../ui.js';
 import { yaCargada, tamPara, ANCHOS } from '../portadas.js';
 import { volver } from '../navegacion.js';
@@ -124,7 +124,8 @@ export function render(el, { params }) {
     const u = datos.usuario(uid);
     if (!u) return '';
     const h = metricas.horasColeccion(uid, id).total;
-    const sub = [v ? ESTADO_COLECCION[v.estado] : 'Sin valorar la colección', h ? metricas.textoHoras(h) : ''].filter(Boolean).join(' · ');
+    const sub = [v ? (v.desdeJuego ? nombreEstado(v.estado) : ESTADO_COLECCION[v.estado] ?? nombreEstado(v.estado)) : 'Sin valorar la colección', h ? metricas.textoHoras(h) : ''].filter(Boolean).join(' · ');
+    const dj = v?.desdeJuego;
     const derecha = v?.nota != null
       ? `<div class="grupo-nota">${notaConLetra(v.nota, 'lg')}${iconoRecomendacion(v.recomendado, 20)}</div>`
       : '<span class="grupo-sin-nota">Sin nota</span>';
@@ -138,8 +139,34 @@ export function render(el, { params }) {
           </div>
           ${derecha}
         </div>
+        ${dj ? `
+          <span class="etiqueta-heredada">
+            <a href="#juego/${dj.juegoId}">Por ${esc(dj.nombre)}</a>${dj.otros.length ? ` <button type="button" class="enlace-discreto" data-otros="${esc(uid)}">y ${dj.otros.length} más</button>` : ''}
+          </span>` : ''}
         ${v?.resena ? `<p class="grupo-resena">${esc(v.resena)}</p>` : ''}
       </div>`;
+  }
+
+  /** "y N más": las valoraciones de ese usuario en los juegos de la colección. */
+  function verOtros(uid) {
+    const v = metricas.valoracionesColeccionEfectivas(id).find((x) => x.usuario_id === uid);
+    const u = datos.usuario(uid);
+    if (!v?.desdeJuego || !u) return;
+    const todos = [v.desdeJuego, ...v.desdeJuego.otros];
+    abrirHoja({
+      titulo: `${u.nombre} en sus juegos`,
+      antetitulo: datos.coleccion(id)?.nombre ?? '',
+      html: `
+        <p class="ajustes-nota">No ha valorado la colección: cuenta la del juego con más horas (la primera).</p>
+        <div class="elegir-lista">
+          ${todos.map((x) => { const j = datos.juegoConocido(x.juegoId); return j ? `
+            <a class="fila-elegir" href="#juego/${j.igdb_id}">
+              ${portada(j, { clase: 'portada-lista' })}
+              <span class="fila-elegir-texto"><strong>${esc(j.nombre)}</strong><small>${esc(nombreEstado(x.estado))}</small></span>
+              ${x.nota != null ? `<span class="grupo-nota">${notaConLetra(x.nota, 'sm')}${iconoRecomendacion(x.recomendado, 16)}</span>` : ''}
+            </a>` : ''; }).join('')}
+        </div>`,
+    });
   }
 
   function bloqueIncluye(sg) {
@@ -291,6 +318,8 @@ export function render(el, { params }) {
   };
 
   el.addEventListener('click', (e) => {
+    const otros = e.target.closest('[data-otros]');
+    if (otros) { verOtros(otros.dataset.otros); return; }
     const sub = e.target.closest('[data-subir]');
     if (sub) { mover(Number(sub.dataset.subir), -1); return; }
     const baj = e.target.closest('[data-bajar]');

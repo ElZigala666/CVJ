@@ -195,7 +195,7 @@ function filaDiscrepa(x, ua, ub) {
   const na = Number(x.a.nota);
   const nb = Number(x.b.nota);
   return `
-    <a class="discrepa" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}">
+    <a class="discrepa" href="${metricas.rutaDe(j)}" data-precarga="${esc(j.cover_id ?? '')}">
       ${portada(j, { clase: 'portada-discrepan' })}
       <div class="discrepa-info">
         <div class="discrepa-cab">
@@ -219,7 +219,7 @@ function filaDiscrepa(x, ua, ub) {
 function filaCoincide(x) {
   const j = x.juego;
   return `
-    <a class="coincide" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}">
+    <a class="coincide" href="${metricas.rutaDe(j)}" data-precarga="${esc(j.cover_id ?? '')}">
       ${portada(j, { clase: 'portada-coinciden' })}
       <span class="coincide-nombre">${esc(j.nombre)}</span>
       <span class="coincide-notas"><strong>${formatearNota(x.a.nota)}</strong> · <strong>${formatearNota(x.b.nota)}</strong></span>

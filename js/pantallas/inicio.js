@@ -29,6 +29,14 @@ const VERBOS = {
   abandono: 'abandonó',
   pendiente: 'añadió a pendientes',
 };
+// Colecciones: una entrada por la colección, no una por cada juego.
+const VERBOS_COLECCION = {
+  valoro: 'valoró la colección',
+  empezo: 'sigue la colección',
+  completo: 'completó la colección',
+  abandono: 'dejó la colección',
+  pendiente: 'añadió a pendientes la colección',
+};
 // Varios a la vez (selección múltiple): "Marcos completó 5 juegos".
 const VERBOS_VARIOS = {
   empezo: (n) => `empezó a jugar ${n} juegos`,
@@ -398,7 +406,7 @@ function actividad() {
   const filas = datos.estado.actividad
     .slice()
     .sort((a, b) => new Date(b.creado_en) - new Date(a.creado_en))
-    .map((a) => ({ a, u: datos.usuario(a.usuario_id), j: datos.juegoConocido(a.juego_id) }))
+    .map((a) => ({ a, u: datos.usuario(a.usuario_id), j: a.coleccion_id ? datos.comoJuego(datos.coleccion(a.coleccion_id)) : datos.juegoConocido(a.juego_id) }))
     .filter((x) => x.u && x.j)
     .reduce(juntarLotes, [])
     .concat(deColumnas)
@@ -407,10 +415,10 @@ function actividad() {
 
   const contenido = filas.length
     ? filas.map(({ a, u, j, columna: ce, lote }) => { if (ce) return filaColumna(ce, u, ahora); if (lote) return filaLote(a, u, lote, ahora); const h = metricas.horasDe(u.id, j.igdb_id); return `
-        <a class="actividad-fila" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}">
+        <a class="actividad-fila" href="${metricas.rutaDe(j)}" data-precarga="${esc(j.cover_id ?? '')}">
           ${avatarPerfil(u, 36)}
           <div class="actividad-texto">
-            <span class="actividad-frase">${nombrePerfil(u, 'strong')} ${VERBOS[a.tipo] ?? 'actualizó'} <strong>${esc(j.nombre)}</strong></span>
+            <span class="actividad-frase">${nombrePerfil(u, 'strong')} ${(a.coleccion_id ? VERBOS_COLECCION : VERBOS)[a.tipo] ?? 'actualizó'} <strong>${esc(j.nombre)}</strong></span>
             ${a.nota != null || a.recomendado != null || h ? `
               <div class="actividad-nota">
                 ${a.nota != null ? notaConLetra(a.nota, 'act') : ''}

@@ -1,0 +1,167 @@
+name: Copia de seguridad
+
+# Cada lunes (y a mano, desde la pestaña Actions) hace un volcado completo de la base de
+# Supabase, lo CIFRA y lo guarda como artefacto. Se conservan las últimas 8 copias.
+#
+# El repositorio es público: cualquiera con cuenta de GitHub puede descargar sus artefactos
+# y leer estos registros. Por eso la copia va cifrada (la clave es SUPABASE_DB_PASSWORD) y
+# aquí nunca se imprime contenido de la base: solo recuentos, y errores sin valores.
+# Restaurar: herramientas/RESTAURAR.md
+on:
+  schedule:
+    - cron: '23 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write   # para borrar las copias antiguas
+
+concurrency:
+  group: copia-seguridad
+  cancel-in-progress: false
+
+env:
+  COPIAS_A_CONSERVAR: 8
+  POSTGRES_MAYOR: 17   # la versión de la base: si Supabase la sube, pg_dump avisará y hay que cambiarla
+
+jobs:
+  copia:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Comprobar los secretos de GitHub
+        run: |
+          falta=0
+          for v in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_REF; do
+            if [ -z "${!v}" ]; then echo "::error::Falta el secreto $v en GitHub."; falta=1; fi
+          done
+          exit $falta
+
+      - name: Instalar las herramientas de PostgreSQL
+        run: |
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y > /dev/null
+          sudo apt-get install -y -qq "postgresql-client-$POSTGRES_MAYOR" > /dev/null
+          echo "/usr/lib/postgresql/$POSTGRES_MAYOR/bin" >> "$GITHUB_PATH"
+
+      - name: Datos de conexión
+        run: |
+          # La conexión directa de Supabase es solo IPv6; desde aquí se entra por el pooler
+          # en modo sesión (puerto 5432), que es el que admite pg_dump.
+          HOST=$(curl -fsS -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/config/database/pooler" \
+            | jq -r '[.[] | select(.database_type == "PRIMARY")][0].db_host')
+          [ -n "$HOST" ] && [ "$HOST" != "null" ] || { echo "::error::No se ha podido leer el host del pooler de Supabase."; exit 1; }
+          {
+            echo "PGHOST=$HOST"
+            echo "PGPORT=5432"
+            echo "PGUSER=postgres.$SUPABASE_PROJECT_REF"
+            echo "PGDATABASE=postgres"
+            echo "PGSSLMODE=require"
+            echo "NOMBRE=copia-cvj-$(date -u +%Y-%m-%d-%H%M)"
+          } >> "$GITHUB_ENV"
+
+      - name: Volcar la base (esquema y datos)
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/copia"
+          if ! pg_dump --format=custom --compress=9 --file="$RUNNER_TEMP/copia/copia.dump" 2> "$RUNNER_TEMP/dump.log"; then
+            # Sin valores: solo el mensaje, con lo entrecomillado tapado.
+            grep -E 'error|ERROR' "$RUNNER_TEMP/dump.log" | sed -E "s/'[^']*'/'…'/g" | cut -c1-200 | head -20
+            echo "::error::Ha fallado pg_dump."
+            exit 1
+          fi
+          echo "Tamaño del volcado: $(du -h "$RUNNER_TEMP/copia/copia.dump" | cut -f1)"
+
+      - name: Comprobar el volcado
+        run: |
+          pg_restore --list "$RUNNER_TEMP/copia/copia.dump" > "$RUNNER_TEMP/lista.txt"
+          tablas=$(grep -c ' TABLE public ' "$RUNNER_TEMP/lista.txt" || true)
+          datos=$(grep -c ' TABLE DATA public ' "$RUNNER_TEMP/lista.txt" || true)
+          todas=$(grep -c ' TABLE DATA ' "$RUNNER_TEMP/lista.txt" || true)
+          echo "Tablas de public: $tablas · con datos en la copia: $datos · datos de todos los esquemas: $todas"
+          if [ "$tablas" -lt 10 ] || [ "$datos" -lt 10 ]; then echo "::error::El volcado no tiene las tablas esperadas."; exit 1; fi
+
+      - name: Cifrar
+        run: |
+          cd "$RUNNER_TEMP/copia"
+          printf '%s' "$SUPABASE_DB_PASSWORD" | gpg --batch --yes --quiet --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 --compress-algo none --output "$NOMBRE.dump.gpg" copia.dump
+          sha256sum copia.dump | cut -d' ' -f1 > "$RUNNER_TEMP/huella.txt"
+          rm -f copia.dump
+          echo "Tamaño cifrado: $(du -h "$NOMBRE.dump.gpg" | cut -f1)"
+
+      - name: Guardar como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.NOMBRE }}
+          path: ${{ runner.temp }}/copia/${{ env.NOMBRE }}.dump.gpg
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+
+      - name: Probar la copia restaurándola en una base vacía
+        env:
+          PGPASSWORD_REAL: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          # Una base temporal, sin "services:" porque GitHub imprime sus registros (públicos).
+          docker run -d --name prueba -e POSTGRES_PASSWORD=prueba -p 55432:5432 "postgres:$POSTGRES_MAYOR" > /dev/null
+          for i in $(seq 1 30); do pg_isready -q -h 127.0.0.1 -p 55432 -U postgres && break; sleep 2; done
+          export PGPASSWORD=prueba
+          LOCAL="host=127.0.0.1 port=55432 user=postgres dbname=postgres sslmode=disable"
+          # Lo que en Supabase ya existe (roles y esquemas).
+          psql -q -v ON_ERROR_STOP=1 "$LOCAL" <<'SQL'
+          do $$ declare r text; begin
+            foreach r in array array['anon','authenticated','authenticator','service_role','dashboard_user','pgbouncer','supabase_admin','supabase_auth_admin','supabase_functions_admin','supabase_storage_admin','supabase_realtime_admin','supabase_replication_admin','supabase_read_only_user','supabase_etl_admin','supabase_privileged_role'] loop
+              execute format('create role %I', r);
+            end loop;
+          end $$;
+          create schema if not exists extensions;
+          create extension if not exists pgcrypto schema extensions;
+          create extension if not exists "uuid-ossp" schema extensions;
+          SQL
+
+          restaurar() {
+            if ! COPIA_CLAVE="$PGPASSWORD_REAL" COPIA_SIN_PREGUNTAR=1 bash herramientas/restaurar-copia.sh restaurar \
+                "$RUNNER_TEMP/copia/$NOMBRE.dump.gpg" "$LOCAL" > "$RUNNER_TEMP/restaurar.log" 2>&1; then
+              # Sin valores: pueden salir filas enteras en los mensajes de error.
+              grep -E 'ERROR|error:' "$RUNNER_TEMP/restaurar.log" | sed -E "s/\"[^\"]*\"/\"…\"/g; s/'[^']*'/'…'/g" | cut -c1-200 | sort | uniq -c | head -20
+              echo "::error::No se ha podido restaurar la copia ($1)."
+              exit 1
+            fi
+          }
+          restaurar "base vacía"
+          restaurar "encima de lo ya restaurado"
+
+          # Recuentos de las dos bases, tabla a tabla (solo números).
+          CONSULTA="select table_name from information_schema.tables where table_schema='public' and table_type='BASE TABLE' and table_name not in (select c.relname from pg_depend d join pg_class c on c.oid=d.objid where d.deptype='e') order by 1"
+          real=0; restaurado=0; vacias=0
+          for t in $(psql -At -c "$CONSULTA" "$LOCAL"); do
+            a=$(PGPASSWORD="$PGPASSWORD_REAL" psql -At -c "select count(*) from public.\"$t\"" "host=$PGHOST port=$PGPORT user=$PGUSER dbname=$PGDATABASE sslmode=require")
+            b=$(psql -At -c "select count(*) from public.\"$t\"" "$LOCAL")
+            printf '%-28s real %6s  restaurado %6s\n' "$t" "$a" "$b"
+            real=$((real + a)); restaurado=$((restaurado + b))
+            if [ "$a" -gt 0 ] && [ "$b" -eq 0 ]; then vacias=$((vacias + 1)); echo "::error::$t tiene datos en la base y ninguno en la copia."; fi
+          done
+          echo "Filas de public: real $real · restauradas $restaurado"
+          [ "$vacias" -eq 0 ] && [ "$restaurado" -gt 0 ] || exit 1
+          docker rm -f prueba > /dev/null
+
+      - name: Borrar las copias antiguas (se quedan las últimas ${{ env.COPIAS_A_CONSERVAR }})
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Solo si esta copia ha pasado la prueba: una copia mala nunca desplaza a una buena.
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" \
+            --jq '.artifacts[] | select(.name | startswith("copia-cvj-")) | select(.expired | not) | [.created_at, .id] | @tsv' \
+            | sort -r > lista-copias.tsv
+          echo "Copias guardadas: $(wc -l < lista-copias.tsv)"
+          tail -n +"$((COPIAS_A_CONSERVAR + 1))" lista-copias.tsv | cut -f2 | while read -r id; do
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id" && echo "Borrada la copia $id"
+          done

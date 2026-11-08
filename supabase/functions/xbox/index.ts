@@ -510,6 +510,14 @@ Deno.serve(async (req) => {
         const hero = await api("player/stats", false, { maximo: MAX_HORAS, cuerpo: { xuids: [cx.externo_id], groups: ids.map((titleId) => ({ name: "Hero", titleId })) } });
         return json({ ok: true, suelto, hero });
       }
+      case "depurar_titulos": {
+        // Diagnóstico: los títulos del historial (titlehub) en bruto, solo los pedidos. 1 petición.
+        const [cx] = await cuentasDe(uid);
+        if (!cx) throw new ErrorXbox("sin_vincular", "Sin Xbox vinculada.");
+        const ids = new Set((Array.isArray(c.title_ids) ? c.title_ids : []).map(String).slice(0, 20));
+        const d = await api(`titles/${encodeURIComponent(cx.externo_id)}`, true);
+        return json({ ok: true, titulos: (d?.titles ?? []).filter((t: any) => ids.has(String(t.titleId))) });
+      }
       default: throw new ErrorXbox("parametros", 'Acción desconocida (usa "vincular", "sincronizar", "desvincular" o "estado")', 400);
     }
   } catch (e) {

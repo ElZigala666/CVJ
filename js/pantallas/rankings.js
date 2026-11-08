@@ -98,7 +98,7 @@ function filaRanking(x, i) {
   if (orden === 'online') extra = `${x.votos} ${x.votos === 1 ? 'nota' : 'notas'}${x.rec.total ? ` · ${x.rec.si} de ${x.rec.total}` : ''}`;
   return `
     <li>
-      <a class="ranking-fila" href="${metricas.rutaDe(j)}" data-precarga="${esc(j.cover_id ?? '')}">
+      <a class="ranking-fila"${j.coleccion_id ? '' : ` data-sel="${j.igdb_id}" data-sel-tipo="fila"`} href="${metricas.rutaDe(j)}" data-precarga="${esc(j.cover_id ?? '')}">
         <span class="ranking-pos${i < 3 ? ' top' : ''}">${i + 1}</span>
         ${portada(j, { clase: 'portada-ranking', prioridad: i < 8 })}
         <div class="ranking-info">

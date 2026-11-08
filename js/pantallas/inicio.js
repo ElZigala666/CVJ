@@ -9,6 +9,7 @@ import { tarjetaSugerenciaColeccion, clicSugerenciaColeccion } from '../coleccio
 import { logoColumna, textoLectura } from '../columnas-ui.js';
 import { usuarioActual } from '../sesion.js';
 import { mediaGrupo, recomendacionGrupo, desviacionTipica } from '../notas.js';
+import { abrirHoja } from '../hoja.js';
 import {
   esc, cabecera, portada, notaConLetra, avatar, iconoRecomendacion, avatarPerfil, nombrePerfil, avatarInsignia,
   tiempoRelativo, conservarScroll, aviso,
@@ -27,6 +28,13 @@ const VERBOS = {
   completo: 'completó',
   abandono: 'abandonó',
   pendiente: 'añadió a pendientes',
+};
+// Varios a la vez (selección múltiple): "Marcos completó 5 juegos".
+const VERBOS_VARIOS = {
+  empezo: (n) => `empezó a jugar ${n} juegos`,
+  completo: (n) => `completó ${n} juegos`,
+  abandono: (n) => `abandonó ${n} juegos`,
+  pendiente: (n) => `añadió ${n} juegos a pendientes`,
 };
 
 let pestana = 'mejor'; // se recuerda mientras la app está abierta
@@ -53,6 +61,8 @@ export function render(el) {
     if (e.target.closest('[data-accion="reconectar-psn"]')) psn.abrirAsistente();
     if (e.target.closest('[data-accion="conectar-plataformas"]')) window.dispatchEvent(new CustomEvent('cvj:ajustes-plataformas'));
     if (clicSugerenciaColeccion(e, usuarioActual()?.id)) return;
+    const lote = e.target.closest('[data-lote]');
+    if (lote && !e.target.closest('[data-perfil]')) { e.preventDefault(); abrirLote(lote.dataset.lote); return; }
     const leido = e.target.closest('[data-aviso-leido]');
     if (leido) datos.marcarAvisoLeido(leido.dataset.avisoLeido, aviso);
   };
@@ -390,12 +400,13 @@ function actividad() {
     .sort((a, b) => new Date(b.creado_en) - new Date(a.creado_en))
     .map((a) => ({ a, u: datos.usuario(a.usuario_id), j: datos.juegoConocido(a.juego_id) }))
     .filter((x) => x.u && x.j)
+    .reduce(juntarLotes, [])
     .concat(deColumnas)
     .sort((a, b) => new Date(b.a?.creado_en ?? b.creado_en) - new Date(a.a?.creado_en ?? a.creado_en))
     .slice(0, MAX_ACTIVIDAD);
 
   const contenido = filas.length
-    ? filas.map(({ a, u, j, columna: ce }) => { if (ce) return filaColumna(ce, u, ahora); const h = metricas.horasDe(u.id, j.igdb_id); return `
+    ? filas.map(({ a, u, j, columna: ce, lote }) => { if (ce) return filaColumna(ce, u, ahora); if (lote) return filaLote(a, u, lote, ahora); const h = metricas.horasDe(u.id, j.igdb_id); return `
         <a class="actividad-fila" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}">
           ${avatarPerfil(u, 36)}
           <div class="actividad-texto">
@@ -420,6 +431,46 @@ function actividad() {
     </section>`;
 }
 
+
+/** Las filas del mismo lote (cambios en lote) se juntan en una sola: la primera, con todos sus juegos. */
+function juntarLotes(acc, x) {
+  if (!x.a.lote) { acc.push(x); return acc; }
+  const ya = acc.find((y) => y.a.lote === x.a.lote);
+  if (ya) { ya.lote = ya.lote ?? [ya.j]; ya.lote.push(x.j); } else acc.push(x);
+  return acc;
+}
+
+/** Actividad agrupada: "Marcos completó 5 juegos", con sus portadas en abanico. Al tocarla, la lista. */
+function filaLote(a, u, juegos, ahora) {
+  return `
+    <a class="actividad-fila" href="#inicio" data-lote="${esc(a.lote)}">
+      ${avatarPerfil(u, 36)}
+      <div class="actividad-texto">
+        <span class="actividad-frase">${nombrePerfil(u, 'strong')} ${(VERBOS_VARIOS[a.tipo] ?? ((n) => `actualizó ${n} juegos`))(juegos.length)}</span>
+        <span class="actividad-lote-nombres">${esc(juegos.slice(0, 3).map((j) => j.nombre).join(', '))}${juegos.length > 3 ? '…' : ''}</span>
+        <span class="actividad-tiempo" data-fecha="${esc(a.creado_en)}">${tiempoRelativo(a.creado_en, ahora)}</span>
+      </div>
+      <span class="actividad-pila">${juegos.slice(0, 3).map((j) => portada(j, { clase: 'portada-actividad' })).join('')}</span>
+    </a>`;
+}
+
+function abrirLote(lote) {
+  const filas = datos.estado.actividad.filter((x) => x.lote === lote);
+  const u = datos.usuario(filas[0]?.usuario_id);
+  if (!u) return;
+  const juegos = [...new Map(filas.map((x) => [Number(x.juego_id), datos.juegoConocido(x.juego_id)])).values()].filter(Boolean);
+  abrirHoja({
+    titulo: `${u.nombre} ${(VERBOS_VARIOS[filas[0].tipo] ?? ((n) => `actualizó ${n} juegos`))(juegos.length)}`,
+    html: `
+      <div class="elegir-lista">
+        ${juegos.map((j) => `
+          <a class="fila-elegir" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}">
+            ${portada(j, { clase: 'portada-lista' })}
+            <span class="fila-elegir-texto"><strong>${esc(j.nombre)}</strong>${j.anio ? `<small>${j.anio}</small>` : ''}</span>
+          </a>`).join('')}
+      </div>`,
+  });
+}
 
 /** Actividad: "Mateo publicó en El Diario de Mateo: {título}". */
 function filaColumna(e, u, ahora) {

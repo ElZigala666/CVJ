@@ -236,3 +236,14 @@ a, button, label[for], summary, [role="button"], .chip, .pestana { cursor: point
   .perfil { grid-template-columns: 380px minmax(0, 1fr); column-gap: 64px; }
   .inicio { grid-template-columns: minmax(0, 1fr) 420px; }
 }
+
+/* Selección múltiple: la barra lateral se queda; las barras van sobre el contenido */
+body.seleccionando #barra { visibility: visible; }
+.sel-cab { left: var(--ancho-lateral); right: 0; width: auto; max-width: none; transform: none; padding-left: 32px; padding-right: 32px; }
+.sel-barra {
+  left: calc(50% + var(--ancho-lateral) / 2); width: min(560px, calc(100% - var(--ancho-lateral) - 32px));
+  height: auto; padding: 8px; bottom: 16px; border: 1px solid var(--borde); border-radius: 20px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .18);
+}
+.sel-boton { padding: 8px 4px; }
+.sel-boton:hover:not(:disabled) { background: var(--superficie); }

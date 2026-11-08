@@ -268,7 +268,7 @@ function fila(j, i, modo) {
     ? `<button type="button" class="boton-elegir" data-elegir="${j.igdb_id}">Es este</button>`
     : `<button type="button" class="boton-mas" data-valorar="${j.igdb_id}" aria-label="Valorar ${esc(j.nombre)}">${icono('mas', { tam: 20, color: 'var(--acento-texto)' })}</button>`;
   return `
-    <div class="fila-juego">
+    <div class="fila-juego"${modo === 'elegir' ? '' : ` data-sel="${j.igdb_id}" data-sel-tipo="fila"`}>
       ${enlaceFila}
         ${portada(j, { clase: 'portada-lista', prioridad: i < 6 })}
         <div class="fila-info">

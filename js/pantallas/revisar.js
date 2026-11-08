@@ -1,6 +1,6 @@
 // "Revisa tu biblioteca" (#revisar): lo nuevo o dudoso de la última sincronización
 // con PlayStation. Por fila: Confirmar / Cambiar juego / Quitar; selección múltiple
-// con barra inferior; arriba, las colecciones que se podrían agrupar y las parejas de
+// (la común de la app: mantener pulsada una fila) con Confirmar / Quitar / A Probados; arriba, las colecciones que se podrían agrupar y las parejas de
 // "¿Es el mismo juego?".
 import * as datos from '../datos.js';
 import * as metricas from '../metricas.js';
@@ -9,17 +9,15 @@ import { esc, portada, cabeceraAtras, estadoVacio, aviso } from '../ui.js';
 import { volver } from '../navegacion.js';
 import { tarjetaFusion, clicFusion } from '../fusiones.js';
 import { textoHoras } from '../metricas.js';
+import { configurarSeleccion } from '../seleccion.js';
 
 export function render(el) {
   const yo = usuarioActual();
   if (!yo) return;
-  const sel = new Set();
 
   const pintar = () => {
     const bib = metricas.biblioteca(yo.id);
     const items = bib.porRevisar;
-    const claves = new Set(items.map((x) => x.clave));
-    for (const k of [...sel]) if (!claves.has(k)) sel.delete(k);
     const parejas = metricas.parejasFusion(yo.id).slice(0, 6);
     // Abajo, aparte, los de "relleno" (por debajo del umbral): se pueden mandar todos a Probados.
     const principales = items.filter((x) => !x.probado);
@@ -38,7 +36,7 @@ export function render(el) {
               <button type="button" class="boton-principal" data-bloque="todas">Confirmar todas las propuestas (${conPropuesta.length})</button>
               <span class="ajustes-nota">${bajas ? `${bajas} ${bajas === 1 ? 'es' : 'son'} de confianza baja («Revisar»): échales un vistazo antes.` : 'Todas son seguras.'}</span>
             </div>` : ''}
-          <div class="revisar-lista">${principales.map((x) => fila(x, sel.has(x.clave))).join('')}</div>
+          <div class="revisar-lista" data-lista>${principales.map((x) => fila(x)).join('')}</div>
           ${relleno.length ? `
             <div class="revisar-relleno">
               <div class="seccion-cab">
@@ -46,16 +44,13 @@ export function render(el) {
                 <button type="button" class="boton-secundario boton-pequeno" data-bloque="probados">Mandar todos a Probados</button>
               </div>
               <p class="ajustes-nota">Por debajo de tu umbral y sin jugar últimamente. En «Probados» no estorban y no se borran.</p>
-              <div class="revisar-lista">${relleno.map((x) => fila(x, sel.has(x.clave))).join('')}</div>
+              <div class="revisar-lista" data-lista>${relleno.map((x) => fila(x)).join('')}</div>
             </div>` : ''}`
           : estadoVacio({ icono: 'completado', titulo: 'No hay nada que revisar', texto: 'Cuando sincronices juegos nuevos, aparecerán aquí para que los compruebes.' })}
       </div>
       ${items.length ? `
         <div class="barra-accion">
-          ${sel.size
-            ? `<button type="button" class="boton-secundario neutro" data-bloque="quitar">Quitar (${sel.size})</button>
-               <button type="button" class="boton-principal" data-bloque="confirmar">Confirmar (${sel.size})</button>`
-            : `<span class="barra-accion-nota">Marca varios para confirmarlos o quitarlos a la vez.</span>`}
+          <span class="barra-accion-nota">Mantén pulsada una fila para elegir varias y confirmarlas o quitarlas a la vez.</span>
         </div>` : ''}`;
   };
 
@@ -77,11 +72,19 @@ export function render(el) {
     aviso(lista.length === 1 ? 'Quitado de tu biblioteca' : `${lista.length} quitados de tu biblioteca`);
   };
 
-  el.addEventListener('change', (e) => {
-    const c = e.target.closest('[data-sel]');
-    if (!c) return;
-    if (c.checked) sel.add(c.dataset.sel); else sel.delete(c.dataset.sel);
-    pintar();
+  // Selección múltiple: las acciones de esta pantalla (las claves son las de la biblioteca).
+  const elegidos = (claves) => metricas.biblioteca(yo.id).porRevisar.filter((x) => claves.includes(x.clave));
+  configurarSeleccion({
+    soloPropias: true,
+    acciones: [
+      { id: 'confirmar', texto: 'Confirmar', icono: 'completado', hacer: (c) => confirmar(elegidos(c)) },
+      { id: 'probados', texto: 'A Probados', icono: 'probados', hacer: (c) => {
+        const l = elegidos(c);
+        datos.ponerEnMisJuegos(yo.id, l.flatMap((x) => x.titulos), false, aviso);
+        aviso(l.length === 1 ? 'A Probados' : `${l.length} a Probados`);
+      } },
+      { id: 'quitar', texto: 'Quitar', icono: 'ocultar', hacer: (c) => quitar(elegidos(c)) },
+    ],
   });
   el.addEventListener('click', (e) => {
     if (clicFusion(e, yo.id)) return;
@@ -91,16 +94,12 @@ export function render(el) {
     if (b.dataset.confirmar) { const x = porClave(b.dataset.confirmar); if (x) confirmar([x]); return; }
     if (b.dataset.quitar) { const x = porClave(b.dataset.quitar); if (x) quitar([x]); return; }
     const items = metricas.biblioteca(yo.id).porRevisar;
-    const elegidos = items.filter((x) => sel.has(x.clave));
-    if (b.dataset.bloque === 'confirmar') confirmar(elegidos);
-    if (b.dataset.bloque === 'quitar') quitar(elegidos);
     if (b.dataset.bloque === 'todas') confirmar(items);
     if (b.dataset.bloque === 'probados') {
       const relleno = items.filter((x) => x.probado);
       datos.ponerEnMisJuegos(yo.id, relleno.flatMap((x) => x.titulos), false, aviso);
       aviso(`${relleno.length} a Probados`);
     }
-    sel.clear();
   });
 
   const desuscribir = datos.suscribir(pintar);
@@ -108,7 +107,7 @@ export function render(el) {
   return desuscribir;
 }
 
-function fila(x, marcada) {
+function fila(x) {
   const f = x.filas[0];
   const r = x.revision;
   const seguro = r.seguro;
@@ -127,8 +126,7 @@ function fila(x, marcada) {
   }
   const sinNada = !x.coleccion && !x.juego && !r.propuesta;
   return `
-    <div class="revisar-fila${marcada ? ' marcada' : ''}">
-      <label class="revisar-check"><input type="checkbox" data-sel="${esc(x.clave)}"${marcada ? ' checked' : ''}><span class="sr">Seleccionar ${esc(f.nombre_psn)}</span></label>
+    <div class="revisar-fila" data-sel="${esc(x.clave)}" data-sel-tipo="fila">
       <div class="revisar-cuerpo">
         <div class="revisar-psn">
           <span class="revisar-img" style="--bloque:var(--superficie-2)">${f.imagen_psn ? `<img src="${esc(f.imagen_psn)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : ''}</span>

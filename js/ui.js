@@ -183,9 +183,25 @@ export function aviso(mensaje, ms = 2600) {
   const el = document.getElementById('aviso');
   if (!el) return;
   el.textContent = mensaje;
+  el.classList.remove('con-accion');
   el.classList.add('visible');
   clearTimeout(temporizadorAviso);
   temporizadorAviso = setTimeout(() => el.classList.remove('visible'), ms);
+}
+
+/** Aviso con un botón "Deshacer" unos segundos (cambios en lote de la selección múltiple). */
+export function avisoDeshacer(mensaje, deshacer, ms = 6000) {
+  const el = document.getElementById('aviso');
+  if (!el) return;
+  el.innerHTML = `<span>${esc(mensaje)}</span><button type="button" class="aviso-deshacer">Deshacer</button>`;
+  el.classList.add('visible', 'con-accion');
+  clearTimeout(temporizadorAviso);
+  temporizadorAviso = setTimeout(() => el.classList.remove('visible', 'con-accion'), ms);
+  el.querySelector('button').addEventListener('click', async () => {
+    clearTimeout(temporizadorAviso);
+    el.classList.remove('visible', 'con-accion');
+    if (await deshacer()) aviso('Deshecho');
+  }, { once: true });
 }
 
 // ---------------------------------------------------------------------------

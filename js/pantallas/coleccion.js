@@ -158,7 +158,7 @@ export function render(el, { params }) {
           const mia = yo ? datos.miValoracion(yo.id, gid) : null;
           const sub = [j.anio, h ? `${metricas.textoHoras(h)} tuyas` : '', mia?.nota != null ? `tu nota ${String(mia.nota).replace('.', ',')}` : ''].filter(Boolean).join(' · ');
           return `
-            <li class="coleccion-juego">
+            <li class="coleccion-juego" data-sel="${j.igdb_id}" data-sel-tipo="fila">
               <a href="#juego/${j.igdb_id}" class="coleccion-juego-enlace" data-precarga="${esc(j.cover_id ?? '')}">
                 ${portada(j, { clase: 'portada-lista' })}
                 <span class="coleccion-juego-texto"><strong>${esc(j.nombre)}</strong>${sub ? `<small>${esc(sub)}</small>` : ''}</span>

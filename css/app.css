@@ -1321,7 +1321,7 @@ body.sin-barra #aviso-version { bottom: calc(96px + env(safe-area-inset-bottom))
 .etiqueta-confianza.seguro { background: var(--acento-suave); color: var(--acento-texto); }
 .etiqueta-confianza.revisar { background: color-mix(in srgb, var(--peligro) 14%, var(--fondo)); color: var(--peligro); }
 
-/* Barra inferior de acciones (Revisar y selección en la biblioteca) */
+/* Barra inferior de acciones (Revisar) */
 .barra-accion {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); z-index: 20;
   width: 100%; max-width: var(--ancho-max);
@@ -1349,15 +1349,8 @@ body.sin-barra #aviso-version { bottom: calc(96px + env(safe-area-inset-bottom))
 .bloque-grupo .rejilla { margin-top: 10px; }
 .bloque-grupo > .enlace-discreto { display: block; margin-top: 8px; }
 
-/* Selección múltiple en la biblioteca */
+/* "Seleccionar" de la biblioteca (entra en la selección múltiple) */
 .bib-seleccionar { display: flex; justify-content: flex-end; margin-top: 8px; }
-.rejilla.seleccionando .bib-celda .rejilla-item { opacity: .75; transition: opacity .1s; }
-.rejilla.seleccionando .bib-celda.marcada .rejilla-item { opacity: 1; box-shadow: 0 0 0 3px var(--acento); }
-.bib-casilla {
-  position: absolute; top: 6px; right: 6px; z-index: 4; width: 26px; height: 26px; border-radius: 50%;
-  border: 2px solid #FFFFFF; background: rgba(0, 0, 0, 0.45); display: flex; align-items: center; justify-content: center;
-}
-.bib-celda.marcada .bib-casilla { border-color: transparent; background: none; }
 
 /* Ficha: relaciones de IGDB y versiones fusionadas */
 .ficha-versiones { display: flex; flex-direction: column; gap: 10px; padding: 0 20px; }
@@ -1773,3 +1766,84 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 .columna-vista { display: flex; align-items: center; gap: 14px; padding: 6px 0 4px; }
 .columna-vista-nombre { font: 800 22px/1.15 var(--fuente-lectura); }
 .columna-logo-fila { display: flex; align-items: center; gap: 14px; }
+
+/* ===========================================================================
+   Selección múltiple (js/seleccion.js): mantener pulsado una portada o una fila
+   =========================================================================== */
+[data-sel] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+body.seleccionando [data-sel] { position: relative; cursor: pointer; }
+.sel-check {
+  position: absolute; top: 6px; right: 6px; z-index: 5; width: 26px; height: 26px; border-radius: 50%;
+  border: 2px solid #FFFFFF; background: rgba(0, 0, 0, 0.45); display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.sel-check svg { display: block; }
+.sel-marcado > .sel-check { border-color: transparent; background: var(--sobre-acento); }
+/* Portadas: la marcada se encoge un poco y lleva el borde del acento */
+body.seleccionando [data-sel]:not([data-sel-tipo]) { transition: transform .12s var(--curva); }
+.sel-marcado:not([data-sel-tipo]) { transform: scale(.93); }
+.sel-marcado:not([data-sel-tipo]) .portada { box-shadow: 0 0 0 3px var(--acento); }
+/* Filas: la casilla a la derecha y el fondo del acento */
+body.seleccionando [data-sel-tipo="fila"] { padding-right: 48px; border-radius: 14px; }
+body.seleccionando [data-sel-tipo="fila"] > .sel-check { top: 50%; right: 12px; transform: translateY(-50%); border-color: var(--texto-2); background: var(--fondo); }
+body.seleccionando [data-sel-tipo="fila"].sel-marcado > .sel-check { border-color: transparent; background: var(--sobre-acento); }
+.sel-marcado[data-sel-tipo="fila"] { background: var(--acento-suave); }
+body.seleccionando [data-sel-tipo="fila"] .boton-mas,
+body.seleccionando .coleccion-juego-acciones, body.seleccionando .saga-juego > .boton-cuadrado { display: none; }
+body.seleccionando .barra-accion { display: none; }
+body.seleccionando [data-sel] .bib-menu { display: none; }
+body.seleccionando #barra { visibility: hidden; }
+
+.sel-cab {
+  position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 25;
+  width: 100%; max-width: var(--ancho-max);
+  display: flex; align-items: center; gap: 12px;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px;
+  background: var(--fondo); border-bottom: 1px solid var(--borde);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .08);
+}
+.sel-cuenta { flex: 1; min-width: 0; font-size: 17px; font-weight: 700; color: var(--texto); }
+.sel-todo { flex: 0 0 auto; font-weight: 600; }
+.sel-barra {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); z-index: 25;
+  width: 100%; max-width: var(--ancho-max);
+  height: calc(var(--alto-barra) + env(safe-area-inset-bottom));
+  padding: 6px 8px calc(18px + env(safe-area-inset-bottom));
+  display: flex; gap: 4px;
+  background: var(--fondo); border-top: 1px solid var(--borde);
+}
+.sel-boton {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  border: 0; border-radius: 14px; background: none; color: var(--texto); font-size: 12px; font-weight: 600;
+}
+.sel-boton svg { color: var(--acento); }
+.sel-boton:active { background: var(--superficie); }
+.sel-boton:disabled { opacity: .4; }
+
+/* Aviso con "Deshacer" */
+#aviso.con-accion { pointer-events: auto; display: flex; align-items: center; gap: 14px; padding-right: 8px; }
+.aviso-deshacer {
+  flex: 0 0 auto; border: 0; background: none; color: inherit; font: inherit; font-weight: 700;
+  padding: 4px 8px; border-radius: 8px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+}
+
+/* Hojas de la selección */
+.sel-confirmar { display: flex; flex-direction: column; gap: 14px; }
+.sel-confirmar p { margin: 0; font-size: 15px; line-height: 1.45; color: var(--texto); }
+.sel-confirmar-botones { display: flex; gap: 10px; }
+.sel-confirmar-botones > * { flex: 1; height: 50px; }
+.sel-plataformas { display: flex; flex-direction: column; gap: 10px; }
+.sel-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.menu-seccion { margin: 14px 0 2px; padding: 0 6px; }
+.menu-opciones > .menu-seccion:first-child { margin-top: 0; }
+
+/* Valorar uno a uno: Saltar y Guardar */
+.valorar-serie { display: flex; gap: 10px; }
+.valorar-serie > .boton-secundario { flex: 0 0 34%; height: 56px; border-radius: var(--r-xl); }
+.valorar-serie > .boton-principal { flex: 1; }
+
+/* Actividad agrupada ("Marcos completó 5 juegos") */
+.actividad-lote-nombres { font-size: 13px; color: var(--texto-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.actividad-pila { display: flex; flex: 0 0 auto; }
+.actividad-pila .portada { box-shadow: 0 0 0 2px var(--fondo); }
+.actividad-pila .portada + .portada { margin-left: -30px; }

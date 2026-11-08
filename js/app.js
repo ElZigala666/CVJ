@@ -26,9 +26,11 @@ import * as xbox from './xbox.js';
 import * as steam from './steam.js';
 import { anotarNavegacion, corregirRuta } from './navegacion.js';
 import { olvidarGaleria } from './galeria.js';
+import { iniciarSeleccion, alCambiarPantalla } from './seleccion.js';
 
 const vista = document.getElementById('vista');
 const barra = document.getElementById('barra');
+iniciarSeleccion(vista);
 
 const RUTAS = {
   inicio,
@@ -147,6 +149,7 @@ function leerRuta() {
 function montar(modulo, contexto, conBarra, scroll = 0) {
   try { limpiar?.(); } catch (e) { console.error(e); }
   limpiar = null;
+  alCambiarPantalla();
 
   const pantalla = document.createElement('div');
   pantalla.className = 'pantalla';

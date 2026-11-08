@@ -19,6 +19,7 @@ import { volver, rutaPerfil } from '../navegacion.js';
 import { abrirAjustes } from '../ajustes.js';
 import { abrirMenuJuego, abrirMenuColeccion } from '../menu-juego.js';
 import { logoColumna } from '../columnas-ui.js';
+import { entrarSeleccion } from '../seleccion.js';
 
 const PESTANAS = [
   { id: 'jugando', nombre: 'Jugando' },
@@ -91,8 +92,7 @@ function renderPerfil(el, id, alSalir) {
   const esMio = id === yo?.id;
   const fHist = filtroDe(`${id}:hist`, 'nota');
   const fBib = filtroDe(`${id}:bib`, 'horas');
-  const vista = { sinIdentificar: false, probados: false, ocultos: false, seleccionando: false, abiertos: new Set() };
-  const seleccion = new Set(); // claves de la biblioteca elegidas para ocultar
+  const vista = { sinIdentificar: false, probados: false, ocultos: false, abiertos: new Set() };
 
   const pintar = () => {
     const u = datos.usuario(id) ?? (esMio ? yo : null);
@@ -296,9 +296,9 @@ function renderPerfil(el, id, alSalir) {
       ? bloqueGrupo(x.clave, x.coleccion.juegos, x.coleccion.juego?.nombre ?? x.nombre,
         `${x.coleccion.juegos.length} juegos${x.horas ? ` · ${textoHoras(x.horas)}` : ''}`,
         x.coleccion.juegos.map((j, k) => itemDeColeccion(j, k, esMio, id)).join(''))
-      : itemBiblioteca(x, i, esMio, vista.seleccionando, seleccion.has(x.clave)));
+      : itemBiblioteca(x, i, esMio));
     const lista2 = metricas.agruparColecciones(id, lista, (x) => x.igdbId);
-    return `<div class="rejilla${vista.seleccionando ? ' seleccionando' : ''}">${lista2.map((x, i) => (x.esColeccion
+    return `<div class="rejilla">${lista2.map((x, i) => (x.esColeccion
       ? itemColeccionBib(x, i, esMio)
       : item(x, i))).join('')}</div>`;
   };
@@ -326,14 +326,9 @@ function renderPerfil(el, id, alSalir) {
       ${barraFiltro('bib', fBib)}
       ${esMio && bib.identificados.length ? `
         <div class="bib-seleccionar">
-          <button type="button" class="enlace-discreto" data-accion="seleccionar">${vista.seleccionando ? 'Cancelar selección' : 'Seleccionar'}</button>
+          <button type="button" class="enlace-discreto" data-accion="seleccionar">Seleccionar</button>
         </div>` : ''}
       <div data-ref="rejilla-bib" data-lista>${rejillaBiblioteca(bib)}</div>
-      ${vista.seleccionando ? `
-        <div class="barra-accion barra-flotante">
-          <button type="button" class="boton-secundario neutro" data-accion="seleccionar">Cancelar</button>
-          <button type="button" class="boton-principal" data-accion="ocultar-seleccion"${seleccion.size ? '' : ' disabled'}>Ocultar (${seleccion.size})</button>
-        </div>` : ''}
       ${bib.probados.length ? `
         <details class="bib-plegable"${vista.probados ? ' open' : ''} data-plegable="probados">
           <summary>Probados (${bib.probados.length})</summary>
@@ -380,24 +375,7 @@ function renderPerfil(el, id, alSalir) {
     }
     abrirMenuJuego({ uid: yo.id, igdbId: x.igdbId, bib: x });
   };
-  let largo = null;
-  let largaHecha = false;
-  el.addEventListener('pointerdown', (e) => {
-    const c = e.target.closest('[data-bib-celda]');
-    if (!c || !esMio || vista.seleccionando) return;
-    largaHecha = false;
-    const x0 = e.clientX, y0 = e.clientY;
-    largo = { x0, y0, t: setTimeout(() => { largaHecha = true; abrirMenuBib(c.dataset.bibCelda); }, 550) };
-  });
-  const cancelarLargo = (e) => {
-    if (!largo) return;
-    if (e.type === 'pointermove' && Math.hypot(e.clientX - largo.x0, e.clientY - largo.y0) < 10) return;
-    clearTimeout(largo.t);
-    largo = null;
-  };
-  el.addEventListener('pointermove', cancelarLargo);
-  el.addEventListener('pointerup', cancelarLargo);
-  el.addEventListener('pointercancel', cancelarLargo);
+  // Mantener pulsado = selección múltiple (seleccion.js). El menú: su botón (⋮) o clic derecho.
   el.addEventListener('contextmenu', (e) => {
     // Historial (escritorio): clic derecho = el menú de los tres puntos.
     const delHistorial = !e.target.closest('[data-bib-celda]') && e.target.closest('.bib-celda')?.querySelector('[data-menu-item]');
@@ -405,8 +383,7 @@ function renderPerfil(el, id, alSalir) {
     const c = e.target.closest('[data-bib-celda]');
     if (!c || !esMio) return;
     e.preventDefault();
-    if (largo) { clearTimeout(largo.t); largo = null; }
-    if (!largaHecha) { largaHecha = true; abrirMenuBib(c.dataset.bibCelda); }
+    abrirMenuBib(c.dataset.bibCelda);
   });
 
   // ----- Eventos ------------------------------------------------------------
@@ -447,27 +424,12 @@ function renderPerfil(el, id, alSalir) {
   };
 
   el.addEventListener('click', (e) => {
-    // Modo selección: tocar una portada la marca o desmarca.
-    const celdaSel = vista.seleccionando && e.target.closest('[data-bib-celda]');
-    if (celdaSel) {
-      e.preventDefault();
-      const k = celdaSel.dataset.bibCelda;
-      if (seleccion.has(k)) seleccion.delete(k); else seleccion.add(k);
-      pintarBiblioteca(metricas.biblioteca(id));
-      return;
-    }
     const menuHist = e.target.closest('[data-menu-item]');
     if (menuHist) {
       e.preventDefault();
       const k = menuHist.dataset.menuItem;
       if (k.startsWith('coleccion:')) abrirMenuColeccion({ uid: yo.id, coleccionId: k.slice(10) });
       else abrirMenuJuego({ uid: yo.id, igdbId: Number(k) });
-      return;
-    }
-    if (largaHecha && e.target.closest('[data-bib-celda]')) {
-      // El clic que llega al soltar una pulsación larga no abre nada.
-      e.preventDefault();
-      largaHecha = false;
       return;
     }
     const menu = e.target.closest('[data-bib-menu]');
@@ -488,18 +450,7 @@ function renderPerfil(el, id, alSalir) {
     if (b.dataset.accion === 'vincular-psn') { abrirAjustes(alSalir, { psn: true }); return; }
     if (b.dataset.accion === 'ver-ocultos') { vista.ocultos = !vista.ocultos; pintarBiblioteca(metricas.biblioteca(id)); return; }
     if (b.dataset.accion === 'seleccionar') {
-      vista.seleccionando = !vista.seleccionando;
-      seleccion.clear();
-      pintarBiblioteca(metricas.biblioteca(id));
-      return;
-    }
-    if (b.dataset.accion === 'ocultar-seleccion' && seleccion.size) {
-      const bib = metricas.biblioteca(id);
-      const elegidos = bib.juegos.filter((x) => seleccion.has(x.clave));
-      datos.ocultarBiblioteca(yo.id, elegidos.flatMap((x) => x.titulos), true, aviso);
-      aviso(elegidos.length === 1 ? 'Oculto de tu biblioteca' : `${elegidos.length} ocultos de tu biblioteca`);
-      vista.seleccionando = false;
-      seleccion.clear();
+      entrarSeleccion(el.querySelector('[data-ref="rejilla-bib"]'), false);
       return;
     }
     if (b.dataset.pestana) {
@@ -573,14 +524,14 @@ function itemDeColeccion(j, i, esMio, uid) {
     ? `href="#juego/${j.igdb_id}" data-valorar-psn="${j.igdb_id}"`
     : `href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}"`;
   return `
-    <a class="rejilla-item" ${attrs} aria-label="${esc(j.nombre)}">
+    <a class="rejilla-item" ${attrs} data-sel="${j.igdb_id}" aria-label="${esc(j.nombre)}">
       ${portada(j, { clase: 'portada-rejilla', titulo: 'arriba', prioridad: i < 3 })}
       ${n ? `<span class="rejilla-nota">${n}${chipLetra(notaLetra(v.nota), 'mini')}</span>` : ''}
       ${esMio && !v ? '<span class="rejilla-sin-valorar">Sin valorar</span>' : ''}
     </a>`;
 }
 
-function itemBiblioteca(x, i, esMio, seleccionando = false, marcada = false) {
+function itemBiblioteca(x, i, esMio) {
   const horas = textoHoras(x.horas);
   const v = x.valoracion;
   const n = v?.nota != null ? formatearNota(v.nota) : null;
@@ -596,15 +547,13 @@ function itemBiblioteca(x, i, esMio, seleccionando = false, marcada = false) {
     : `href="#juego/${x.igdbId}" data-precarga="${esc(x.juego.cover_id ?? '')}"`;
   const desglose = metricas.textoDesglose(x);
   return `
-    <div class="bib-celda${marcada ? ' marcada' : ''}" data-bib-celda="${esc(x.clave)}"${desglose ? ` title="${esc(desglose)}"` : ''}>
+    <div class="bib-celda" data-bib-celda="${esc(x.clave)}" data-sel="${x.igdbId}"${desglose ? ` title="${esc(desglose)}"` : ''}>
       <a class="rejilla-item" ${attrs} aria-label="${esc(x.juego.nombre)}${horas ? `, ${horas}` : ''}">
         ${portada(x.juego, { clase: 'portada-rejilla', titulo: 'arriba', prioridad: i < 6 })}
         ${pie}
       </a>
       ${x.desglose?.length > 1 ? `<span class="rejilla-plataformas">${esc(x.desglose.map((d) => `${d.plataforma.replace('Xbox Series', 'Series').replace('Xbox One', 'One')} ${textoHoras(d.horas)}`).join(' · '))}</span>` : ''}
-      ${seleccionando
-        ? `<span class="bib-casilla" aria-hidden="true">${marcada ? icono('completado', { tam: 26, color: 'var(--acento)', trazo: '#FFFFFF' }) : ''}</span>`
-        : esMio ? `<button type="button" class="bib-menu" data-bib-menu="${esc(x.clave)}" aria-label="Opciones de ${esc(x.nombre)}">${icono('opciones', { tam: 18, color: '#FFFFFF' })}</button>` : ''}
+      ${esMio ? `<button type="button" class="bib-menu" data-bib-menu="${esc(x.clave)}" aria-label="Opciones de ${esc(x.nombre)}">${icono('opciones', { tam: 18, color: '#FFFFFF' })}</button>` : ''}
     </div>`;
 }
 
@@ -644,7 +593,7 @@ function itemRejilla(v, i, horas, conMenu = false) {
   const h = horas !== undefined ? textoHoras(horas) : '';
   const clave = v.esColeccion ? `coleccion:${v.coleccion_id}` : String(j.igdb_id);
   return `
-    <div class="bib-celda">
+    <div class="bib-celda"${v.esColeccion ? '' : ` data-sel="${j.igdb_id}"`}>
       <a class="rejilla-item" href="${metricas.rutaDe(j)}" data-precarga="${esc(j.cover_id ?? '')}" aria-label="${esc(j.nombre)}${v.esColeccion ? ' (coleccion)' : ''}${n ? `, ${n}` : ''}${h ? `, ${h}` : ''}">
         ${portada(j, { clase: 'portada-rejilla', titulo: 'arriba', prioridad: i < 6 })}
         ${v.esColeccion ? `<span class="sello-coleccion">Colección · ${datos.juegosDeColeccion(v.coleccion_id).length}</span>` : ''}
@@ -705,7 +654,7 @@ function renderTiers(el, id) {
                     if (!j) return '';
                     const h = v.esColeccion ? metricas.horasColeccion(id, v.coleccion_id).total : metricas.horasDe(id, v.juego_id);
                     return `
-                      <a class="tier-item${v.esColeccion ? ' es-coleccion' : ''}" href="${metricas.rutaDe(j)}" data-precarga="${esc(j.cover_id ?? '')}" aria-label="${esc(j.nombre)}${v.esColeccion ? ' (coleccion)' : ''}, ${formatearNota(v.nota)}">
+                      <a class="tier-item${v.esColeccion ? ' es-coleccion' : ''}"${v.esColeccion ? '' : ` data-sel="${j.igdb_id}"`} href="${metricas.rutaDe(j)}" data-precarga="${esc(j.cover_id ?? '')}" aria-label="${esc(j.nombre)}${v.esColeccion ? ' (coleccion)' : ''}, ${formatearNota(v.nota)}">
                         ${portada(j, { clase: 'portada-tier', titulo: 'arriba', prioridad: n++ < 12 })}
                         ${v.esColeccion ? '<span class="sello-coleccion mini">Colección</span>' : ''}
                         <span class="tier-nota">${formatearNota(v.nota)}${h ? `<small class="tier-horas">${esc(textoHoras(h))}</small>` : ''}</span>

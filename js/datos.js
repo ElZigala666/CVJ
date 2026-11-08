@@ -1169,6 +1169,244 @@ export function quitarValoracion(usuarioId, igdbId, onError) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Cambios en lote (selección múltiple): pocas peticiones para todos los juegos
+// y una función para deshacerlo todo de golpe.
+// Cada función devuelve { ok: Promise<boolean>, deshacer: () => Promise<boolean> }.
+// ---------------------------------------------------------------------------
+const sinColumnasViejas = ({ juego_origen: _o, horas: _h, plataforma: _p, ...fila }) => fila;
+
+/** Mi fila de verdad (no la "efectiva") de un juego, en cualquiera de sus versiones. */
+function filaValoracion(usuarioId, igdbId) {
+  const v = miValoracion(usuarioId, igdbId);
+  return v ? estado.valoraciones.find((x) => x.id === v.id) ?? null : null;
+}
+
+/**
+ * Cambia mis valoraciones de varios juegos con una sola escritura.
+ * @param {(antes: object|null, id: number) => object|null} cambiar  devuelve los campos
+ *   nuevos (o null para no tocar ese juego). Si no había valoración y devuelve algo, se crea.
+ */
+export function valoracionesEnLote(usuarioId, igdbIds, cambiar, onError) {
+  const ahora = new Date().toISOString();
+  const ids = [...new Set(igdbIds.map((x) => canonico(x)))];
+  const antes = [];
+  const nuevas = [];
+  const creadas = [];
+  for (const id of ids) {
+    const previa = filaValoracion(usuarioId, id);
+    const cambios = cambiar(previa, id);
+    if (!cambios) continue;
+    const base = previa ?? {
+      id: crypto.randomUUID(), usuario_id: usuarioId, juego_id: id, estado: 'pendiente', nota: null, recomendado: null,
+      plataformas: null, resena: null, cuenta_ranking: !esOnline(id), creado_en: ahora,
+    };
+    const fila = { ...base, ...cambios, actualizado_en: ahora };
+    if (fila.estado === 'pendiente') { fila.nota = null; fila.recomendado = null; }
+    if (Array.isArray(fila.plataformas) && !fila.plataformas.length) fila.plataformas = null;
+    nuevas.push(fila);
+    if (previa) antes.push(previa); else creadas.push(fila.id);
+  }
+  // Actividad: los cambios de estado. Si son varios, una sola entrada agrupada (mismo "lote").
+  const conCambio = nuevas.filter((f) => !antes.some((a) => a.id === f.id && a.estado === f.estado));
+  const lote = conCambio.length > 1 ? crypto.randomUUID() : null;
+  const acts = conCambio.map((f) => ({
+    id: crypto.randomUUID(), usuario_id: usuarioId, juego_id: canonico(f.juego_id), tipo: TIPO_POR_ESTADO[f.estado],
+    nota: f.nota, recomendado: f.recomendado, texto: null, creado_en: ahora, ...(lote ? { lote } : {}),
+  })).filter((a) => a.tipo);
+  const faltan = juegosQueFaltan(creadas.map((cid) => Number(nuevas.find((f) => f.id === cid).juego_id)));
+  const tocadas = new Set(nuevas.map((f) => f.id));
+  const idsActs = new Set(acts.map((a) => a.id));
+
+  if (!nuevas.length) return { ok: Promise.resolve(true), deshacer: () => Promise.resolve(true), cuantos: 0 };
+  const ok = escribirOptimista(
+    (s) => {
+      if (faltan.length) s.juegos = [...s.juegos, ...faltan.map(filaJuego)];
+      s.valoraciones = [...s.valoraciones.filter((x) => !tocadas.has(x.id)), ...nuevas];
+      if (acts.length) s.actividad = [...acts, ...s.actividad];
+    },
+    async (sb) => {
+      if (faltan.length) comprobar(await sb.from('juegos').upsert(faltan.map(filaJuego), { onConflict: 'igdb_id', ignoreDuplicates: true }));
+      comprobar(await sb.from('valoraciones').upsert(nuevas.map(sinColumnasViejas), { onConflict: 'usuario_id,juego_id' }));
+      if (acts.length) comprobar(await sb.from('actividad').insert(acts));
+    },
+    onError,
+    'No se han podido guardar los cambios. Se han deshecho.',
+  );
+  const deshacer = () => escribirOptimista(
+    (s) => {
+      s.valoraciones = [...s.valoraciones.filter((x) => !tocadas.has(x.id)), ...antes];
+      s.actividad = s.actividad.filter((x) => !idsActs.has(x.id));
+    },
+    async (sb) => {
+      if (antes.length) comprobar(await sb.from('valoraciones').upsert(antes.map(sinColumnasViejas), { onConflict: 'usuario_id,juego_id' }));
+      if (creadas.length) comprobar(await sb.from('valoraciones').delete().in('id', creadas));
+      if (idsActs.size) comprobar(await sb.from('actividad').delete().in('id', [...idsActs]));
+    },
+    onError,
+    'No se ha podido deshacer.',
+  );
+  return { ok, deshacer, cuantos: nuevas.length };
+}
+
+/** Lo que se guarda al ocultar o mostrar algo de la biblioteca. */
+function cambiosOcultar(oculto) {
+  const con006 = (estado.biblioteca ?? []).some((b) => 'oculto_usuario' in b);
+  return con006 ? { oculto, oculto_usuario: oculto, por_revisar: false } : { oculto };
+}
+
+/**
+ * Cambia filas de mi biblioteca (Probados / Mis juegos, ocultar / mostrar) y guarda
+ * cómo estaban para deshacerlo (agrupadas por valor: una petición por cada combinación).
+ */
+export function bibliotecaEnLote(usuarioId, psnTitleIds, que, onError) {
+  const ids = new Set(psnTitleIds);
+  const cambios = que === 'ocultar' ? cambiosOcultar(true) : que === 'mostrar' ? cambiosOcultar(false)
+    : { en_mis_juegos: que === 'mis', por_revisar: false };
+  const campos = Object.keys(cambios);
+  const mias = (estado.biblioteca ?? []).filter((b) => b.usuario_id === usuarioId && ids.has(b.psn_title_id));
+  const previos = new Map(); // JSON de los valores anteriores → títulos
+  for (const b of mias) {
+    const v = JSON.stringify(Object.fromEntries(campos.map((c) => [c, b[c] ?? null])));
+    if (!previos.has(v)) previos.set(v, new Set());
+    previos.get(v).add(b.psn_title_id);
+  }
+  const ok = escribirOptimista(
+    (s) => { s.biblioteca = (s.biblioteca ?? []).map((b) => (b.usuario_id === usuarioId && ids.has(b.psn_title_id) ? { ...b, ...cambios } : b)); },
+    async (sb) => { comprobar(await sb.from('biblioteca').update(cambios).eq('usuario_id', usuarioId).in('psn_title_id', [...ids])); },
+    onError,
+    'No se ha podido guardar. Se ha deshecho el cambio.',
+  );
+  const deshacer = () => escribirOptimista(
+    (s) => {
+      s.biblioteca = (s.biblioteca ?? []).map((b) => {
+        if (b.usuario_id !== usuarioId || !ids.has(b.psn_title_id)) return b;
+        for (const [v, tits] of previos) if (tits.has(b.psn_title_id)) return { ...b, ...JSON.parse(v) };
+        return b;
+      });
+    },
+    async (sb) => {
+      for (const [v, tits] of previos) comprobar(await sb.from('biblioteca').update(JSON.parse(v)).eq('usuario_id', usuarioId).in('psn_title_id', [...tits]));
+    },
+    onError,
+    'No se ha podido deshacer.',
+  );
+  return { ok, deshacer };
+}
+
+/** Admin: marcar o desmarcar varios juegos como "sin final" (una petición). */
+export function marcarOnlineEnLote(igdbIds, valor, onError) {
+  const ids = [...new Set(igdbIds.map((x) => canonico(x)))].filter((id) => juego(id));
+  const cambios = { es_online: !!valor, es_online_manual: !!valor };
+  const previos = new Map();
+  for (const id of ids) {
+    const j = juego(id);
+    const v = JSON.stringify({ es_online: j.es_online ?? false, es_online_manual: j.es_online_manual ?? null });
+    if (!previos.has(v)) previos.set(v, []);
+    previos.get(v).push(id);
+  }
+  const ok = escribirOptimista(
+    (s) => { s.juegos = s.juegos.map((x) => (ids.includes(Number(x.igdb_id)) ? { ...x, ...cambios } : x)); },
+    async (sb) => { comprobar(await sb.from('juegos').update(cambios).in('igdb_id', ids)); },
+    onError,
+    'No se ha podido cambiar. Se ha deshecho el cambio.',
+  );
+  const deshacer = () => escribirOptimista(
+    (s) => {
+      s.juegos = s.juegos.map((x) => {
+        for (const [v, lista] of previos) if (lista.includes(Number(x.igdb_id))) return { ...x, ...JSON.parse(v) };
+        return x;
+      });
+    },
+    async (sb) => { for (const [v, lista] of previos) comprobar(await sb.from('juegos').update(JSON.parse(v)).in('igdb_id', lista)); },
+    onError,
+    'No se ha podido deshacer.',
+  );
+  return { ok, deshacer, cuantos: ids.length };
+}
+
+/** Filas de colecciones_juegos de esos juegos (y sus versiones), para deshacer. */
+const filasColeccion = (ids) => {
+  const todos = new Set(ids.flatMap((id) => [id, ...aliasDe(id)]));
+  return (estado.coleccionesJuegos ?? []).filter((x) => todos.has(Number(x.juego_id)));
+};
+const restaurarColecciones = (ids, antes, onError) => {
+  const todos = [...new Set(ids.flatMap((id) => [id, ...aliasDe(id)]))];
+  return escribirOptimista(
+    (s) => { s.coleccionesJuegos = [...(s.coleccionesJuegos ?? []).filter((x) => !todos.includes(Number(x.juego_id))), ...antes]; },
+    async (sb) => {
+      comprobar(await sb.from('colecciones_juegos').delete().in('juego_id', todos));
+      if (antes.length) comprobar(await sb.from('colecciones_juegos').upsert(antes, { onConflict: 'juego_id' }));
+    },
+    onError,
+    'No se ha podido deshacer.',
+  );
+};
+
+/** Admin: varios juegos a una colección (sacándolos de la que tuvieran). */
+export function anadirAColeccionEnLote(coleccionId, igdbIds, onError) {
+  const ids = [...new Set(igdbIds.map((x) => canonico(x)))];
+  const antes = filasColeccion(ids);
+  return { ok: anadirAColeccion(coleccionId, ids, onError), deshacer: () => restaurarColecciones(ids, antes, onError) };
+}
+
+/** Admin: sacar varios juegos de su colección (una petición). */
+export function quitarDeColeccionEnLote(igdbIds, onError) {
+  const ids = [...new Set(igdbIds.map((x) => canonico(x)))];
+  const antes = filasColeccion(ids);
+  const todos = [...new Set(antes.map((x) => Number(x.juego_id)))];
+  const ok = !todos.length ? Promise.resolve(true) : escribirOptimista(
+    (s) => { s.coleccionesJuegos = (s.coleccionesJuegos ?? []).filter((x) => !todos.includes(Number(x.juego_id))); },
+    async (sb) => { comprobar(await sb.from('colecciones_juegos').delete().in('juego_id', todos)); },
+    onError,
+    'No se ha podido quitar de la colección. Se ha deshecho el cambio.',
+  );
+  return { ok, deshacer: () => restaurarColecciones(ids, antes, onError), cuantos: todos.length };
+}
+
+/** Filas de sagas_juegos de una saga para esos juegos (y sus versiones). */
+const filasSaga = (sagaId, ids) => {
+  const todos = new Set(ids.flatMap((id) => [id, ...aliasDe(id)]));
+  return (estado.sagasJuegos ?? []).filter((x) => x.saga_id === sagaId && todos.has(Number(x.juego_id)));
+};
+const restaurarSaga = (sagaId, ids, antes, onError) => {
+  const todos = [...new Set(ids.flatMap((id) => [id, ...aliasDe(id)]))];
+  const nuevas = todos.filter((j) => !antes.some((x) => Number(x.juego_id) === j));
+  return escribirOptimista(
+    (s) => { s.sagasJuegos = [...(s.sagasJuegos ?? []).filter((x) => !(x.saga_id === sagaId && todos.includes(Number(x.juego_id)))), ...antes]; },
+    async (sb) => {
+      if (antes.length) comprobar(await sb.from('sagas_juegos').upsert(antes, { onConflict: 'saga_id,juego_id' }));
+      if (nuevas.length) comprobar(await sb.from('sagas_juegos').delete().eq('saga_id', sagaId).in('juego_id', nuevas));
+    },
+    onError,
+    'No se ha podido deshacer.',
+  );
+};
+
+/** Admin: varios juegos a una saga. */
+export function anadirASagaEnLote(sagaId, igdbIds, onError) {
+  const ids = [...new Set(igdbIds.map((x) => canonico(x)))];
+  const antes = filasSaga(sagaId, ids);
+  return { ok: anadirASaga(sagaId, ids, onError), deshacer: () => restaurarSaga(sagaId, ids, antes, onError) };
+}
+
+/** Admin: quitar varios juegos de una saga (IGDB no los vuelve a poner). */
+export function quitarDeSagaEnLote(sagaId, igdbIds, onError) {
+  const ids = [...new Set(igdbIds.map((x) => canonico(x)))];
+  const antes = filasSaga(sagaId, ids);
+  const filas = antes.map((x) => ({ ...x, excluido: true, manual: false }));
+  const ok = !filas.length ? Promise.resolve(true) : escribirOptimista(
+    (s) => {
+      const quitar = new Set(filas.map((x) => Number(x.juego_id)));
+      s.sagasJuegos = (s.sagasJuegos ?? []).map((x) => (x.saga_id === sagaId && quitar.has(Number(x.juego_id)) ? { ...x, excluido: true, manual: false } : x));
+    },
+    async (sb) => { comprobar(await sb.from('sagas_juegos').upsert(filas, { onConflict: 'saga_id,juego_id' })); },
+    onError,
+    'No se ha podido quitar. Se ha deshecho el cambio.',
+  );
+  return { ok, deshacer: () => restaurarSaga(sagaId, ids, antes, onError), cuantos: filas.length };
+}
+
 // Para probar a mano desde la consola sin Supabase (no se usa en la app).
 export const _interno = {
   cargar(datos) {

@@ -92,7 +92,7 @@ export function render(el, { params }) {
           <h2 class="seccion-titulo">Todos los juegos</h2>
           <ol class="saga-lista" data-lista>
             ${r.juegos.map((x) => `
-              <li class="saga-juego${x.jugado ? '' : ' sin-jugar'}">
+              <li class="saga-juego${x.jugado ? '' : ' sin-jugar'}" data-sel="${x.id}" data-sel-tipo="fila">
                 <a href="#juego/${x.id}" data-precarga="${esc(x.juego.cover_id ?? '')}">
                   ${portada(x.juego, { clase: 'portada-lista' })}
                   <span class="saga-juego-texto">

@@ -56,6 +56,8 @@ export function cerrarValorar() {
 /**
  * Abre la hoja de Valorar para un juego.
  * @param {{ plataforma?: string }} [op] plataforma ya puesta (p. ej. la de PSN)
+ *   serie: { pos, total, siguiente() } para «Valorar uno a uno» (selección múltiple):
+ *   «3 de 8», botón Saltar y, al guardar, la hoja del siguiente.
  */
 export function abrirValorar(igdbId, op = {}) {
   const yo = usuarioActual();
@@ -121,7 +123,7 @@ export function abrirValorar(igdbId, op = {}) {
         <div class="hoja-cab">
           ${portada(juego, { clase: 'portada-hoja' })}
           <div class="hoja-cab-texto">
-            <span class="hoja-antetitulo">${previa ? 'Editar valoración' : 'Valorar'}</span>
+            <span class="hoja-antetitulo">${op.serie ? `${op.serie.pos} de ${op.serie.total} · ` : ''}${previa ? 'Editar valoración' : 'Valorar'}</span>
             <span class="hoja-titulo" id="hoja-titulo">${esc(juego.nombre)}</span>
           </div>
           <button type="button" class="boton-cuadrado" data-accion="cerrar" aria-label="Cerrar">
@@ -219,7 +221,12 @@ export function abrirValorar(igdbId, op = {}) {
           <span class="contador" data-ref="contador" aria-live="polite"></span>
         </div>
 
-        <button type="button" class="boton-principal" data-accion="guardar">Guardar valoración</button>
+        ${op.serie ? `
+          <div class="valorar-serie">
+            <button type="button" class="boton-secundario neutro" data-accion="saltar">Saltar</button>
+            <button type="button" class="boton-principal" data-accion="guardar">${op.serie.pos < op.serie.total ? 'Guardar y seguir' : 'Guardar'}</button>
+          </div>`
+          : '<button type="button" class="boton-principal" data-accion="guardar">Guardar valoración</button>'}
 
         ${previa ? `
           <div class="quitar" data-ref="quitar">
@@ -329,6 +336,7 @@ export function abrirValorar(igdbId, op = {}) {
     else if (d.accion === 'cancelar-quitar') s.confirmandoQuitar = false;
     else if (d.accion === 'quitar') return quitar();
     else if (d.accion === 'guardar') return guardar();
+    else if (d.accion === 'saltar') { cerrar(true); op.serie?.siguiente(); return; }
     pintar();
   });
 
@@ -432,6 +440,7 @@ export function abrirValorar(igdbId, op = {}) {
     });
     // Horas extra: tabla aparte; solo si han cambiado.
     if (extra !== undefined && (extra ?? 0) !== horas.extra) datos.guardarHorasExtra(yo.id, id, extra, aviso);
+    if (op.serie) { cerrar(true); op.serie.siguiente(); return; }
     cerrar();
     aviso(s.estado === 'pendiente' ? 'Añadido a pendientes' : previa ? 'Valoración actualizada' : 'Valoración guardada');
   }

@@ -15,6 +15,7 @@ import { usuarioActual } from './sesion.js';
 import { abrirValorar } from './hoja-valorar.js';
 import { abrirFusion } from './fusiones.js';
 import { normalizarBusqueda } from './psn-nombres.js';
+import { resolverDuplicados, TEXTO_RESUELTO } from './horas-ui.js';
 
 const PULSACION_LARGA_MS = 480;
 const PLATAFORMAS_GENERICAS = ['PS5', 'PS4', 'PC', 'Xbox', 'Switch'];
@@ -527,6 +528,25 @@ function biblioteca(que) {
   });
 }
 
+/** Atajos de posible duplicado: solo en los juegos con horas en PC (Steam/Epic) y en Xbox. */
+function horasDuplicadas(modo) {
+  const uid = yo().id;
+  const ids = juegosElegidos();
+  const conDos = (id) => {
+    const l = metricas.desgloseDe(uid, id).sinc;
+    return l.some((x) => metricas.FUENTES_PC.includes(x.fuente)) && l.some((x) => x.fuente === 'xbox');
+  };
+  const aplican = ids.filter(conDos);
+  const fuera = ids.length - aplican.length;
+  aplicar({
+    total: ids.length,
+    aplican,
+    motivos: [[fuera, fuera === 1 ? 'no tiene horas en Steam y en Xbox' : 'no tienen horas en Steam y en Xbox']],
+    hacer: (lista) => resolverDuplicados(uid, lista, modo),
+    hecho: (n) => `${TEXTO_RESUELTO[modo]} en ${plural(n, 'juego', 'juegos')}`,
+  });
+}
+
 /** Abre la hoja de Valorar del primero; al guardar (o saltar), la del siguiente. */
 function valorarUnoAUno() {
   const ids = juegosElegidos();
@@ -560,6 +580,10 @@ function hojaMas() {
     ${opcion('probados', 'probados', 'Mover a Probados')}
     ${opcion('ocultar', 'ocultar', 'Ocultar de mi biblioteca')}
     ${opcion('mostrar', 'ficha', 'Volver a mostrar en mi biblioteca')}
+    ${cab2('Horas de Steam y Xbox')}
+    ${opcion('horas-pc', 'completado', 'Contar solo Steam')}
+    ${opcion('horas-xbox', 'jugando', 'Contar solo Xbox')}
+    ${opcion('horas-distintas', 'fusionar', 'Son partidas distintas (suman)')}
     ${admin ? `
       ${cab2('Admin')}
       ${opcion('online-si', 'online', 'Marcar como sin final')}
@@ -579,6 +603,9 @@ function hojaMas() {
     probados: () => biblioteca('probados'),
     ocultar: () => biblioteca('ocultar'),
     mostrar: () => biblioteca('mostrar'),
+    'horas-pc': () => horasDuplicadas('pc'),
+    'horas-xbox': () => horasDuplicadas('xbox'),
+    'horas-distintas': () => horasDuplicadas('distintas'),
     'online-si': () => admin && sinFinal(true),
     'online-no': () => admin && sinFinal(false),
     coleccion: () => admin && hojaColeccion(),

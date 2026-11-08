@@ -17,6 +17,7 @@ import { tarjetaFusion, clicFusion } from '../fusiones.js';
 import { activarDeslizar } from '../galeria.js';
 import { anadirAColeccionUI } from '../colecciones-ui.js';
 import { bloqueColumnas } from '../columnas-ui.js';
+import { lineasHoras, manejarHoras } from '../horas-ui.js';
 
 export function render(el, { params }) {
   const id = Number(params[0]);
@@ -271,18 +272,16 @@ export function render(el, { params }) {
   function bloqueTusHoras() {
     if (!yo) return '';
     const d = metricas.desgloseDe(yo.id, id);
-    if (!d.total) return '';
+    if (!d.total && !d.sinc.length) return '';
     const partes = [...d.sinc, ...(d.extra ? [{ plataforma: 'Horas extra', horas: d.extra }] : [])];
+    const excluidas = d.sinc.filter((x) => x.excluida).length;
     return `
       <section class="ficha-horas">
         <div class="horas-total">
           <span>Tus horas</span>
           <strong>${esc(metricas.textoHoras(d.total))}</strong>
         </div>
-        ${partes.length > 1 || d.extra ? `
-          <ul class="horas-desglose">
-            ${partes.map((p) => `<li><span>${esc(p.plataforma)}${p.cuenta ? ` <small>${esc(p.cuenta)}</small>` : ''}</span><span>${esc(metricas.textoHoras(p.horas))}</span></li>`).join('')}
-          </ul>` : ''}
+        ${partes.length > 1 || d.extra || excluidas || d.duplicado ? `<div class="horas-control">${lineasHoras(yo.id, id, { extra: d.extra })}</div>` : ''}
       </section>`;
   }
 
@@ -441,7 +440,9 @@ export function render(el, { params }) {
     }
   }
 
+  el.addEventListener('change', (e) => { if (yo) manejarHoras(e, yo.id); });
   el.addEventListener('click', (e) => {
+    if (yo && manejarHoras(e, yo.id)) return;
     if (yo && clicFusion(e, yo.id)) return;
     if (e.target.closest('[data-anadir-coleccion]') && yo && esAdmin()) { anadirAColeccionUI(id, yo.id); return; }
     if (e.target.closest('[data-quitar-coleccion]') && esAdmin()) {

@@ -17,6 +17,7 @@ import * as perfil from './pantallas/perfil.js';
 import * as estadisticas from './pantallas/estadisticas.js';
 import * as rankings from './pantallas/rankings.js';
 import * as revisar from './pantallas/revisar.js';
+import * as duplicados from './pantallas/duplicados.js';
 import * as coleccion from './pantallas/coleccion.js';
 import * as saga from './pantallas/saga.js';
 import * as escribir from './pantallas/escribir.js';
@@ -42,6 +43,7 @@ const RUTAS = {
   estadisticas,      // #estadisticas/{id}
   juego,
   revisar,           // #revisar: "Revisa tu biblioteca"
+  duplicados,        // #duplicados: horas que pueden repetirse entre Steam y Xbox
   coleccion,              // #coleccion/{id}: ficha de una colección
   saga,                   // #saga/{id}: página de una saga (Persona, Zelda...)
   escribir,               // #escribir/{id} o #escribir/nueva[/juego|coleccion|saga/{id}]: editor de columna
@@ -56,7 +58,7 @@ const PESTANAS = [
   ['perfil', 'Perfil'],
 ];
 // Rutas que se ven a pantalla completa, sin la barra inferior (la ficha tiene la suya).
-const SIN_BARRA = new Set(['juego', 'revisar', 'coleccion', 'saga', 'escribir', 'entrada', 'columna']);
+const SIN_BARRA = new Set(['juego', 'revisar', 'duplicados', 'coleccion', 'saga', 'escribir', 'entrada', 'columna']);
 const REFRESCO_MS = 60_000;
 
 let limpiar = null;

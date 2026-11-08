@@ -8,7 +8,7 @@ const CLAVE = 'cvj.datos.v1';
 const LIMITE_ACTIVIDAD = 60;
 const VENTANA_ACTIVIDAD_MS = 10 * 60 * 1000; // agrupar cambios del mismo juego en 10 min
 
-const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sugRechazadas: [], servicios: [], cuentas: [], horasExtra: [], avisos: [], coleccionesG: [], coleccionesJuegos: [], valColecciones: [], sagas: [], sagasJuegos: [], columnas: [], entradas: [], lecturas: [], cargadoEn: null });
+const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sugRechazadas: [], servicios: [], cuentas: [], horasExtra: [], avisos: [], coleccionesG: [], coleccionesJuegos: [], valColecciones: [], sagas: [], sagasJuegos: [], columnas: [], entradas: [], lecturas: [], horasAjustes: [], cargadoEn: null });
 
 // Versión de los datos: sube cada vez que cambian (refresco, escritura o reversión).
 // metricas.js la usa para memoizar los cálculos.
@@ -40,7 +40,7 @@ function guardarCache() {
   } catch { /* sin espacio o modo privado */ }
 }
 
-const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sugRechazadas, s.servicios, s.cuentas, s.horasExtra, s.avisos, s.coleccionesG, s.coleccionesJuegos, s.valColecciones, s.sagas, s.sagasJuegos, s.columnas, s.entradas, s.lecturas]);
+const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sugRechazadas, s.servicios, s.cuentas, s.horasExtra, s.avisos, s.coleccionesG, s.coleccionesJuegos, s.valColecciones, s.sagas, s.sagasJuegos, s.columnas, s.entradas, s.lecturas, s.horasAjustes]);
 
 /** Pinta desde caché (síncrono) y lanza el refresco en segundo plano. */
 export function iniciar() {
@@ -61,7 +61,7 @@ export function refrescar() {
     const sb = await cliente();
     // Extras que pueden no existir aún (migraciones): si fallan, se sigue con lo de antes.
     const extra = (q, previo) => q.then((r) => (r.error ? { data: previo } : r), () => ({ data: previo }));
-    const [u, v, j, a, bib, emp, ali, rech, sag, serv, cue, hex, avi, sg, sgj, vsg, sa, saj, col, ent, lec] = await Promise.all([
+    const [u, v, j, a, bib, emp, ali, rech, sag, serv, cue, hex, avi, sg, sgj, vsg, sa, saj, col, ent, lec, haj] = await Promise.all([
       leerUsuarios(sb),
       sb.from('valoraciones').select('*'),
       sb.from('juegos').select('*'),
@@ -86,6 +86,7 @@ export function refrescar() {
       // Las publicadas de todos y los borradores propios.
       extra(sb.from('entradas').select(COLUMNAS_ENTRADA).or(`estado.eq.publicada,usuario_id.eq.${usuarioDeSesion() ?? '00000000-0000-0000-0000-000000000000'}`), estado.entradas),
       extra(sb.from('lecturas').select('*').eq('usuario_id', usuarioDeSesion() ?? '00000000-0000-0000-0000-000000000000'), estado.lecturas),
+      extra(sb.from('horas_ajustes').select('*'), estado.horasAjustes),
     ]);
     const error = u.error || v.error || j.error || a.error;
     if (error) throw new Error(error.message);
@@ -95,6 +96,7 @@ export function refrescar() {
       alias: ali.data ?? [], rechazadas: rech.data ?? [], sugRechazadas: sag.data ?? [], servicios: serv.data ?? [], cuentas: cue.data ?? [], horasExtra: hex.data ?? [], avisos: avi.data ?? [],
       coleccionesG: sg.data ?? [], coleccionesJuegos: sgj.data ?? [], valColecciones: vsg.data ?? [],
       sagas: sa.data ?? [], sagasJuegos: saj.data ?? [], columnas: col.data ?? [], entradas: ent.data ?? [], lecturas: lec.data ?? [],
+      horasAjustes: haj.data ?? [],
     };
     const cambia = firma(nuevo) !== firma(estado);
     Object.assign(estado, nuevo, { cargadoEn: new Date().toISOString() });
@@ -267,6 +269,60 @@ export const juego = (igdbId) => indices.juegos.get(Number(igdbId)) ?? null;
 export const juegoConocido = (igdbId) => juego(igdbId) ?? parciales.get(Number(igdbId)) ?? null;
 /** Horas extra a mano de un usuario en un juego (0 si no hay). */
 export const horasExtra = (usuarioId, igdbId) => indices.extraHoras.get(`${usuarioId}:${canonico(igdbId)}`) ?? 0;
+
+// ---------------------------------------------------------------------------
+// Horas que se repiten entre fuentes: qué cuenta (lo decide cada usuario; por
+// defecto todo suma). Clave de línea: "{cuenta_id o fuente}|{plataforma original}".
+// ---------------------------------------------------------------------------
+export const claveLineaHoras = (f) => `${f.cuenta_id ?? f.fuente ?? 'psn'}|${f.plataforma ?? 'Otra'}`;
+const AJUSTE_VACIO = Object.freeze({ excluidas: [], plataformas: {}, distintas: false });
+/** Lo decidido por un usuario en un juego (o el ajuste vacío: todo cuenta). */
+export function ajusteHoras(usuarioId, igdbId) {
+  if (igdbId == null) return AJUSTE_VACIO;
+  const id = canonico(igdbId);
+  return (estado.horasAjustes ?? []).find((x) => x.usuario_id === usuarioId && Number(x.juego_id) === id) ?? AJUSTE_VACIO;
+}
+export const hayAjustesHoras = () => Array.isArray(estado.horasAjustes);
+
+/**
+ * Cambia lo decidido en varios juegos con una sola escritura.
+ * @param {(antes: {excluidas, plataformas, distintas}, id) => object|null} cambiar
+ */
+export function ajustesHorasEnLote(usuarioId, igdbIds, cambiar, onError) {
+  const ahora = new Date().toISOString();
+  const ids = [...new Set(igdbIds.map((x) => canonico(x)))];
+  const antes = [];
+  const creadas = [];
+  const nuevas = [];
+  for (const id of ids) {
+    const previa = (estado.horasAjustes ?? []).find((x) => x.usuario_id === usuarioId && Number(x.juego_id) === id) ?? null;
+    const c = cambiar(previa ?? AJUSTE_VACIO, id);
+    if (!c) continue;
+    const fila = { usuario_id: usuarioId, juego_id: id, excluidas: [], plataformas: {}, distintas: false, ...(previa ?? {}), ...c, actualizado_en: ahora };
+    fila.excluidas = [...new Set(fila.excluidas)];
+    nuevas.push(fila);
+    if (previa) antes.push(previa); else creadas.push(id);
+  }
+  if (!nuevas.length) return { ok: Promise.resolve(true), deshacer: () => Promise.resolve(true), cuantos: 0 };
+  const es = (x, lista) => x.usuario_id === usuarioId && lista.includes(Number(x.juego_id));
+  const tocados = nuevas.map((f) => f.juego_id);
+  const ok = escribirOptimista(
+    (s) => { s.horasAjustes = [...(s.horasAjustes ?? []).filter((x) => !es(x, tocados)), ...nuevas]; },
+    async (sb) => { comprobar(await sb.from('horas_ajustes').upsert(nuevas, { onConflict: 'usuario_id,juego_id' })); },
+    onError,
+    'No se han podido guardar las horas. Se ha deshecho el cambio.',
+  );
+  const deshacer = () => escribirOptimista(
+    (s) => { s.horasAjustes = [...(s.horasAjustes ?? []).filter((x) => !es(x, tocados)), ...antes]; },
+    async (sb) => {
+      if (antes.length) comprobar(await sb.from('horas_ajustes').upsert(antes, { onConflict: 'usuario_id,juego_id' }));
+      if (creadas.length) comprobar(await sb.from('horas_ajustes').delete().eq('usuario_id', usuarioId).in('juego_id', creadas));
+    },
+    onError,
+    'No se ha podido deshacer.',
+  );
+  return { ok, deshacer, cuantos: nuevas.length };
+}
 /** ¿Hay tabla de horas extra? (migración 011) */
 export const hayHorasExtra = () => Array.isArray(estado.horasExtra) && (estado.horasExtra.length > 0 || estado.cuentas?.length > 0);
 /** Cuentas de plataforma de un usuario (opcionalmente de una fuente: psn, xbox, steam). */
@@ -566,6 +622,7 @@ async function escribirOptimista(aplicar, guardar, onError, mensajeError = 'No s
     horasExtra: estado.horasExtra, cuentas: estado.cuentas, avisos: estado.avisos,
     coleccionesG: estado.coleccionesG, coleccionesJuegos: estado.coleccionesJuegos, valColecciones: estado.valColecciones,
     sagas: estado.sagas, sagasJuegos: estado.sagasJuegos, columnas: estado.columnas, entradas: estado.entradas, lecturas: estado.lecturas,
+    horasAjustes: estado.horasAjustes,
   };
   escriturasEnCurso++;
   aplicar(estado);

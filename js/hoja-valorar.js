@@ -8,6 +8,7 @@ import { esc, portada, aviso, ESTADOS } from './ui.js';
 import { fichaJuego } from './igdb.js';
 import * as metricas from './metricas.js';
 import { plataformaParaValorar } from './plataformas-ui.js';
+import { lineasHoras, manejarHoras } from './horas-ui.js';
 
 const MAX_RESENA = 280;
 const AVISO_RESENA = 230;
@@ -201,9 +202,10 @@ export function abrirValorar(igdbId, op = {}) {
           <div class="bloque-campo" data-bloque="horas">
             ${conSinc ? `
               <span class="campo-titulo">Horas</span>
+              ${coleccion ? `
               <ul class="horas-desglose">
                 ${horas.sinc.map((p) => `<li><span>${esc(p.plataforma)}${p.cuenta ? ` <small>${esc(p.cuenta)}</small>` : ''}</span><span>${esc(metricas.textoHoras(p.horas))}</span></li>`).join('')}
-              </ul>
+              </ul>` : `<div class="horas-control" data-ref="horas-lineas">${lineasHoras(yo.id, id)}</div>`}
               <label for="hoja-horas" class="campo-titulo campo-sub">+ Horas extra <span class="campo-opcional">(${coleccion ? 'de la colección, aparte de sus juegos' : 'otras plataformas o cuentas'})</span></label>`
             : `<label for="hoja-horas" class="campo-titulo">Horas jugadas <span class="campo-opcional">(opcional)</span></label>`}
             <div class="campo-horas">
@@ -347,12 +349,26 @@ export function abrirValorar(igdbId, op = {}) {
   resena.addEventListener('input', pintarContador);
   $('[data-cuenta]')?.addEventListener('change', (e) => { s.cuenta = e.target.checked; });
   // Total de horas en vivo (sincronizadas + extra).
-  $('#hoja-horas')?.addEventListener('input', (e) => {
+  const pintarTotalHoras = () => {
     const t = $('[data-ref="horas-total"]');
-    const extra = leerHoras(e.target.value);
-    $('[data-ref="horas-error"]').hidden = extra !== undefined;
-    if (t && extra !== undefined) t.textContent = metricas.textoHoras(Math.round((horas.horasSinc + (extra ?? 0)) * 10) / 10);
-  });
+    const campo = $('#hoja-horas');
+    const extra = campo ? leerHoras(campo.value) : 0;
+    if (campo) $('[data-ref="horas-error"]').hidden = extra !== undefined;
+    if (t && extra !== undefined) t.textContent = metricas.textoHoras(Math.round((horas.horasSinc + (extra ?? 0)) * 10) / 10) || '0 h';
+  };
+  $('#hoja-horas')?.addEventListener('input', pintarTotalHoras);
+  // "Contar", "Fue en PC" y los atajos de posible duplicado: se guardan al momento.
+  const lineas = $('[data-ref="horas-lineas"]');
+  if (lineas) {
+    const repintarLineas = () => {
+      const d = metricas.desgloseDe(yo.id, id);
+      horas.horasSinc = d.horasSinc;
+      lineas.innerHTML = lineasHoras(yo.id, id);
+      pintarTotalHoras();
+    };
+    lineas.addEventListener('change', (e) => { e.stopPropagation(); manejarHoras(e, yo.id, repintarLineas); });
+    lineas.addEventListener('click', (e) => { if (manejarHoras(e, yo.id, repintarLineas)) e.stopPropagation(); });
+  }
 
   const alTeclado = (e) => { if (e.key === 'Escape') cerrar(); };
   document.addEventListener('keydown', alTeclado);

@@ -363,8 +363,10 @@ export function biblioteca(uid) {
       const valoracion = g.igdbId != null ? datos.miValoracion(uid, g.igdbId) : null;
       // Horas = sincronizadas (todas las fuentes y cuentas, sin repetir el mismo dato) + extra a mano.
       const visibles = g.filas.filter((f) => !f.oculto);
-      const sinc = sumarHoras(visibles.length ? visibles : g.filas, uid);
+      const sinc = sumarHoras(visibles.length ? visibles : g.filas, uid, g.igdbId);
       const extra = g.igdbId != null ? datos.horasExtra(uid, g.igdbId) : 0;
+      const aj = datos.ajusteHoras(uid, g.igdbId);
+      const plataformaDe = (f) => aj.plataformas?.[datos.claveLineaHoras(f)] ?? f.plataforma;
       return {
         ...g,
         horasSinc: sinc.total,
@@ -374,8 +376,9 @@ export function biblioteca(uid) {
         imagen: principal.imagen_psn,
         psnTitleId: principal.psn_title_id,
         titulos: g.filas.map((f) => f.psn_title_id),
-        plataformas: [...new Set(g.filas.map((f) => f.plataforma).filter(Boolean))].sort().reverse(),
-        plataformaPrincipal: principal.plataforma,
+        plataformas: [...new Set(g.filas.map(plataformaDe).filter(Boolean))].sort().reverse(),
+        plataformaPrincipal: plataformaDe(principal),
+        duplicado: sinc.duplicado,
         valoracion,
         online: g.igdbId != null && datos.esOnline(g.igdbId),
         // Oculto si lo ocultó el usuario o si no es un juego (y él no dijo lo contrario).
@@ -401,7 +404,7 @@ export function biblioteca(uid) {
         if (!plat.has(p)) plat.set(p, { nombre: p, juegos: 0, horas: 0 });
         plat.get(p).juegos++;
       }
-      for (const d of x.desglose) if (plat.has(d.plataforma)) plat.get(d.plataforma).horas += d.horas;
+      for (const d of x.desglose) if (plat.has(d.plataforma) && !d.excluida) plat.get(d.plataforma).horas += d.horas;
     }
     const porFuente = {};
     for (const x of juegos) {
@@ -455,13 +458,16 @@ export function tiempo(uid) {
 
 /**
  * Horas sincronizadas de unas filas de biblioteca (de un usuario y un juego):
- *  - se suman por cuenta y plataforma (son partidas distintas);
+ *  - se suman por fuente, cuenta y plataforma (por defecto, TODO suma);
  *  - dentro de una MISMA cuenta, dos filas con las mismas horas y la misma última vez
  *    son el mismo dato repetido (p. ej. las versiones de PS4 y PS5) y cuentan una vez;
- *  - si el juego está en Steam, los "PC detectado" de Xbox no suman (mandan las de Steam).
- * → { total, desglose: [{ plataforma, cuenta, horas }] }
+ *  - si el juego está en Steam, los "PC detectado" de Xbox no suman (mandan las de Steam);
+ *  - lo que haya decidido el usuario en ese juego (horas_ajustes) se respeta siempre:
+ *    líneas que no cuentan (se ven, pero no suman) y plataforma corregida.
+ * → { total, desglose: [{ clave, fuente, plataforma, plataformaOriginal, cuenta, horas, excluida, filas }], duplicado }
  */
-export function sumarHoras(filas, uid) {
+export function sumarHoras(filas, uid, igdbId = null) {
+  const aj = datos.ajusteHoras(uid, igdbId);
   const conSteam = filas.some((f) => f.fuente === 'steam' && f.horas != null);
   const variasCuentas = (fuente) => datos.cuentasDe(uid, fuente).length > 1;
   const vistas = new Set();
@@ -475,14 +481,56 @@ export function sumarHoras(filas, uid) {
     vistas.add(huella);
     const c = f.cuenta_id ? datos.cuenta(f.cuenta_id) : null;
     const cuenta = c && variasCuentas(f.fuente) ? (c.etiqueta || c.nombre) : null;
-    const clave = `${f.plataforma ?? 'Otra'}|${cuenta ?? ''}`;
-    const d = porClave.get(clave) ?? { plataforma: f.plataforma ?? 'Otra', cuenta, horas: 0 };
+    const clave = datos.claveLineaHoras(f);
+    const excluida = aj.excluidas.includes(clave);
+    const d = porClave.get(clave) ?? {
+      clave, fuente: f.fuente ?? 'psn', plataforma: aj.plataformas?.[clave] ?? f.plataforma ?? 'Otra', plataformaOriginal: f.plataforma ?? 'Otra',
+      cuenta, horas: 0, excluida, filas: [],
+    };
     d.horas += Number(f.horas);
+    d.filas.push(f);
     porClave.set(clave, d);
-    total += Number(f.horas);
+    if (!excluida) total += Number(f.horas);
   }
   const desglose = [...porClave.values()].map((d) => ({ ...d, horas: Math.round(d.horas * 10) / 10 })).filter((d) => d.horas > 0).sort((a, b) => b.horas - a.horas);
-  return { total: Math.round(total * 10) / 10, desglose };
+  return { total: Math.round(total * 10) / 10, desglose, duplicado: detectarDuplicado(desglose, aj) };
+}
+
+/** Fuentes de PC con sus propias horas (si también hay horas de Xbox, pueden ser las mismas partidas). */
+export const FUENTES_PC = ['steam', 'epic'];
+export const NOMBRE_FUENTE = { psn: 'PlayStation', xbox: 'Xbox', steam: 'Steam', epic: 'Epic' };
+const UN_DIA = 86400000;
+
+/**
+ * "Posible duplicado" (solo informativo, no cambia el total): horas que cuentan en Steam
+ * (o Epic) y también en Xbox. Xbox apunta partidas de PC (Game Pass para PC, Play
+ * Anywhere) y el titlehub no dice en qué dispositivo se jugó: solo en cuáles existe el
+ * juego. Señales que lo hacen probable:
+ *  - lo último jugado en las dos fuentes es del mismo día (las mismas sesiones);
+ *  - muchas horas en Xbox sin ningún logro, en un juego de Xbox que también es de PC.
+ * null si no hay aviso (o el usuario dijo "Son partidas distintas").
+ */
+export function detectarDuplicado(desglose, aj = { distintas: false }) {
+  if (aj.distintas) return null;
+  const pc = desglose.filter((d) => !d.excluida && FUENTES_PC.includes(d.fuente) && d.horas > 0);
+  const xbox = desglose.filter((d) => !d.excluida && d.fuente === 'xbox' && d.horas > 0);
+  if (!pc.length || !xbox.length) return null;
+  const filasPc = pc.flatMap((d) => d.filas);
+  const filasXbox = xbox.flatMap((d) => d.filas).filter((f) => Number(f.horas) > 0);
+  const mismoDia = filasXbox.some((x) => x.ultima_vez && filasPc.some((p) => p.ultima_vez
+    && Math.abs(new Date(x.ultima_vez) - new Date(p.ultima_vez)) < UN_DIA));
+  const sinLogros = filasXbox.find((x) => Number(x.horas) >= 5 && x.trofeos?.logros === 0);
+  const dePc = filasXbox.some((x) => (x.dispositivos ?? []).some((d) => /^(pc|win)/i.test(d)));
+  const motivos = [];
+  if (mismoDia) motivos.push('Lo último que jugaste en las dos es del mismo día');
+  if (sinLogros) motivos.push(`${textoHoras(sinLogros.horas)} en Xbox sin ningún logro`);
+  if (dePc) motivos.push('Ese juego de Xbox también es de PC y Xbox no dice dónde se jugó');
+  return { pc, xbox, motivos, probable: mismoDia || (!!sinLogros && dePc) };
+}
+
+/** Mis juegos con aviso de posible duplicado sin resolver, de más a menos horas. */
+export function posiblesDuplicados(uid) {
+  return biblioteca(uid).juegos.filter((x) => x.duplicado && x.igdbId != null && x.juego);
 }
 
 // ---------------------------------------------------------------------------
@@ -513,13 +561,13 @@ export function esProbado(x, umbral) {
 }
 
 /** "PS5 40 h", "Xbox Series (Cuenta 2) 12 h", "Extra 50 h" */
-export const textoParte = (p) => `${p.plataforma}${p.cuenta ? ` (${p.cuenta})` : ''} ${textoHoras(p.horas)}`;
+export const textoParte = (p) => `${p.plataforma}${p.cuenta ? ` (${p.cuenta})` : ''} ${textoHoras(p.horas)}${p.excluida ? ' (no cuenta)' : ''}`;
 
 /** Texto "PS5 40 h · Xbox Series 12 h · Extra 50 h · Total 102 h" (vacío si hay una sola parte). */
 export function textoDesglose(x) {
   const d = x?.desglose ?? [];
   if (d.length < 2) return '';
-  return [...d.map(textoParte), `Total ${textoHoras(d.reduce((t, p) => t + p.horas, 0))}`].join(' · ');
+  return [...d.map(textoParte), `Total ${textoHoras(d.reduce((t, p) => t + (p.excluida ? 0 : p.horas), 0))}`].join(' · ');
 }
 
 /** Horas totales de un usuario en un juego: sincronizadas (todas sus cuentas) + extra a mano. */
@@ -535,6 +583,7 @@ export function desgloseDe(uid, igdbId) {
   const extra = datos.horasExtra(uid, igdbId);
   return {
     sinc: b?.desgloseSinc ?? [],
+    duplicado: b?.duplicado ?? null,
     horasSinc: b?.horasSinc ?? 0,
     extra,
     total: Math.round(((b?.horasSinc ?? 0) + extra) * 10) / 10,
@@ -556,8 +605,12 @@ export function bibliotecaDeJuego(igdbId) {
     }
     // Horas: sincronizadas (sin repetir el mismo dato) + extra; desglose con las dos.
     for (const [uid, x] of m) {
-      const sinc = sumarHoras(x.filas, uid);
+      const sinc = sumarHoras(x.filas, uid, igdbId);
       const extra = datos.horasExtra(uid, igdbId);
+      // Plataforma corregida a mano ("Xbox Series" → "PC"): también en sus plataformas.
+      const aj = datos.ajusteHoras(uid, igdbId);
+      x.plataformas = [...new Set(x.filas.map((f) => aj.plataformas?.[datos.claveLineaHoras(f)] ?? f.plataforma).filter(Boolean))];
+      x.duplicado = sinc.duplicado;
       x.horasSinc = sinc.total;
       x.desgloseSinc = sinc.desglose;
       x.horas = Math.round((sinc.total + extra) * 10) / 10;

@@ -145,6 +145,8 @@ export function filaXbox(t: Record<string, any>, usuarioId: string, ahora: strin
     psn_title_id: `XBOX-${t.titleId}`,
     nombre_psn: String(t.name),
     plataforma: plataformaXbox(t.devices ?? []),
+    // Dónde existe el título (no dónde se jugó): para avisar de horas repetidas con Steam.
+    dispositivos: Array.isArray(t.devices) ? t.devices.map(String) : null,
     imagen_psn: t.displayImage ?? null,
     // Sin "horas": el historial no las trae y NUNCA se pisan las que ya hay. Las pone
     // rellenarHoras (MinutesPlayed) solo cuando llega un valor nuevo y válido.

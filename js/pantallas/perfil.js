@@ -316,6 +316,7 @@ function renderPerfil(el, id, alSalir) {
     if (!cont) return;
     const sinId = filtrar(bib.sinIdentificar.filter((x) => !x.probado), fBib, datosBiblioteca);
     const nSinId = bib.sinIdentificar.filter((x) => !x.probado).length;
+    const nDup = esMio ? metricas.posiblesDuplicados(id).length : 0;
     cont.innerHTML = `
       <p class="bib-recuento">
         <span><strong>${bib.misJuegos.length}</strong> en Mis juegos</span>
@@ -323,6 +324,11 @@ function renderPerfil(el, id, alSalir) {
         ${esMio ? `<span><strong>${bib.ocultos.length}</strong> ocultos</span>` : ''}
       </p>
       ${progresoHorasXbox()}
+      ${esMio && nDup ? `
+        <a class="aviso-revisar en-perfil aviso-dup" href="#duplicados">
+          <span>Revisar posibles duplicados (${nDup})</span>
+          ${icono('adelante', { tam: 18, color: 'currentColor' })}
+        </a>` : ''}
       ${barraFiltro('bib', fBib)}
       ${esMio && bib.identificados.length ? `
         <div class="bib-seleccionar">
@@ -552,7 +558,7 @@ function itemBiblioteca(x, i, esMio) {
         ${portada(x.juego, { clase: 'portada-rejilla', titulo: 'arriba', prioridad: i < 6 })}
         ${pie}
       </a>
-      ${x.desglose?.length > 1 ? `<span class="rejilla-plataformas">${esc(x.desglose.map((d) => `${d.plataforma.replace('Xbox Series', 'Series').replace('Xbox One', 'One')} ${textoHoras(d.horas)}`).join(' · '))}</span>` : ''}
+      ${x.desglose?.filter((d) => !d.excluida).length > 1 ? `<span class="rejilla-plataformas">${esc(x.desglose.filter((d) => !d.excluida).map((d) => `${d.plataforma.replace('Xbox Series', 'Series').replace('Xbox One', 'One')} ${textoHoras(d.horas)}`).join(' · '))}</span>` : ''}
       ${esMio ? `<button type="button" class="bib-menu" data-bib-menu="${esc(x.clave)}" aria-label="Opciones de ${esc(x.nombre)}">${icono('opciones', { tam: 18, color: '#FFFFFF' })}</button>` : ''}
     </div>`;
 }

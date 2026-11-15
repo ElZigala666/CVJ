@@ -1,7 +1,8 @@
 name: Copia de seguridad
 
 # Cada lunes (y a mano, desde la pestaña Actions) hace un volcado completo de la base de
-# Supabase, lo CIFRA y lo guarda como artefacto. Se conservan las últimas 8 copias.
+# Supabase y una copia de los archivos de Storage, los CIFRA y los guarda como un artefacto
+# con dos archivos. Se conservan las últimas 8 copias.
 #
 # El repositorio es público: cualquiera con cuenta de GitHub puede descargar sus artefactos
 # y leer estos registros. Por eso la copia va cifrada (la clave es SUPABASE_DB_PASSWORD) y
@@ -88,20 +89,49 @@ jobs:
           echo "Tablas de public: $tablas · con datos en la copia: $datos · datos de todos los esquemas: $todas"
           if [ "$tablas" -lt 10 ] || [ "$datos" -lt 10 ]; then echo "::error::El volcado no tiene las tablas esperadas."; exit 1; fi
 
+      - name: Copiar los archivos de Storage
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          # Clave de servicio (sirve también para cubos privados); nunca sale en el registro.
+          CLAVE=$(curl -fsS -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/api-keys?reveal=true" \
+            | jq -r '.[] | select(.name == "service_role") | .api_key')
+          [ -n "$CLAVE" ] && [ "$CLAVE" != "null" ] || { echo "::error::No se ha podido leer la clave de servicio."; exit 1; }
+          echo "::add-mask::$CLAVE"
+          A="$RUNNER_TEMP/archivos"
+          mkdir -p "$A/objetos"
+          # Lista de cubos y de archivos (con su tipo), para poder volver a subirlos igual.
+          psql -At -F $'\t' -c "select id, public from storage.buckets order by id" > "$A/cubos.tsv"
+          psql -At -F $'\t' -c "select bucket_id, name, coalesce(metadata->>'mimetype', 'application/octet-stream') from storage.objects where name not like '%.emptyFolderPlaceholder' order by 1, 2" > "$A/lista.tsv"
+          total=$(wc -l < "$A/lista.tsv"); bien=0
+          while IFS=$'\t' read -r cubo nombre tipo; do
+            ruta=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1]))' "$nombre")
+            mkdir -p "$(dirname "$A/objetos/$cubo/$nombre")"
+            if curl -fsS -H "Authorization: Bearer $CLAVE" -H "apikey: $CLAVE" -o "$A/objetos/$cubo/$nombre" \
+                "https://$SUPABASE_PROJECT_REF.supabase.co/storage/v1/object/$cubo/$ruta"; then bien=$((bien + 1)); fi
+          done < "$A/lista.tsv"
+          echo "Archivos de Storage: $bien de $total ($(du -sh "$A/objetos" | cut -f1)) en $(wc -l < "$A/cubos.tsv") cubos"
+          [ "$bien" -eq "$total" ] || { echo "::error::No se han podido descargar todos los archivos de Storage."; exit 1; }
+          tar -C "$A" -cf "$RUNNER_TEMP/copia/archivos.tar" cubos.tsv lista.tsv objetos
+
       - name: Cifrar
         run: |
           cd "$RUNNER_TEMP/copia"
-          printf '%s' "$SUPABASE_DB_PASSWORD" | gpg --batch --yes --quiet --pinentry-mode loopback --passphrase-fd 0 \
-            --symmetric --cipher-algo AES256 --compress-algo none --output "$NOMBRE.dump.gpg" copia.dump
-          sha256sum copia.dump | cut -d' ' -f1 > "$RUNNER_TEMP/huella.txt"
-          rm -f copia.dump
-          echo "Tamaño cifrado: $(du -h "$NOMBRE.dump.gpg" | cut -f1)"
+          cifrar() { printf '%s' "$SUPABASE_DB_PASSWORD" | gpg --batch --yes --quiet --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 --compress-algo none --output "$2" "$1"; }
+          cifrar copia.dump "$NOMBRE.dump.gpg"
+          cifrar archivos.tar "$NOMBRE-archivos.tar.gpg"
+          rm -f copia.dump archivos.tar
+          echo "Tamaño cifrado: base $(du -h "$NOMBRE.dump.gpg" | cut -f1) · archivos $(du -h "$NOMBRE-archivos.tar.gpg" | cut -f1)"
 
       - name: Guardar como artefacto
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.NOMBRE }}
-          path: ${{ runner.temp }}/copia/${{ env.NOMBRE }}.dump.gpg
+          path: |
+            ${{ runner.temp }}/copia/${{ env.NOMBRE }}.dump.gpg
+            ${{ runner.temp }}/copia/${{ env.NOMBRE }}-archivos.tar.gpg
           if-no-files-found: error
           retention-days: 90
           compression-level: 0

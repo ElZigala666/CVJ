@@ -11,6 +11,7 @@
 <style>
   html { background: #FFFFFF; }
   html[data-tema="oscuro"] { background: #0F0E13; }
+  html[data-fondo] { background: var(--f-base); }
 </style>
 <script>
   (function () {
@@ -40,6 +41,19 @@
         }
       }
     } catch (e) {}
+    // Fondo de la app (js/apariencia.js deja aquí lo ya resuelto): también antes de pintar.
+    try {
+      var f = JSON.parse(localStorage.getItem('cvj.apariencia') || 'null');
+      if (f && f.id && f.imagen) {
+        raiz.setAttribute('data-fondo', f.id);
+        raiz.style.setProperty('--f-base', f.base);
+        raiz.style.setProperty('--f-imagen', f.imagen);
+        raiz.style.setProperty('--f-velo', f.velo || 'transparent');
+        raiz.style.setProperty('--f-desenfoque', f.desenfoque || '0px');
+        if (f.modo === 'oscuro') raiz.setAttribute('data-tema', 'oscuro'); else raiz.removeAttribute('data-tema');
+        if (/^#[0-9a-f]{6}$/i.test(f.base)) document.getElementById('color-tema').setAttribute('content', f.base);
+      }
+    } catch (e) {}
   })();
 </script>
 <link rel="manifest" href="manifest.webmanifest">
@@ -57,6 +71,7 @@
 <!-- JS de la primera pantalla (Inicio): se descarga en paralelo en vez de ir descubriendo los imports uno a uno.
      El resto de pantallas se cargan al abrirlas. Lista generada con las dependencias de js/app.js y js/pantallas/inicio.js. -->
 <link rel="modulepreload" href="js/acento.js">
+<link rel="modulepreload" href="js/apariencia.js">
 <link rel="modulepreload" href="js/app.js">
 <link rel="modulepreload" href="js/codigo.js">
 <link rel="modulepreload" href="js/colecciones-ui.js">

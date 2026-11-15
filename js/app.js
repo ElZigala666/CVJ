@@ -5,6 +5,7 @@ import * as datos from './datos.js';
 import { aplicarAcento } from './ui.js';
 import { iniciarInstalacion } from './instalar.js';
 import { iniciarTema } from './tema.js';
+import { iniciarApariencia, aplicarApariencia, olvidarApariencia } from './apariencia.js';
 import { anotarNavegacion, corregirRuta } from './navegacion.js';
 
 const vista = document.getElementById('vista');
@@ -214,6 +215,7 @@ function alSalir() {
   datos.borrarCache();
   datosIniciados = false;
   aplicarAcento(null);
+  olvidarApariencia();
   corregirRuta(location.pathname + location.search);
   navegar();
 }
@@ -250,6 +252,8 @@ function iniciarDatos() {
       refrescarUsuario(fresco);
       aplicarAcento(fresco.acento);
     }
+    // El fondo va en la cuenta: si se cambió en otro dispositivo, llega aquí.
+    if (fresco && 'apariencia' in fresco) aplicarApariencia(fresco.apariencia);
   });
   // Sincronizaciones automáticas: en segundo plano y con datos del servidor (no de la caché).
   datos.cuandoFrescos(revisarPlataformas);
@@ -260,6 +264,7 @@ function iniciarDatos() {
 // Arranque
 // ---------------------------------------------------------------------------
 iniciarTema();
+iniciarApariencia();
 iniciarInstalacion();
 pintarBarra();
 aplicarAcento(usuarioActual()?.acento);

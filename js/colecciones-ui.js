@@ -16,7 +16,7 @@ import { normalizarBusqueda } from './psn-nombres.js';
  * @param {{ titulo: string, antetitulo?: string, multiple?: boolean, excluir?: number[],
  *           boton?: string, primero?: number[], alElegir: (ids: number[]) => void }} op
  */
-export function elegirJuegos({ titulo, antetitulo = '', multiple = false, excluir = [], boton = 'Añadir', primero = [], alElegir }) {
+export function elegirJuegos({ titulo, antetitulo = '', multiple = false, excluir = [], boton = 'Añadir', primero = [], alElegir, alCerrar = null, max = Infinity }) {
   const fuera = new Set(excluir.map(Number));
   const elegidos = new Set();
   let remotos = [];
@@ -50,6 +50,7 @@ export function elegirJuegos({ titulo, antetitulo = '', multiple = false, exclui
   abrirHoja({
     titulo,
     antetitulo,
+    alCerrar,
     html: `
       <div class="elegir-juegos">
         <input type="search" class="psn-input" data-ref="q" placeholder="Busca un juego" autocomplete="off" enterkeyhint="search">
@@ -91,7 +92,9 @@ export function elegirJuegos({ titulo, antetitulo = '', multiple = false, exclui
         if (!b) return;
         const id = Number(b.dataset.elegir);
         if (!multiple) { cerrar(); alElegir([id]); return; }
-        if (elegidos.has(id)) elegidos.delete(id); else elegidos.add(id);
+        if (elegidos.has(id)) elegidos.delete(id);
+        else if (elegidos.size >= max) { aviso(max === 1 ? 'Solo cabe uno más' : `Solo caben ${max}`); return; }
+        else elegidos.add(id);
         pintar();
       });
       $('ok')?.addEventListener('click', () => { cerrar(); alElegir([...elegidos]); });

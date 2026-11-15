@@ -1919,3 +1919,131 @@ body.seleccionando #barra { visibility: hidden; }
    pintan hasta que se acercan; el deslizamiento va fluido aunque haya cientos. */
 .rejilla > .bib-celda, .rejilla > .rejilla-item { content-visibility: auto; contain-intrinsic-size: auto 170px; }
 .ranking-lista > li, .saga-lista > li { content-visibility: auto; contain-intrinsic-size: auto 76px; }
+
+/* ===========================================================================
+   Fondos de la app (js/apariencia.js): <html data-fondo="…">
+   El fondo va en una capa fija detrás de todo. Las tarjetas se vuelven algo
+   transparentes y se tiñen con el color base; barras y hojas siguen lisas.
+   =========================================================================== */
+:root[data-fondo] { --fondo: var(--f-base); }
+:root[data-fondo] body { background: transparent; }
+:root[data-fondo] body::before, :root[data-fondo] body::after { content: ''; position: fixed; z-index: -1; pointer-events: none; }
+:root[data-fondo] body::before {
+  inset: -32px; z-index: -2;
+  background-image: var(--f-imagen); background-size: cover; background-position: center; background-repeat: no-repeat;
+  filter: blur(var(--f-desenfoque, 0px));
+}
+:root[data-fondo] body::after { inset: 0; background: var(--f-velo, transparent); }
+:root[data-fondo][data-tema="oscuro"] {
+  --superficie: color-mix(in srgb, color-mix(in srgb, var(--f-base) 86%, #FFFFFF) 74%, transparent);
+  --superficie-2: color-mix(in srgb, color-mix(in srgb, var(--f-base) 76%, #FFFFFF) 80%, transparent);
+  --borde: color-mix(in srgb, #FFFFFF 14%, transparent);
+  --texto-2: #B4B1BE;
+  --acento-suave: color-mix(in srgb, var(--acento-base) 32%, var(--f-base));
+}
+:root[data-fondo]:not([data-tema="oscuro"]) {
+  --superficie: color-mix(in srgb, #FFFFFF 66%, transparent);
+  --superficie-2: color-mix(in srgb, color-mix(in srgb, var(--f-base) 84%, #15131A) 78%, transparent);
+  --borde: color-mix(in srgb, #15131A 12%, transparent);
+  --texto-2: #57545F;
+  --acento-suave: color-mix(in srgb, var(--acento-base) 14%, #FFFFFF);
+}
+
+/* Ajustes → Fondo de la app */
+.ajustes-fondo { display: flex; flex-direction: column; gap: 12px; }
+.fondo-previa { position: relative; height: 132px; border-radius: 16px; overflow: hidden; background: var(--fondo); border: 1px solid var(--borde); }
+.fondo-previa-capa { position: absolute; inset: -16px; background-image: var(--f-imagen, none); background-size: cover; background-position: center; filter: blur(calc(var(--f-desenfoque, 0px) * .45)); }
+.fondo-previa-capa::after { content: ''; position: absolute; inset: 0; background: var(--f-velo, transparent); }
+.fondo-previa-dentro { position: relative; height: 100%; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto 1fr; gap: 8px 12px; padding: 12px 14px; align-items: center; }
+.fondo-previa-dentro strong { grid-column: 1 / -1; font: 700 15px var(--fuente-titulos); color: var(--texto); }
+.fondo-previa-tarjeta { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: var(--superficie); min-width: 0; }
+.fondo-previa-portada { width: 30px; height: 40px; border-radius: 6px; background: var(--acento); flex: none; }
+.fondo-previa-lineas { flex: 1; display: grid; gap: 6px; }
+.fondo-previa-lineas b { height: 7px; border-radius: 4px; background: var(--texto); opacity: .85; }
+.fondo-previa-lineas b + b { width: 60%; background: var(--texto-2); opacity: .7; }
+.fondo-previa-nota { font: 700 15px var(--fuente-titulos); color: var(--texto); }
+.fondo-previa-boton { padding: 9px 14px; border-radius: 12px; background: var(--acento); color: var(--sobre-acento); font-size: 13px; font-weight: 700; }
+.fondo-galeria { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 8px; }
+.fondo-opcion { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: var(--texto-2); font-size: 11.5px; font-weight: 600; min-width: 0; }
+.fondo-opcion > span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fondo-mini {
+  position: relative; width: 100%; aspect-ratio: 3 / 4; border-radius: 12px; overflow: hidden;
+  background: var(--m-base, var(--superficie)); box-shadow: 0 0 0 1px var(--borde);
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; padding: 7px;
+}
+.fondo-mini::before { content: ''; position: absolute; inset: 0; background-image: var(--m-img, none); background-size: cover; background-position: center; }
+.fondo-mini::after { content: ''; position: absolute; inset: 0; background: var(--m-velo, transparent); }
+.fondo-mini i { position: relative; z-index: 1; height: 9px; border-radius: 4px; background: rgba(255, 255, 255, .16); }
+.fondo-mini i + i { width: 55%; height: 6px; }
+.fondo-mini[data-modo="claro"] i { background: rgba(20, 15, 40, .13); }
+.fondo-mini-sin { background: linear-gradient(135deg, #FFFFFF 50%, #0F0E13 50%); }
+.fondo-mini-sin i { display: none; }
+.fondo-mini-propia { align-items: center; justify-content: center; background: var(--superficie); }
+.fondo-opcion.activa { color: var(--texto); }
+.fondo-opcion.activa .fondo-mini { box-shadow: 0 0 0 2px var(--fondo), 0 0 0 4px var(--acento); }
+.fondo-controles { display: flex; flex-direction: column; gap: 10px; }
+.fondo-intensidad { display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 600; }
+.fondo-intensidad input { flex: 1; accent-color: var(--acento); }
+.fondo-aplicar {
+  position: sticky; bottom: 8px; z-index: 2; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; border-radius: 16px;
+  background: var(--fondo); border: 1px solid var(--borde); box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+}
+.fondo-aplicar > span { flex: 1; font-size: 13px; font-weight: 700; color: var(--texto-2); }
+.fondo-aplicar .boton-principal { width: auto; height: 40px; padding: 0 18px; border-radius: 12px; font-size: 14px; }
+
+/* ===========================================================================
+   Perfil personalizable (js/perfil-personal.js): cabecera, bio, estado y vitrina
+   =========================================================================== */
+.perfil { position: relative; }
+.perfil-banner {
+  position: absolute; top: 0; left: 0; right: 0; height: calc(118px + env(safe-area-inset-top)); overflow: hidden;
+  border-radius: 0 0 24px 24px; background: var(--superficie);
+}
+.perfil-banner::before { content: ''; position: absolute; inset: 0; }
+.perfil-banner-color::before { background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--b-color) 80%, #FFFFFF) 0%, transparent 55%), linear-gradient(135deg, var(--b-color), color-mix(in srgb, var(--b-color) 55%, #000000)); }
+.perfil-banner-imagen::before { background: var(--b-img) center / cover no-repeat; }
+.perfil-banner-juego::before { inset: -40px; background: var(--b-img) center 30% / cover no-repeat, var(--b-color); filter: blur(18px) saturate(1.25); }
+.perfil-banner-juego::after, .perfil-banner-imagen::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, .28), rgba(0, 0, 0, .08) 55%, rgba(0, 0, 0, .22)); }
+.con-banner .perfil-barra, .con-banner .perfil-cab { position: relative; z-index: 1; }
+.con-banner .perfil-cab .avatar { box-shadow: 0 0 0 4px var(--fondo); }
+.con-banner .perfil-barra .boton-cuadrado { background: color-mix(in srgb, var(--fondo) 82%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.perfil-bio { margin: 2px 0 0; max-width: 34ch; font-size: 14.5px; line-height: 1.45; color: var(--texto); overflow-wrap: anywhere; }
+.perfil-estado { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 6px 12px; border-radius: 999px; background: var(--superficie); font-size: 13px; font-weight: 600; color: var(--texto); }
+.perfil-estado i { width: 8px; height: 8px; border-radius: 50%; background: var(--acento); flex: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--acento) 28%, transparent); }
+.perfil-editar { display: inline-flex; align-items: center; gap: 6px; }
+.perfil-cab .perfil-editar { margin-top: 2px; }
+.perfil-vitrina { display: flex; flex-direction: column; gap: 14px; margin: 0 20px; }
+.vitrina-favorito {
+  display: flex; align-items: center; gap: 14px; padding: 12px; border-radius: 20px; color: var(--texto); text-decoration: none; overflow: hidden;
+  background: linear-gradient(120deg, color-mix(in srgb, var(--tinte) 26%, var(--superficie)), var(--superficie) 70%);
+}
+.vitrina-favorito:active { opacity: .8; }
+.vitrina-favorito .portada { width: 92px; flex: none; border-radius: 12px; box-shadow: 0 8px 22px rgba(0, 0, 0, .28); }
+.vitrina-favorito-texto { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.vitrina-favorito-texto small { font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--texto-2); }
+.vitrina-favorito-texto strong { font: 700 19px/1.2 var(--fuente-titulos); overflow-wrap: anywhere; }
+.vitrina-favorito-meta { font-size: 13px; color: var(--texto-2); }
+.vitrina-favorito-nota { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; font: 700 17px var(--fuente-titulos); }
+.vitrina-top { display: flex; flex-direction: column; gap: 8px; }
+.vitrina-top-fila { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.vitrina-top-item { position: relative; display: block; text-decoration: none; }
+.vitrina-top-item .portada { width: 100%; border-radius: 12px; }
+.vitrina-pos {
+  position: absolute; left: 6px; bottom: 6px; z-index: 3; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 8px;
+  display: grid; place-items: center; background: var(--acento); color: var(--sobre-acento); font: 700 13px var(--fuente-titulos);
+}
+.perfil-insignias { margin: 0 20px; }
+.perfil-insignias[hidden] { display: none; }
+
+/* Hoja "Editar perfil" */
+.editar-perfil { display: flex; flex-direction: column; gap: 22px; }
+.editar-perfil .bloque-campo { display: flex; flex-direction: column; gap: 10px; }
+.editar-perfil .boton-pequeno { align-self: flex-start; }
+.editar-banner-previa { position: relative; height: 84px; border-radius: 16px; overflow: hidden; background: var(--superficie); }
+.editar-banner-previa::before { content: ''; position: absolute; inset: 0; }
+.editar-banner-previa.perfil-banner-juego::before { inset: -30px; }
+.editar-banner-previa.perfil-banner-nada { display: grid; place-items: center; height: 56px; border: 1px dashed var(--borde); background: none; }
+.editar-banner-previa.perfil-banner-nada::before { content: 'Sin cabecera'; position: static; font-size: 13px; color: var(--texto-2); }
+.editar-juego { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 14px; background: var(--superficie); }
+.editar-juego .portada { width: 40px; flex: none; border-radius: 6px; }
+.editar-juego-nombre { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

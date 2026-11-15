@@ -51,7 +51,7 @@ const COLUMNAS_JUEGO = 'igdb_id, nombre, slug, cover_id, anio, plataformas, desa
  */
 const TABLAS = [
   { k: 'usuarios', t: 'usuarios', orden: ['creado_en', 'id'], esencial: true,
-    sel: `${COLUMNAS_USUARIO}, foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas, estimar_horas`, alt: COLUMNAS_USUARIO },
+    sel: `${COLUMNAS_USUARIO}, foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas, estimar_horas, apariencia, perfil_datos`, alt: COLUMNAS_USUARIO },
   { k: 'valoraciones', t: 'valoraciones', orden: ['id'], esencial: true },
   { k: 'juegos', t: 'juegos', orden: ['igdb_id'], esencial: true, sel: COLUMNAS_JUEGO, alt: '*' },
   { k: 'actividad', t: 'actividad', esencial: true, q: () => `order=creado_en.desc&limit=${LIMITE_ACTIVIDAD}`, unaPagina: true },

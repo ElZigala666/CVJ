@@ -21,6 +21,7 @@ import { abrirMenuJuego, abrirMenuColeccion } from '../menu-juego.js';
 import { logoColumna } from '../columnas-ui.js';
 import { entrarSeleccion } from '../seleccion.js';
 import { imagenPlataforma } from '../portadas.js';
+import { perfilDe, htmlBanner, htmlBio, htmlVitrina, botonEditar, tieneBanner } from '../perfil-personal.js';
 
 const PESTANAS = [
   { id: 'jugando', nombre: 'Jugando' },
@@ -121,14 +122,17 @@ function renderPerfil(el, id, alSalir) {
       pestanaRecordada.set(id, inicial);
     }
 
+    // Plataforma principal: la que ha elegido en "Editar perfil" o, si no, la que más usa.
+    const mia = perfilDe(u);
     const sub = p.jugados
-      ? `${p.jugados} ${p.jugados === 1 ? 'juego valorado' : 'juegos valorados'}${p.plataformaPrincipal ? ` · juega sobre todo en ${p.plataformaPrincipal}` : ''}`
+      ? `${p.jugados} ${p.jugados === 1 ? 'juego valorado' : 'juegos valorados'}${mia.plataforma ? ` · ${mia.plataforma}` : p.plataformaPrincipal ? ` · juega sobre todo en ${p.plataformaPrincipal}` : ''}`
       : (esMio ? 'Aún no has valorado ningún juego' : 'Aún no ha valorado ningún juego');
     const hayBiblioteca = bib.total || bib.ocultos.length;
 
     el.innerHTML = `
-      <section class="perfil">
+      <section class="perfil${tieneBanner(u) ? ' con-banner' : ''}">
         <div class="perfil-lado">
+        ${htmlBanner(u)}
         <div class="perfil-barra">
           ${esMio ? '<span></span>' : `<button type="button" class="boton-cuadrado" data-accion="atras" aria-label="Volver">${icono('atras', { tam: 20, color: 'var(--texto)' })}</button>`}
           ${esMio ? `<button type="button" class="boton-cuadrado" data-accion="ajustes" aria-label="Ajustes">${icono('ajustes', { tam: 22, color: 'var(--texto)' })}</button>` : '<span></span>'}
@@ -137,6 +141,8 @@ function renderPerfil(el, id, alSalir) {
           ${avatar(u, 128)}
           <h1 class="perfil-nombre-grande">${esc(u.nombre)}</h1>
           <span class="perfil-sub">${esc(sub)}</span>
+          ${htmlBio(u)}
+          ${esMio && 'perfil_datos' in u ? botonEditar(u) : ''}
           ${!esMio && soyAdmin && 'foto_url' in u ? botonFoto(u, u.foto_url ? 'Cambiar su foto' : 'Ponerle foto') : ''}
         </div>
 
@@ -157,6 +163,10 @@ function renderPerfil(el, id, alSalir) {
               : '<span class="dato-num apagado">—</span><span class="dato-etq">Horas · sin datos</span>'}
           </div>
         </div>
+
+        ${htmlVitrina(u, esMio)}
+        <!-- Vitrina de insignias: sitio reservado (sin contenido no ocupa nada). -->
+        <div class="perfil-insignias" data-ref="insignias" hidden></div>
 
         ${esMio ? '' : `<a class="boton-principal enlace perfil-comparar" href="#rankings/comparar/${esc(yo.id)}/${esc(id)}">${icono('rankings', { tam: 20, color: 'currentColor' })}<span>Comparar conmigo</span></a>`}
 
@@ -480,6 +490,8 @@ function renderPerfil(el, id, alSalir) {
       pestanaRecordada.set(id, b.dataset.pestana);
       const u = datos.usuario(id) ?? yo;
       pintarHistorial(u, metricas.perfil(id));
+    } else if (b.dataset.accion === 'editar-perfil') {
+      import('../perfil-editar.js').then((m) => m.abrirEditarPerfil(yo.id));
     } else if (b.dataset.accion === 'ajustes') {
       abrirAjustes(alSalir);
     } else if (b.dataset.accion === 'atras') {

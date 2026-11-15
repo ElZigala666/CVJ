@@ -14,6 +14,7 @@ import { montarPlataformas } from './ajustes-plataformas.js';
 import { montarGrupo } from './ajustes-grupo.js';
 import { abrirSelectorColor } from './selector-color.js';
 import { botonFoto } from './foto-perfil.js';
+import { montarFondo } from './ajustes-fondo.js';
 import { avatar } from './ui.js';
 
 function bloqueApariencia(acentoActual) {
@@ -78,6 +79,7 @@ export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas 
       <div class="ajustes">
         <div data-ref="foto"></div>
         <div data-ref="apariencia" class="ajustes-apariencia"></div>
+        <div data-ref="fondo"></div>
         <section class="ajustes-bloque ajustes-plataformas" id="ajustes-plataformas">
           <span class="campo-titulo">Plataformas</span>
           <div data-ref="plataformas"></div>
@@ -147,6 +149,7 @@ export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas 
       // PSN se abre desplegada desde el aviso de "Reconectar"; Steam, al volver de su inicio de sesión.
       const quitarPlataformas = montarPlataformas(cuerpo.querySelector('[data-ref="plataformas"]'), { abrir: psn ? 'psn' : steam ? 'steam' : null });
       const quitarGrupo = montarGrupo(cuerpo.querySelector('[data-ref="grupo"]'));
+      const quitarFondo = montarFondo(cuerpo.querySelector('[data-ref="fondo"]'));
       // Abierta desde el aviso de "Reconectar": directamente al bloque de PlayStation.
       if (psn || steam || plataformas) {
         setTimeout(() => {
@@ -155,7 +158,7 @@ export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas 
           if (bloque && scroll) scroll.scrollTop += bloque.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 8;
         }, 450);
       }
-      const vigilar = new MutationObserver(() => { if (!cuerpo.isConnected) { quitarPlataformas(); quitarGrupo(); quitarFoto(); vigilar.disconnect(); } });
+      const vigilar = new MutationObserver(() => { if (!cuerpo.isConnected) { quitarPlataformas(); quitarGrupo(); quitarFoto(); quitarFondo(); vigilar.disconnect(); } });
       vigilar.observe(document.body, { childList: true });
 
       // --- Apariencia ---------------------------------------------------------

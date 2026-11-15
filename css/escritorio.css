@@ -247,3 +247,10 @@ body.seleccionando #barra { visibility: visible; }
 }
 .sel-boton { padding: 8px 4px; }
 .sel-boton:hover:not(:disabled) { background: var(--superficie); }
+
+/* Perfil personalizable: la cabecera y la vitrina van en la columna de datos */
+@media (min-width: 1024px) {
+  .perfil-lado .perfil-banner { border-radius: 20px; height: 118px; }
+  .perfil.con-banner .perfil-lado { padding-top: 12px; }
+  .perfil-lado > .perfil-vitrina, .perfil-lado > .perfil-insignias { margin: 0; }
+}

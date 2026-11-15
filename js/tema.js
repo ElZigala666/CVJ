@@ -25,6 +25,8 @@ export function preferenciaTema() {
 export const esOscuro = () => document.documentElement.getAttribute('data-tema') === 'oscuro';
 
 export function aplicarTema(pref = preferenciaTema()) {
+  // Con un fondo puesto (js/apariencia.js), el fondo decide si la app va en claro o en oscuro.
+  if (document.documentElement.hasAttribute('data-fondo')) return;
   const oscuro = pref === 'oscuro' || (pref === 'auto' && !!sistemaOscuro?.matches);
   const raiz = document.documentElement;
   if (oscuro) raiz.setAttribute('data-tema', 'oscuro');

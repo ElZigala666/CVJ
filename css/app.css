@@ -1900,3 +1900,22 @@ body.seleccionando #barra { visibility: hidden; }
 .horas-estimar-opciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .horas-estimar-opciones .boton-principal { width: auto; height: 38px; padding: 0 14px; font-size: 13px; border-radius: 12px; }
 .horas-estimar .ajustes-nota { margin: 8px 0 0; }
+
+/* Sin identificar: la portada limpia y, debajo, la propuesta o "¿Qué juego es?" */
+.sin-id { display: flex; flex-direction: column; gap: 6px; }
+.sin-id .sin-emparejar .portada-titulo-arriba { top: 8px; }
+.sin-id-pie {
+  display: flex; flex-direction: column; gap: 6px; padding: 7px 8px; border-radius: 10px;
+  background: var(--superficie); font-size: 11.5px; line-height: 1.3; color: var(--texto-2); text-decoration: none;
+}
+.sin-id-pregunta { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sin-id-pregunta strong { color: var(--texto); font-weight: 600; }
+.sin-id-botones { display: flex; align-items: center; gap: 10px; }
+.sin-id-si { height: 26px; padding: 0 14px; border: 0; border-radius: 13px; background: var(--acento); color: var(--sobre-acento); font-size: 12px; font-weight: 700; }
+.sin-id-otro { color: var(--texto-2); font-size: 12px; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.sin-id-elegir { flex-direction: row; align-items: center; gap: 6px; font-weight: 600; }
+
+/* Rejillas largas (historial, biblioteca): las celdas fuera de pantalla no se maquetan ni se
+   pintan hasta que se acercan; el deslizamiento va fluido aunque haya cientos. */
+.rejilla > .bib-celda, .rejilla > .rejilla-item { content-visibility: auto; contain-intrinsic-size: auto 170px; }
+.ranking-lista > li, .saga-lista > li { content-visibility: auto; contain-intrinsic-size: auto 76px; }

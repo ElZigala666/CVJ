@@ -13,8 +13,29 @@ const BASE_IMG = 'https://images.igdb.com/igdb/image/upload';
 //   más           t_cover_big_2x    (528×748)
 // Sin srcset: una sola URL por sitio, así cada portada se descarga una vez y la
 // ficha puede reutilizar la que ya esté en caché.
+/**
+ * Imagen que da la plataforma (PSN, Xbox) para un juego sin identificar, al ancho al que
+ * se ve: las originales pesan cientos de KB. Steam no deja elegir tamaño.
+ */
+export function imagenPlataforma(url, anchoCss = 120) {
+  if (!url) return url;
+  const w = Math.min(600, Math.round(anchoCss * Math.min(3, globalThis.devicePixelRatio || 2)));
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'image.api.playstation.com') { u.searchParams.set('w', String(w)); return u.href; }
+    if (/(^|\.)s-microsoft\.com$|xboxlive\.com$/.test(u.hostname)) { u.protocol = 'https:'; u.searchParams.set('w', String(w)); u.searchParams.set('q', '80'); return u.href; }
+  } catch { /* URL rara: tal cual */ }
+  return url;
+}
+
+// Ahorro de datos activado o red lenta (2G/3G): las portadas, un tamaño menos.
+const conexion = globalThis.navigator?.connection;
+const redLenta = () => !!conexion && (conexion.saveData === true || /(^|-)(2g|3g)$/.test(conexion.effectiveType ?? ''));
+
 export function tamPara(anchoCss) {
-  const px = anchoCss * (window.devicePixelRatio || 1);
+  // Hasta 2 píxeles por punto: en pantallas de 3x la diferencia no se ve y la portada pesa
+  // la tercera parte. Con red lenta o ahorro de datos, 1,5.
+  const px = anchoCss * Math.min(window.devicePixelRatio || 1, redLenta() ? 1.5 : 2);
   if (px <= 90) return 'cover_small';
   if (px <= 180) return 'cover_small_2x';
   if (px <= 264) return 'cover_big';

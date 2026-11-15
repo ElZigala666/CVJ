@@ -1,7 +1,8 @@
 // Datos del grupo en memoria.
-// Al arrancar se pinta al instante desde localStorage y se refresca en segundo plano.
+// Al arrancar se pinta al instante desde la caché (IndexedDB) y se refresca en segundo plano.
 // Todas las métricas se calculan en el cliente (son pocos datos).
 import { cliente } from './supabase.js';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
 import { mediaGrupo, recomendacionGrupo, repartoLetras, desviacionTipica, redondear } from './notas.js';
 
 const CLAVE = 'cvj.datos.v1';
@@ -25,37 +26,158 @@ let refrescoAplazado = false;
 
 // ---------------------------------------------------------------------------
 // Carga
+//
+//  - TODAS las filas: la API de Supabase devuelve como mucho 1000 por petición, así que
+//    cada tabla se pide por páginas (con orden fijo) hasta que se acaba.
+//  - Solo lo que cambia: una petición pequeña ("huellas", una por tabla) dice qué tablas
+//    son distintas de las que ya hay aquí, y solo esas se vuelven a pedir.
+//  - Sin columnas que no se pintan (el resumen de los juegos).
+//  - Leer va con fetch directo a la API: no espera a que llegue la librería de Supabase
+//    (que solo hace falta para escribir).
+//  - La caché va en IndexedDB (localStorage se queda sin sitio a los 5 MB y entonces no
+//    se guardaba nada, sin avisar).
 // ---------------------------------------------------------------------------
-function leerCache() {
-  try {
-    const c = JSON.parse(localStorage.getItem(CLAVE) || 'null');
-    if (c && Array.isArray(c.usuarios)) Object.assign(estado, vacio(), c);
-  } catch { /* caché rota: se ignora */ }
-  indices = construirIndices(estado);
-}
-
-function guardarCache() {
-  try {
-    localStorage.setItem(CLAVE, JSON.stringify(estado));
-  } catch { /* sin espacio o modo privado */ }
-}
-
 const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sugRechazadas, s.servicios, s.cuentas, s.horasExtra, s.avisos, s.coleccionesG, s.coleccionesJuegos, s.valColecciones, s.sagas, s.sagasJuegos, s.columnas, s.entradas, s.lecturas, s.horasAjustes, s.horasEstimadas]);
+const COLUMNAS_USUARIO = 'id, nombre, inicial, color, acento, creado_en';
+const COLUMNAS_ENTRADA = 'id, columna_id, usuario_id, juego_id, coleccion_id, saga_id, titulo, subtitulo, palabras, estado, publicada_en, creado_en, actualizado_en';
+const PAGINA = 1000;
+const SIN_USUARIO = '00000000-0000-0000-0000-000000000000';
+const COLUMNAS_JUEGO = 'igdb_id, nombre, slug, cover_id, anio, plataformas, desarrolladora, generos, actualizado_en, color_dominante, es_online, es_online_manual, relaciones, ttb_historia, ttb_extras, ttb_completo';
 
-/** Pinta desde caché (síncrono) y lanza el refresco en segundo plano. */
-export function iniciar() {
-  leerCache();
-  avisar();
-  refrescar();
+/**
+ * Las tablas que se cargan: k = dónde va en estado, t = tabla, orden = columnas para
+ * paginar sin saltarse filas, sel/alt = columnas (alt si la base aún no tiene alguna),
+ * esencial = sin ella no se puede pintar nada, q = filtros.
+ */
+const TABLAS = [
+  { k: 'usuarios', t: 'usuarios', orden: ['creado_en', 'id'], esencial: true,
+    sel: `${COLUMNAS_USUARIO}, foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas, estimar_horas`, alt: COLUMNAS_USUARIO },
+  { k: 'valoraciones', t: 'valoraciones', orden: ['id'], esencial: true },
+  { k: 'juegos', t: 'juegos', orden: ['igdb_id'], esencial: true, sel: COLUMNAS_JUEGO, alt: '*' },
+  { k: 'actividad', t: 'actividad', esencial: true, q: () => `order=creado_en.desc&limit=${LIMITE_ACTIVIDAD}`, unaPagina: true },
+  { k: 'biblioteca', t: 'biblioteca', orden: ['id'] },
+  { k: 'psnIgdb', t: 'psn_igdb', orden: ['psn_title_id'] },
+  { k: 'alias', t: 'juegos_alias', orden: ['alias_id'] },
+  { k: 'rechazadas', t: 'fusiones_rechazadas' },
+  { k: 'sugRechazadas', t: 'sagas_usuario' },
+  { k: 'servicios', t: 'estado_servicios' },
+  { k: 'cuentas', t: 'cuentas_plataforma', orden: ['creado_en', 'id'] },
+  { k: 'horasExtra', t: 'horas_extra', orden: ['usuario_id', 'juego_id'] },
+  { k: 'avisos', t: 'avisos', q: () => 'leido=eq.false' },
+  { k: 'coleccionesG', t: 'colecciones', orden: ['id'] },
+  { k: 'coleccionesJuegos', t: 'colecciones_juegos', orden: ['juego_id'] },
+  { k: 'valColecciones', t: 'valoraciones_coleccion', orden: ['id'] },
+  { k: 'sagas', t: 'sagas', orden: ['id'] },
+  { k: 'sagasJuegos', t: 'sagas_juegos', orden: ['saga_id', 'juego_id'] },
+  { k: 'columnas', t: 'columnas' },
+  // Entradas de las columnas: sin el texto (puede ser larguísimo; se pide al leer).
+  // Las publicadas de todos y los borradores propios.
+  { k: 'entradas', t: 'entradas', sel: COLUMNAS_ENTRADA, deUsuario: true, q: (uid) => `or=(estado.eq.publicada,usuario_id.eq.${uid})` },
+  { k: 'lecturas', t: 'lecturas', deUsuario: true, q: (uid) => `usuario_id=eq.${uid}` },
+  { k: 'horasAjustes', t: 'horas_ajustes', orden: ['usuario_id', 'juego_id'] },
+  { k: 'horasEstimadas', t: 'horas_estimadas', orden: ['usuario_id', 'juego_id'] },
+];
+
+/** Petición de lectura a la API de Supabase (PostgREST). Lanza si no va bien. */
+async function api(ruta, cuerpo) {
+  const r = await fetch(SUPABASE_URL + ruta, {
+    method: cuerpo ? 'POST' : 'GET',
+    headers: { apikey: SUPABASE_KEY, ...(cuerpo ? { 'Content-Type': 'application/json' } : {}) },
+    body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+  });
+  if (!r.ok) throw Object.assign(new Error(`${ruta.split('?')[0]}: ${r.status}`), { estado: r.status });
+  return r.json();
 }
 
-/** Descarga todo de Supabase de golpe. Si nada ha cambiado, no repinta. */
+/** Todas las filas de una tabla, por páginas. Lanza si falla. */
+async function leerTabla(def, uid, sel = def.sel ?? '*') {
+  const filas = [];
+  const fijo = [`select=${encodeURIComponent(sel.replace(/\s+/g, ''))}`, def.q?.(uid), (def.orden ?? []).length ? `order=${def.orden.join(',')}` : null].filter(Boolean).join('&');
+  for (let desde = 0; ; desde += PAGINA) {
+    let pagina;
+    try {
+      pagina = await api(`${def.t}?${fijo}${def.unaPagina ? '' : `&offset=${desde}&limit=${PAGINA}`}`);
+    } catch (e) {
+      // Falta alguna columna (migración sin aplicar): con las de siempre.
+      if (e.estado === 400 && def.alt && sel !== def.alt) return leerTabla(def, uid, def.alt);
+      throw e;
+    }
+    filas.push(...pagina);
+    if (def.unaPagina || pagina.length < PAGINA) return filas;
+  }
+}
+
+// Huellas de las tablas tal como están aquí (las del servidor cuando se pidieron).
+let huellas = {};
+let huellasDe = null; // de qué usuario son los datos filtrados (entradas, lecturas)
+
+// --- Caché en IndexedDB ------------------------------------------------------
+const hayIdb = typeof indexedDB !== 'undefined';
+function abrirBd() {
+  return new Promise((res, rej) => {
+    const p = indexedDB.open('cvj', 1);
+    p.onupgradeneeded = () => p.result.createObjectStore('cache');
+    p.onsuccess = () => res(p.result);
+    p.onerror = () => rej(p.error);
+  });
+}
+async function leerCache() {
+  if (!hayIdb) return;
+  try {
+    const bd = await abrirBd();
+    const texto = await new Promise((res, rej) => {
+      const p = bd.transaction('cache').objectStore('cache').get('datos');
+      p.onsuccess = () => res(p.result);
+      p.onerror = () => rej(p.error);
+    });
+    bd.close();
+    // Va como texto: leer una cadena y pasarla por JSON.parse es mucho más rápido que
+    // dejar que IndexedDB reconstruya miles de objetos.
+    const c = typeof texto === 'string' ? JSON.parse(texto) : null;
+    // Solo si aún no ha llegado nada del servidor (la caché nunca pisa datos más nuevos).
+    if (c?.estado && Array.isArray(c.estado.usuarios) && !frescos) {
+      Object.assign(estado, vacio(), c.estado);
+      huellas = c.huellas ?? {};
+      huellasDe = c.huellasDe ?? null;
+      indices = construirIndices(estado);
+    }
+  } catch { /* caché rota o sin IndexedDB: se arranca sin ella */ }
+}
+let guardando = null;
+function guardarCache() {
+  if (!hayIdb || guardando) return;
+  // Agrupa las escrituras seguidas en una (y fuera del camino del pintado).
+  guardando = setTimeout(async () => {
+    guardando = null;
+    try {
+      const bd = await abrirBd();
+      const tx = bd.transaction('cache', 'readwrite');
+      tx.objectStore('cache').put(JSON.stringify({ estado, huellas, huellasDe }), 'datos');
+      tx.oncomplete = tx.onabort = () => bd.close();
+    } catch (e) { console.warn('[datos] No se ha podido guardar la caché:', e?.message || e); }
+  }, 250);
+}
+// La caché antigua (localStorage) ya no se usa: se libera su sitio.
+try { localStorage.removeItem(CLAVE); } catch { /* nada */ }
+
+// La caché se empieza a leer al cargar el módulo, mientras llega el resto de la app.
+const cacheLeida = Promise.race([leerCache(), new Promise((r) => setTimeout(r, 600))]);
+/** Se resuelve cuando la caché está en memoria (o no hay): entonces ya se puede pintar. */
+export const alArrancar = () => cacheLeida;
+
+/** Pinta desde la caché y lanza el refresco en segundo plano. */
+export function iniciar() {
+  cacheLeida.then(() => { avisar(); refrescar(); });
+}
+
 // ¿Ya hay datos del servidor en esta sesión? (lo que escribe solo no debe fiarse de la caché)
 let frescos = false;
-let alEstarFrescos = null;
+const alEstarFrescos = new Set();
 export const datosFrescos = () => frescos;
-export function cuandoFrescos(fn) { alEstarFrescos = fn; }
+/** fn se llama cada vez que termina un refresco con el servidor (haya cambios o no). */
+export function cuandoFrescos(fn) { alEstarFrescos.add(fn); }
 
+/** Trae de Supabase lo que haya cambiado. Si nada ha cambiado, no repinta. */
 export function refrescar() {
   if (escriturasEnCurso) {
     // No pisar un cambio optimista con datos del servidor que aún no lo tienen.
@@ -64,57 +186,41 @@ export function refrescar() {
   }
   if (refrescando) return refrescando;
   refrescando = (async () => {
-    const sb = await cliente();
-    // Extras que pueden no existir aún (migraciones): si fallan, se sigue con lo de antes.
-    const extra = (q, previo) => q.then((r) => (r.error ? { data: previo } : r), () => ({ data: previo }));
-    const [u, v, j, a, bib, emp, ali, rech, sag, serv, cue, hex, avi, sg, sgj, vsg, sa, saj, col, ent, lec, haj, hes] = await Promise.all([
-      leerUsuarios(sb),
-      sb.from('valoraciones').select('*'),
-      sb.from('juegos').select('*'),
-      sb.from('actividad').select('*').order('creado_en', { ascending: false }).limit(LIMITE_ACTIVIDAD),
-      // PSN es un extra: si falla (o aún no existe la tabla), se sigue sin ello.
-      sb.from('biblioteca').select('*').then((r) => (r.error ? { data: estado.biblioteca } : r), () => ({ data: estado.biblioteca })),
-      sb.from('psn_igdb').select('*').then((r) => (r.error ? { data: estado.psnIgdb } : r), () => ({ data: estado.psnIgdb })),
-      extra(sb.from('juegos_alias').select('*'), estado.alias),
-      extra(sb.from('fusiones_rechazadas').select('*'), estado.rechazadas),
-      extra(sb.from('sagas_usuario').select('*'), estado.sugRechazadas),
-      extra(sb.from('estado_servicios').select('*'), estado.servicios),
-      extra(sb.from('cuentas_plataforma').select('*').order('creado_en'), estado.cuentas),
-      extra(sb.from('horas_extra').select('*'), estado.horasExtra),
-      extra(sb.from('avisos').select('*').eq('leido', false), estado.avisos),
-      extra(sb.from('colecciones').select('*'), estado.coleccionesG),
-      extra(sb.from('colecciones_juegos').select('*'), estado.coleccionesJuegos),
-      extra(sb.from('valoraciones_coleccion').select('*'), estado.valColecciones),
-      extra(sb.from('sagas').select('*'), estado.sagas),
-      extra(sb.from('sagas_juegos').select('*'), estado.sagasJuegos),
-      extra(sb.from('columnas').select('*'), estado.columnas),
-      // Entradas de las columnas: sin el texto (puede ser larguísimo; se pide al leer).
-      // Las publicadas de todos y los borradores propios.
-      extra(sb.from('entradas').select(COLUMNAS_ENTRADA).or(`estado.eq.publicada,usuario_id.eq.${usuarioDeSesion() ?? '00000000-0000-0000-0000-000000000000'}`), estado.entradas),
-      extra(sb.from('lecturas').select('*').eq('usuario_id', usuarioDeSesion() ?? '00000000-0000-0000-0000-000000000000'), estado.lecturas),
-      extra(sb.from('horas_ajustes').select('*'), estado.horasAjustes),
-      extra(sb.from('horas_estimadas').select('*'), estado.horasEstimadas),
-    ]);
-    const error = u.error || v.error || j.error || a.error;
-    if (error) throw new Error(error.message);
+    const uid = usuarioDeSesion() ?? SIN_USUARIO;
+    // Una petición pequeña: la huella de cada tabla. Sin ella (migración 028 sin aplicar
+    // o fallo), se pide todo como antes.
+    let nuevas = null;
+    try {
+      const r = await api('rpc/huellas', {});
+      if (r && typeof r === 'object' && !Array.isArray(r)) nuevas = r;
+    } catch { /* se pide todo */ }
+    const cambiada = (def) => !nuevas || !nuevas[def.t] || nuevas[def.t] !== huellas[def.t]
+      || (def.deUsuario && huellasDe !== uid) || !estado.cargadoEn;
+    const pedir = TABLAS.filter(cambiada);
+    const resultados = await Promise.all(pedir.map((def) => leerTabla(def, uid).then(
+      (filas) => ({ def, filas }),
+      (e) => { if (def.esencial) throw e; return { def, filas: null }; }, // un extra que falla: se sigue con lo de antes
+    )));
     if (escriturasEnCurso) { refrescoAplazado = true; return; }
-    const nuevo = {
-      usuarios: u.data, valoraciones: v.data, juegos: j.data, actividad: a.data, biblioteca: bib.data ?? [], psnIgdb: emp.data ?? [],
-      alias: ali.data ?? [], rechazadas: rech.data ?? [], sugRechazadas: sag.data ?? [], servicios: serv.data ?? [], cuentas: cue.data ?? [], horasExtra: hex.data ?? [], avisos: avi.data ?? [],
-      coleccionesG: sg.data ?? [], coleccionesJuegos: sgj.data ?? [], valColecciones: vsg.data ?? [],
-      sagas: sa.data ?? [], sagasJuegos: saj.data ?? [], columnas: col.data ?? [], entradas: ent.data ?? [], lecturas: lec.data ?? [],
-      horasAjustes: haj.data ?? [],
-      horasEstimadas: hes.data ?? [],
-    };
-    const cambia = firma(nuevo) !== firma(estado);
+    const nuevo = {};
+    for (const { def, filas } of resultados) {
+      if (!filas) continue;
+      nuevo[def.k] = filas;
+      if (nuevas?.[def.t]) huellas[def.t] = nuevas[def.t]; else delete huellas[def.t];
+    }
+    huellasDe = uid;
+    // Con huellas, lo pedido es lo que ha cambiado; sin ellas, se compara el contenido.
+    const cambia = nuevas ? Object.keys(nuevo).length > 0 : firma({ ...estado, ...nuevo }) !== firma(estado);
     Object.assign(estado, nuevo, { cargadoEn: new Date().toISOString() });
-    guardarCache();
     if (cambia) {
+      guardarCache();
       indices = construirIndices(estado);
       avisar();
     }
     frescos = true;
-    alEstarFrescos?.();
+    for (const fn of alEstarFrescos) { try { fn(); } catch (e) { console.error(e); } }
+    // Decisiones que no se pudieron guardar antes: ahora que hay conexión.
+    if (leerPendientes().length) reintentarPendientes();
   })()
     .catch((e) => {
       console.warn('[datos] No se ha podido refrescar:', e.message || e);
@@ -125,27 +231,20 @@ export function refrescar() {
   return refrescando;
 }
 
-const COLUMNAS_USUARIO = 'id, nombre, inicial, color, acento, creado_en';
-const COLUMNAS_ENTRADA = 'id, columna_id, usuario_id, juego_id, coleccion_id, saga_id, titulo, subtitulo, palabras, estado, publicada_en, creado_en, actualizado_en';
 /** Usuario con sesión (de localStorage, sin importar sesion.js para no crear un ciclo). */
 function usuarioDeSesion() {
   try { return JSON.parse(localStorage.getItem('cvj.sesion') || 'null')?.usuario?.id ?? null; } catch { return null; }
-}
-/**
- * Usuarios con su foto y sus preferencias. Las cuentas de PSN, Xbox y Steam están en
- * cuentas_plataforma (los usuarios ya no guardan un resumen, migración 017).
- */
-async function leerUsuarios(sb) {
-  const r = await sb.from('usuarios').select(COLUMNAS_USUARIO + ', foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas, estimar_horas').order('creado_en');
-  if (!r.error) return r;
-  return sb.from('usuarios').select(COLUMNAS_USUARIO).order('creado_en');
 }
 
 export function borrarCache() {
   try { localStorage.removeItem(CLAVE); } catch { /* nada */ }
   Object.assign(estado, vacio());
+  huellas = {};
+  huellasDe = null;
+  frescos = false;
   parciales.clear();
   indices = construirIndices(estado);
+  if (hayIdb) abrirBd().then((bd) => { const tx = bd.transaction('cache', 'readwrite'); tx.objectStore('cache').delete('datos'); tx.oncomplete = () => bd.close(); }).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -1013,7 +1112,51 @@ export function ocultarBiblioteca(usuarioId, psnTitleIds, oculto, onError) {
  * @param {string} psnTitleId
  * @param {object} juegoElegido juego de IGDB (de Buscar o de la tabla)
  */
-export function emparejarPsn(psnTitleId, juegoElegido, onError) {
+export async function emparejarPsn(psnTitleId, juegoElegido, onError) {
+  const ok = await guardarEmparejamiento(psnTitleId, juegoElegido, null);
+  if (ok) { quitarPendiente(psnTitleId); return true; }
+  // No se ha podido guardar (sin conexión, fallo del servidor): la decisión NO se pierde.
+  // Se apunta en este dispositivo y se vuelve a intentar sola al tener datos del servidor.
+  apuntarPendiente(psnTitleId, juegoElegido);
+  onError?.('No se ha podido guardar el emparejamiento. Lo guardaremos solo en cuanto haya conexión.');
+  return false;
+}
+
+// Emparejamientos elegidos que no se pudieron guardar (se reintentan solos).
+const CLAVE_PENDIENTES = 'cvj.emparejar.pendientes';
+function leerPendientes() {
+  try { const l = JSON.parse(localStorage.getItem(CLAVE_PENDIENTES) || '[]'); return Array.isArray(l) ? l : []; } catch { return []; }
+}
+function escribirPendientes(l) {
+  try { if (l.length) localStorage.setItem(CLAVE_PENDIENTES, JSON.stringify(l)); else localStorage.removeItem(CLAVE_PENDIENTES); } catch { /* nada */ }
+}
+function apuntarPendiente(psnTitleId, j) {
+  escribirPendientes([...leerPendientes().filter((x) => x.titulo !== psnTitleId), { titulo: psnTitleId, juego: filaJuego(j), en: new Date().toISOString() }]);
+}
+function quitarPendiente(psnTitleId) {
+  const l = leerPendientes();
+  if (l.some((x) => x.titulo === psnTitleId)) escribirPendientes(l.filter((x) => x.titulo !== psnTitleId));
+}
+export const emparejamientosPendientes = () => leerPendientes();
+let reintentando = false;
+/** Tras llegar datos del servidor: guardar lo que quedó pendiente. → cuántos se han guardado. */
+export async function reintentarPendientes() {
+  if (reintentando) return 0;
+  reintentando = true;
+  let hechos = 0;
+  try {
+    for (const p of leerPendientes()) {
+      const actual = emparejamiento(p.titulo);
+      // Si ya está confirmado con ese juego (se guardó desde otro dispositivo), nada que hacer.
+      if (actual?.confirmado && Number(actual.igdb_id) === Number(p.juego.igdb_id)) { quitarPendiente(p.titulo); continue; }
+      if (await guardarEmparejamiento(p.titulo, p.juego, null)) { quitarPendiente(p.titulo); hechos++; }
+      else break; // sigue sin conexión: se probará en el siguiente refresco
+    }
+  } finally { reintentando = false; }
+  return hechos;
+}
+
+function guardarEmparejamiento(psnTitleId, juegoElegido, onError) {
   const id = Number(juegoElegido.igdb_id);
   const con006 = (estado.psnIgdb ?? []).some((x) => 'tipo' in x);
   const fila = {

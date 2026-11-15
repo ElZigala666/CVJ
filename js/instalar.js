@@ -53,7 +53,11 @@ export function iniciarInstalacion() {
   });
   window.matchMedia?.('(display-mode: standalone)').addEventListener?.('change', avisar);
 
-  registrarServiceWorker();
+  // Con la primera pantalla ya pintada: su instalación no compite con el arranque.
+
+  if (document.readyState === 'complete') setTimeout(registrarServiceWorker, 2500);
+
+  else window.addEventListener('load', () => setTimeout(registrarServiceWorker, 2500), { once: true });
 }
 
 // ---------------------------------------------------------------------------

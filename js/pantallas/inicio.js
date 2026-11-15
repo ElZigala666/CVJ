@@ -10,6 +10,7 @@ import { logoColumna, textoLectura } from '../columnas-ui.js';
 import { usuarioActual } from '../sesion.js';
 import { mediaGrupo, recomendacionGrupo, desviacionTipica } from '../notas.js';
 import { abrirHoja } from '../hoja.js';
+import { imagenPlataforma } from '../portadas.js';
 import {
   esc, cabecera, portada, notaConLetra, avatar, iconoRecomendacion, avatarPerfil, nombrePerfil, avatarInsignia,
   tiempoRelativo, conservarScroll, aviso,
@@ -221,7 +222,7 @@ function tarjetaJugando(x, i) {
       <div class="tarjeta-jugando-portada">
         <div class="portada portada-jugando portada-psn" style="--bloque:var(--superficie-2)">
           <span class="portada-titulo portada-titulo-arriba">${esc(x.fila.nombre_psn)}</span>
-          ${x.fila.imagen_psn ? `<img src="${esc(x.fila.imagen_psn)}" alt="" loading="lazy" decoding="async" onload="this.classList.add('ok')" onerror="this.remove()">` : ''}
+          ${x.fila.imagen_psn ? `<img src="${esc(imagenPlataforma(x.fila.imagen_psn, 120))}" alt="" loading="lazy" decoding="async" onload="this.classList.add('ok')" onerror="this.remove()">` : ''}
         </div>
         <span class="tarjeta-avatar">${avatarPerfil(u, 30)}</span>
         ${etiqueta}

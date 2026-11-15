@@ -31,10 +31,12 @@ const ARCHIVOS = ['./', 'index.html', 'manifest.webmanifest', 'css/tokens.css', 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_APP);
-    // cache: 'reload' salta la caché HTTP del navegador: se guardan los archivos de ESTA versión.
+    // cache: 'no-cache' pregunta siempre al servidor (se guardan los archivos de ESTA
+    // versión), pero lo que el navegador acaba de bajar vuelve como "no ha cambiado" (304)
+    // en vez de descargarse entero otra vez.
     await Promise.all(ARCHIVOS.map(async (url) => {
       try {
-        const r = await fetch(new Request(url, { cache: 'reload' }));
+        const r = await fetch(new Request(url, { cache: 'no-cache' }));
         if (r.ok) await cache.put(url, r);
       } catch { /* sin red: se guardará al usarlo */ }
     }));

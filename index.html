@@ -54,15 +54,32 @@
 <link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/app.css">
 <link rel="stylesheet" href="css/escritorio.css" media="(min-width: 768px)">
-<!-- JS crítico: se descarga en paralelo en vez de ir descubriendo los imports uno a uno. -->
+<!-- JS de la primera pantalla (Inicio): se descarga en paralelo en vez de ir descubriendo los imports uno a uno.
+     El resto de pantallas se cargan al abrirlas. Lista generada con las dependencias de js/app.js y js/pantallas/inicio.js. -->
+<link rel="modulepreload" href="js/acento.js">
 <link rel="modulepreload" href="js/app.js">
+<link rel="modulepreload" href="js/codigo.js">
+<link rel="modulepreload" href="js/colecciones-ui.js">
+<link rel="modulepreload" href="js/columnas-ui.js">
+<link rel="modulepreload" href="js/config.js">
 <link rel="modulepreload" href="js/datos.js">
-<link rel="modulepreload" href="js/sesion.js">
-<link rel="modulepreload" href="js/ui.js">
+<link rel="modulepreload" href="js/hoja.js">
 <link rel="modulepreload" href="js/icons.js">
+<link rel="modulepreload" href="js/igdb.js">
+<link rel="modulepreload" href="js/instalar.js">
+<link rel="modulepreload" href="js/metricas.js">
+<link rel="modulepreload" href="js/navegacion.js">
 <link rel="modulepreload" href="js/notas.js">
-<link rel="modulepreload" href="js/portadas.js">
 <link rel="modulepreload" href="js/pantallas/inicio.js">
+<link rel="modulepreload" href="js/portadas.js">
+<link rel="modulepreload" href="js/psn-nombres.js">
+<link rel="modulepreload" href="js/psn.js">
+<link rel="modulepreload" href="js/refrescar.js">
+<link rel="modulepreload" href="js/sesion.js">
+<link rel="modulepreload" href="js/supabase.js">
+<link rel="modulepreload" href="js/tema.js">
+<link rel="modulepreload" href="js/ui.js">
+<link rel="modulepreload" href="js/xbox.js">
 <!-- Fuentes sin bloquear el primer pintado (display=swap: se ve el texto con la del sistema y cambia al llegar). -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

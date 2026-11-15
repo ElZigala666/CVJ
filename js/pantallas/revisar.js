@@ -10,6 +10,7 @@ import { volver } from '../navegacion.js';
 import { tarjetaFusion, clicFusion } from '../fusiones.js';
 import { textoHoras } from '../metricas.js';
 import { configurarSeleccion } from '../seleccion.js';
+import { imagenPlataforma } from '../portadas.js';
 
 export function render(el) {
   const yo = usuarioActual();
@@ -129,7 +130,7 @@ function fila(x) {
     <div class="revisar-fila" data-sel="${esc(x.clave)}" data-sel-tipo="fila">
       <div class="revisar-cuerpo">
         <div class="revisar-psn">
-          <span class="revisar-img" style="--bloque:var(--superficie-2)">${f.imagen_psn ? `<img src="${esc(f.imagen_psn)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : ''}</span>
+          <span class="revisar-img" style="--bloque:var(--superficie-2)">${f.imagen_psn ? `<img src="${esc(imagenPlataforma(f.imagen_psn, 40))}" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : ''}</span>
           <span class="revisar-nombre"><strong>${esc(f.nombre_psn)}</strong><small>En PlayStation · ${esc(x.plataformas.join(', '))}${horas ? ` · ${horas}` : ''}</small></span>
           <span class="etiqueta-confianza ${seguro ? 'seguro' : 'revisar'}">${seguro ? 'Seguro' : 'Revisar'}</span>
         </div>

@@ -216,8 +216,8 @@ export function render(el, { ruta, params = [] } = {}) {
       e.preventDefault();
       const j = datos.juegoConocido(elegir.dataset.elegir);
       if (!j || !tituloPsn) return;
-      datos.emparejarPsn(tituloPsn, j, aviso);
-      aviso(`Emparejado con ${j.nombre}`);
+      // Se ve al momento, pero el "guardado" solo se dice cuando la base lo confirma.
+      datos.emparejarPsn(tituloPsn, j, (m) => aviso(m, 6000)).then((ok) => { if (ok) aviso(`Guardado: es ${j.nombre}`); });
       volver('#perfil');
       return;
     }

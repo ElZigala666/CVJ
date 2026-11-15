@@ -20,6 +20,7 @@ import { abrirAjustes } from '../ajustes.js';
 import { abrirMenuJuego, abrirMenuColeccion } from '../menu-juego.js';
 import { logoColumna } from '../columnas-ui.js';
 import { entrarSeleccion } from '../seleccion.js';
+import { imagenPlataforma } from '../portadas.js';
 
 const PESTANAS = [
   { id: 'jugando', nombre: 'Jugando' },
@@ -93,6 +94,7 @@ function renderPerfil(el, id, alSalir) {
   const fHist = filtroDe(`${id}:hist`, 'nota');
   const fBib = filtroDe(`${id}:bib`, 'horas');
   const vista = { sinIdentificar: false, probados: false, ocultos: false, abiertos: new Set() };
+  let primeraPintada = true;
 
   const pintar = () => {
     const u = datos.usuario(id) ?? (esMio ? yo : null);
@@ -216,7 +218,13 @@ function renderPerfil(el, id, alSalir) {
         </div>
       </section>`;
     pintarHistorial(u, p);
-    if (hayBiblioteca) pintarBiblioteca(bib);
+    // La biblioteca queda por debajo de lo que se ve: la primera vez se pinta justo después
+    // del primer fotograma, para que el cambio de pestaña no espere a cientos de portadas.
+    if (hayBiblioteca) {
+      if (primeraPintada) requestAnimationFrame(() => setTimeout(() => { if (el.isConnected) pintarBiblioteca(metricas.biblioteca(id)); }, 0));
+      else pintarBiblioteca(bib);
+    }
+    primeraPintada = false;
 
     if (enFiltro) {
       const inp = el.querySelector(`[data-filtro="${enFiltro}"] [data-filtro-texto]`);
@@ -438,6 +446,15 @@ function renderPerfil(el, id, alSalir) {
       else abrirMenuJuego({ uid: yo.id, igdbId: Number(k) });
       return;
     }
+    // "¿Es X?" → "Sí": emparejado de un toque (se confirma solo cuando la base lo guarda).
+    const si = e.target.closest('[data-es-este]');
+    if (si) {
+      e.preventDefault();
+      const x = grupoBib(si.dataset.esEste);
+      const j = datos.juegoConocido(si.dataset.juego);
+      if (x && j) datos.emparejarPsn(x.psnTitleId, j, (m) => aviso(m, 6000)).then((ok) => { if (ok) aviso(`Guardado: es ${j.nombre}`); });
+      return;
+    }
     const menu = e.target.closest('[data-bib-menu]');
     if (menu) { e.preventDefault(); abrirMenuBib(menu.dataset.bibMenu); return; }
     const mostrar = e.target.closest('[data-mostrar]');
@@ -563,21 +580,34 @@ function itemBiblioteca(x, i, esMio) {
     </div>`;
 }
 
-/** Sin identificar: imagen de PSN; el dueño puede elegir qué juego es. */
+/**
+ * Sin identificar: la imagen de la plataforma, limpia. Debajo, discreto, la mejor propuesta
+ * ("¿Es Horizon Forbidden West?" con "Sí" de un toque) o, si no hay, "¿Qué juego es?".
+ */
 function itemSinIdentificar(x, esMio) {
   const horas = textoHoras(x.horas);
   const dentro = `
     <div class="portada portada-rejilla portada-psn" style="--bloque:var(--superficie-2)">
       <span class="portada-titulo portada-titulo-arriba">${esc(x.nombre)}</span>
-      ${x.imagen ? `<img src="${esc(x.imagen)}" alt="" loading="lazy" decoding="async" onload="this.classList.add('ok')" onerror="this.remove()">` : ''}
-      ${esMio ? '<span class="que-juego">¿Qué juego es?</span>' : ''}
+      ${x.imagen ? `<img src="${esc(imagenPlataforma(x.imagen, 120))}" alt="" loading="lazy" decoding="async" onload="this.classList.add('ok')" onerror="this.remove()">` : ''}
     </div>
     <span class="rejilla-nota"><span class="rejilla-horas">${horas || 'Sin horas'}</span></span>`;
   if (!esMio) return `<div class="rejilla-item sin-emparejar" aria-label="${esc(x.nombre)}">${dentro}</div>`;
+  const elegir = `#elegir/${encodeURIComponent(x.psnTitleId)}`;
+  const prop = x.revision?.propuesta ?? null;
   return `
-    <div class="bib-celda" data-bib-celda="${esc(x.clave)}">
-      <a class="rejilla-item sin-emparejar" href="#elegir/${encodeURIComponent(x.psnTitleId)}" aria-label="${esc(x.nombre)}: elegir qué juego es">${dentro}</a>
+    <div class="bib-celda sin-id" data-bib-celda="${esc(x.clave)}">
+      <a class="rejilla-item sin-emparejar" href="${elegir}" aria-label="${esc(x.nombre)}: elegir qué juego es">${dentro}</a>
       <button type="button" class="bib-menu" data-bib-menu="${esc(x.clave)}" aria-label="Opciones de ${esc(x.nombre)}">${icono('opciones', { tam: 18, color: '#FFFFFF' })}</button>
+      ${prop ? `
+        <div class="sin-id-pie">
+          <span class="sin-id-pregunta">¿Es <strong>${esc(prop.nombre)}</strong>?</span>
+          <span class="sin-id-botones">
+            <button type="button" class="sin-id-si" data-es-este="${esc(x.clave)}" data-juego="${prop.igdb_id}">Sí</button>
+            <a class="sin-id-otro" href="${elegir}">Otro</a>
+          </span>
+        </div>`
+      : `<a class="sin-id-pie sin-id-elegir" href="${elegir}">${icono('buscar', { tam: 13, color: 'currentColor' })}<span>¿Qué juego es?</span></a>`}
     </div>`;
 }
 

@@ -5,53 +5,51 @@ import * as datos from './datos.js';
 import { aplicarAcento } from './ui.js';
 import { iniciarInstalacion } from './instalar.js';
 import { iniciarTema } from './tema.js';
-import * as psn from './psn.js';
-import { abrirAjustes } from './ajustes.js';
-import { abrirEditorFoto } from './foto-perfil.js';
-import { revisarOnline } from './igdb.js';
-import * as entrada from './pantallas/entrada.js';
-import * as inicio from './pantallas/inicio.js';
-import * as buscar from './pantallas/buscar.js';
-import * as juego from './pantallas/juego.js';
-import * as perfil from './pantallas/perfil.js';
-import * as estadisticas from './pantallas/estadisticas.js';
-import * as rankings from './pantallas/rankings.js';
-import * as revisar from './pantallas/revisar.js';
-import * as duplicados from './pantallas/duplicados.js';
-import * as coleccion from './pantallas/coleccion.js';
-import * as saga from './pantallas/saga.js';
-import * as escribir from './pantallas/escribir.js';
-import * as lectura from './pantallas/lectura.js';
-import * as columna from './pantallas/columna.js';
-import * as xbox from './xbox.js';
-import * as steam from './steam.js';
 import { anotarNavegacion, corregirRuta } from './navegacion.js';
-import { olvidarGaleria } from './galeria.js';
-import { iniciarSeleccion, alCambiarPantalla } from './seleccion.js';
-import { iniciarEstimaciones } from './estimaciones.js';
 
 const vista = document.getElementById('vista');
 const barra = document.getElementById('barra');
-iniciarSeleccion(vista);
-iniciarEstimaciones();
 
+// Cada pantalla se descarga cuando se abre por primera vez (y las pestañas, en cuanto la
+// primera está pintada): al arrancar solo viaja lo que hace falta para lo que se ve.
+const buscar = () => import('./pantallas/buscar.js');
 const RUTAS = {
-  inicio,
+  inicio: () => import('./pantallas/inicio.js'),
   buscar,
   valorar: buscar, // el botón central abre Buscar en modo valorar
   elegir: buscar,  // #elegir/{psnTitleId}: "¿Qué juego es?" (emparejar con PSN)
-  rankings,          // #rankings y #rankings/comparar/{a}/{b}
-  perfil,            // #perfil, #perfil/{id} y #perfil/{id}/tiers
-  estadisticas,      // #estadisticas/{id}
-  juego,
-  revisar,           // #revisar: "Revisa tu biblioteca"
-  duplicados,        // #duplicados: horas que pueden repetirse entre Steam y Xbox
-  coleccion,              // #coleccion/{id}: ficha de una colección
-  saga,                   // #saga/{id}: página de una saga (Persona, Zelda...)
-  escribir,               // #escribir/{id} o #escribir/nueva[/juego|coleccion|saga/{id}]: editor de columna
-  entrada: lectura,       // #entrada/{id}: leer una entrada de columna
-  columna,                // #columna/{id}: página de una columna
+  rankings: () => import('./pantallas/rankings.js'),          // #rankings y #rankings/comparar/{a}/{b}
+  perfil: () => import('./pantallas/perfil.js'),              // #perfil, #perfil/{id} y #perfil/{id}/tiers
+  estadisticas: () => import('./pantallas/estadisticas.js'),  // #estadisticas/{id}
+  juego: () => import('./pantallas/juego.js'),
+  revisar: () => import('./pantallas/revisar.js'),            // #revisar: "Revisa tu biblioteca"
+  duplicados: () => import('./pantallas/duplicados.js'),      // #duplicados: horas que pueden repetirse entre Steam y Xbox
+  coleccion: () => import('./pantallas/coleccion.js'),        // #coleccion/{id}: ficha de una colección
+  saga: () => import('./pantallas/saga.js'),                  // #saga/{id}: página de una saga (Persona, Zelda...)
+  escribir: () => import('./pantallas/escribir.js'),          // #escribir/{id} o #escribir/nueva[/juego|coleccion|saga/{id}]: editor de columna
+  entrada: () => import('./pantallas/lectura.js'),            // #entrada/{id}: leer una entrada de columna
+  columna: () => import('./pantallas/columna.js'),            // #columna/{id}: página de una columna
 };
+const login = () => import('./pantallas/entrada.js');
+
+// Lo que no hace falta para pintar: se carga cuando se usa o cuando la app está quieta.
+const abrirAjustes = (...a) => import('./ajustes.js').then((m) => m.abrirAjustes(...a));
+const plataformas = () => Promise.all([import('./psn.js'), import('./xbox.js'), import('./steam.js'), import('./igdb.js')]);
+let seleccion = null; // js/seleccion.js, cuando llega
+const cargarSeleccion = () => import('./seleccion.js').then((m) => { if (!seleccion) { seleccion = m; m.iniciarSeleccion(vista); } });
+const enCalma = (fn, ms = 1500) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: ms + 2000 }) : setTimeout(fn, ms));
+let segundoPlano = false;
+/** Tras pintar la primera pantalla: selección múltiple, estimaciones y las otras pestañas. */
+function cargarSegundoPlano() {
+  if (segundoPlano) return;
+  segundoPlano = true;
+  setTimeout(() => enCalma(() => {
+    cargarSeleccion();
+    import('./estimaciones.js').then((m) => m.iniciarEstimaciones());
+    for (const r of ['inicio', 'perfil', 'buscar', 'rankings', 'juego']) RUTAS[r]().catch(() => {});
+    import('./hoja-valorar.js').catch(() => {});
+  }), 1200);
+}
 const PESTANAS = [
   ['inicio', 'Inicio'],
   ['buscar', 'Buscar'],
@@ -150,10 +148,20 @@ function leerRuta() {
   return { ruta: RUTAS[ruta] ? ruta : 'inicio', params };
 }
 
-function montar(modulo, contexto, conBarra, scroll = 0) {
+let turnoMontar = 0;
+async function montar(cargar, contexto, conBarra, scroll = 0) {
+  // La pantalla anterior se queda hasta que llega el código de la nueva (la primera vez).
+  const turno = ++turnoMontar;
+  let modulo;
+  try { modulo = await cargar(); } catch (e) {
+    console.error(e);
+    if (turno === turnoMontar) import('./ui.js').then((m) => m.aviso('No se ha podido abrir. Revisa la conexión.'));
+    return;
+  }
+  if (turno !== turnoMontar) return; // se ha ido a otra pantalla mientras tanto
   try { limpiar?.(); } catch (e) { console.error(e); }
   limpiar = null;
-  alCambiarPantalla();
+  seleccion?.alCambiarPantalla();
 
   const pantalla = document.createElement('div');
   pantalla.className = 'pantalla';
@@ -166,6 +174,7 @@ function montar(modulo, contexto, conBarra, scroll = 0) {
   window.scrollTo(0, scroll);
   // Al volver: lo que se pinta un poco después (imágenes, datos) puede cambiar la altura.
   if (scroll) for (const ms of [50, 200, 500]) setTimeout(() => { if (window.scrollY < scroll - 2) window.scrollTo(0, scroll); }, ms);
+  cargarSegundoPlano();
 }
 
 function navegar() {
@@ -173,7 +182,7 @@ function navegar() {
 
   if (!usuario) {
     if (location.hash) corregirRuta(location.pathname + location.search);
-    montar(entrada, { alEntrar }, false);
+    montar(login, { alEntrar }, false);
     document.title = 'CVJ · Entrar';
     return;
   }
@@ -181,7 +190,7 @@ function navegar() {
   iniciarDatos();
   const scroll = anotarNavegacion();
   const { ruta, params } = leerRuta();
-  if (ruta !== 'juego') olvidarGaleria();
+  if (ruta !== 'juego') import('./galeria.js').then((m) => { if (!location.hash.startsWith('#juego')) m.olvidarGaleria(); });
   const pedida = location.hash.replace(/^#\/?/, '').split('/')[0];
   if (pedida !== ruta) corregirRuta(`#${ruta}`);
   // Título por defecto; las pantallas con nombre propio lo cambian al pintarse.
@@ -201,9 +210,7 @@ function alEntrar(usuario) {
 
 function alSalir() {
   salir();
-  psn.olvidar();
-  xbox.olvidar();
-  steam.olvidar();
+  plataformas().then(([psn, xbox, steam]) => { psn.olvidar(); xbox.olvidar(); steam.olvidar(); });
   datos.borrarCache();
   datosIniciados = false;
   aplicarAcento(null);
@@ -211,12 +218,13 @@ function alSalir() {
   navegar();
 }
 
-let suscrito = false;
-function iniciarDatos() {
-  if (datosIniciados) return;
-  datosIniciados = true;
-  if (!suscrito) suscrito = !!datos.suscribir(() => {
-    // PlayStation: sincronización automática, en segundo plano.
+let revisando = false;
+function revisarPlataformas() {
+  if (revisando) return;
+  revisando = true;
+  enCalma(() => plataformas().then(([psn, xbox, steam, igdb]) => {
+    revisando = false;
+    if (!usuarioActual()) return;
     psn.revisarAutomatico();
     xbox.revisarAutomatico();
     xbox.revisarHoras();
@@ -224,7 +232,15 @@ function iniciarDatos() {
     // Biblioteca sincronizada con reglas antiguas: recalcularla una vez con las nuevas.
     psn.revisarReproceso();
     // Juegos guardados antes de la migración 005: marcar cuáles son online (una vez).
-    revisarOnline(datos.estado.juegos, () => datos.refrescar());
+    igdb.revisarOnline(datos.estado.juegos, () => datos.refrescar());
+  }, () => { revisando = false; }), 800);
+}
+
+let suscrito = false;
+function iniciarDatos() {
+  if (datosIniciados) return;
+  datosIniciados = true;
+  if (!suscrito) suscrito = !!datos.suscribir(() => {
     // Si cambian mis datos (nombre, color, acento) en el servidor, actualizarlos aquí.
     const yo = usuarioActual();
     const fresco = yo && datos.usuario(yo.id);
@@ -235,6 +251,8 @@ function iniciarDatos() {
       aplicarAcento(fresco.acento);
     }
   });
+  // Sincronizaciones automáticas: en segundo plano y con datos del servidor (no de la caché).
+  datos.cuandoFrescos(revisarPlataformas);
   datos.iniciar();
 }
 
@@ -257,13 +275,13 @@ document.addEventListener('contextmenu', (e) => {
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-foto]');
   const u = b && datos.usuario(b.dataset.foto);
-  if (u) abrirEditorFoto(u);
+  if (u) import('./foto-perfil.js').then((m) => m.abrirEditorFoto(u));
 });
 window.addEventListener('cvj:psn-asistente', () => { if (usuarioActual()) abrirAjustes(alSalir, { psn: true }); });
 // "Conectar PlayStation, Xbox o Steam" (bienvenida de Inicio): Ajustes en Plataformas.
 window.addEventListener('cvj:ajustes-plataformas', () => { if (usuarioActual()) abrirAjustes(alSalir, { plataformas: true }); });
 // Vuelta del inicio de sesión de Steam (?steam=vuelta&openid.…): validar y enseñar el resultado en Ajustes.
-steam.revisarVuelta()?.then(() => { if (usuarioActual()) abrirAjustes(alSalir, { steam: true }); });
+if (/[?&]steam=vuelta/.test(location.search)) import('./steam.js').then((m) => m.revisarVuelta()?.then(() => { if (usuarioActual()) abrirAjustes(alSalir, { steam: true }); }));
 // Refresco en segundo plano: al volver a la app y cada minuto mientras se ve.
 // Si no ha cambiado nada, datos.js no repinta.
 document.addEventListener('visibilitychange', () => {
@@ -272,4 +290,5 @@ document.addEventListener('visibilitychange', () => {
 setInterval(() => {
   if (document.visibilityState === 'visible' && usuarioActual() && datosIniciados) datos.refrescar();
 }, REFRESCO_MS);
-navegar();
+// La caché se lee mientras llega el resto de la app: se pinta ya con datos, sin esqueleto.
+(usuarioActual() ? datos.alArrancar() : Promise.resolve()).then(navegar);

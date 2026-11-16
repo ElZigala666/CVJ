@@ -145,7 +145,7 @@ export function render(el, { params }) {
             <a href="#juego/${dj.juegoId}">Por ${esc(dj.nombre)}</a>${dj.otros.length ? ` <button type="button" class="enlace-discreto" data-otros="${esc(uid)}">y ${dj.otros.length} más</button>` : ''}
           </span>` : ''}
         ${v?.resena ? `<p class="grupo-resena">${esc(v.resena)}</p>` : ''}
-        ${v?.resena && !v.desdeJuego && v.id ? `<div class="grupo-social">${social.tira('valoracion_coleccion', v.id)}</div>` : ''}
+        ${(v?.resena?.trim() || v?.nota != null) && !v.desdeJuego && v.id ? `<div class="grupo-social">${social.tira('valoracion_coleccion', v.id)}</div>` : ''}
       </div>`;
   }
 

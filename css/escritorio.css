@@ -26,6 +26,7 @@
 }
 .barra-logo { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 4px 0 14px; text-decoration: none; color: var(--texto); }
 .barra-logo span { display: none; font-family: var(--fuente-titulos); font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+.barra-solo-escritorio { display: flex; }
 .barra-tab {
   width: auto; flex-direction: column; gap: 4px; padding: 10px 4px; border-radius: 14px;
   font-size: 11px;
@@ -130,6 +131,8 @@ a, button, label[for], summary, [role="button"], .chip, .pestana { cursor: point
   .inicio > .actividad { grid-column: 2; grid-row: 1 / span 3; padding: 18px 20px; border-radius: 20px; background: var(--superficie); position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow-y: auto; }
   .inicio .carrusel { flex-wrap: wrap; overflow: visible; padding-left: 0; padding-right: 0; gap: 18px 16px; }
   .inicio .seccion-titulo.con-margen, .inicio .pestanas { padding-left: 0; padding-right: 0; margin-left: 0; }
+  .inicio .seccion-cab.con-margen, .inicio .col-ultimas { padding-left: 0; padding-right: 0; }
+  .columnas-pagina { max-width: 760px; margin: 0 auto; padding-top: 32px; }
   .inicio .tarjeta-jugando { width: 120px; }
   .inicio .portada-jugando { width: 120px; }
   .inicio .tarjeta-destacado { width: 150px; }
@@ -148,6 +151,11 @@ a, button, label[for], summary, [role="button"], .chip, .pestana { cursor: point
   .ficha-hero {
     grid-column: 1 / -1; grid-row: 1; justify-content: flex-start;
     margin: 0 -40px; padding: 72px 40px 28px; border-radius: 0 0 28px 28px;
+  }
+  /* En escritorio, el bloque redondeado de siempre (el desvanecido largo es del móvil). */
+  .ficha-hero::before {
+    bottom: 0; border-radius: inherit; -webkit-mask-image: none; mask-image: none;
+    background: linear-gradient(180deg, var(--hero-arriba) 0%, var(--hero-medio) 55%, var(--fondo) 100%);
   }
   .portada-ficha { width: 380px; }
   .ficha-info { grid-column: 1; grid-row: 2; padding: 0; }
@@ -168,7 +176,14 @@ a, button, label[for], summary, [role="button"], .chip, .pestana { cursor: point
     display: grid; grid-template-columns: 340px minmax(0, 1fr); column-gap: 48px; align-items: start;
     padding-top: 32px;
   }
-  .perfil-lado { display: flex; flex-direction: column; gap: 20px; position: sticky; top: 24px; }
+  /* Fija al bajar y con su propio scroll si no cabe: se ve entera sin depender de lo largo
+     que sea la biblioteca de la derecha. El margen negativo evita recortar sombras. */
+  .perfil-lado {
+    display: flex; flex-direction: column; gap: 20px; position: sticky; top: 0;
+    max-height: 100vh; overflow-y: auto; overscroll-behavior: contain;
+    margin: -24px -10px 0; padding: 24px 10px 32px; scrollbar-width: thin; scrollbar-color: transparent transparent;
+  }
+  .perfil-lado:hover { scrollbar-color: var(--borde) transparent; }
   .perfil-principal { display: flex; flex-direction: column; gap: 32px; min-width: 0; }
   .perfil-lado > .tarjetas-3, .perfil-lado > .enlaces-perfil, .perfil-lado > .perfil-comparar { margin: 0; }
   .perfil-lado .perfil-cab { margin-top: 0; padding: 0; }
@@ -251,6 +266,6 @@ body.seleccionando #barra { visibility: visible; }
 /* Perfil personalizable: la cabecera y la vitrina van en la columna de datos */
 @media (min-width: 1024px) {
   .perfil-lado .perfil-banner { border-radius: 20px; height: 118px; }
-  .perfil.con-banner .perfil-lado { padding-top: 12px; }
+  .perfil.con-banner .perfil-lado { padding-top: 36px; }
   .perfil-lado > .perfil-vitrina, .perfil-lado > .perfil-insignias { margin: 0; }
 }

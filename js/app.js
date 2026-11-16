@@ -30,6 +30,7 @@ const RUTAS = {
   escribir: () => import('./pantallas/escribir.js'),          // #escribir/{id} o #escribir/nueva[/juego|coleccion|saga/{id}]: editor de columna
   entrada: () => import('./pantallas/lectura.js'),            // #entrada/{id}: leer una entrada de columna
   columna: () => import('./pantallas/columna.js'),            // #columna/{id}: página de una columna
+  columnas: () => import('./pantallas/columnas.js'),          // #columnas: todas las columnas y sus últimas entradas
 };
 const login = () => import('./pantallas/entrada.js');
 
@@ -61,7 +62,7 @@ const PESTANAS = [
   ['perfil', 'Perfil'],
 ];
 // Rutas que se ven a pantalla completa, sin la barra inferior (la ficha tiene la suya).
-const SIN_BARRA = new Set(['juego', 'revisar', 'duplicados', 'coleccion', 'saga', 'escribir', 'entrada', 'columna']);
+const SIN_BARRA = new Set(['juego', 'revisar', 'duplicados', 'coleccion', 'saga', 'escribir', 'entrada', 'columna', 'columnas']);
 const REFRESCO_MS = 60_000;
 
 let limpiar = null;
@@ -80,7 +81,9 @@ function pintarBarra() {
     if (!texto) {
       return `<a class="barra-fab" href="#${ruta}" data-ruta="${ruta}" aria-label="Valorar un juego">${icono('mas', { tam: 26, color: 'var(--sobre-acento)' })}<span class="barra-fab-texto">Valorar</span></a>`;
     }
-    return `<a class="barra-tab" href="#${ruta}" data-ruta="${ruta}">${icono(ruta, { tam: 24 })}<span>${texto}</span></a>`;
+    const tab = `<a class="barra-tab" href="#${ruta}" data-ruta="${ruta}">${icono(ruta, { tam: 24 })}<span>${texto}</span></a>`;
+    // Columnas: solo en la barra lateral de escritorio (en el móvil, desde Inicio).
+    return ruta === 'rankings' ? `${tab}<a class="barra-tab barra-solo-escritorio" href="#columnas" data-ruta="columnas">${icono('columnas', { tam: 24 })}<span>Columnas</span></a>` : tab;
   }).join('');
 }
 
@@ -135,6 +138,7 @@ function marcarBarra(ruta, params) {
   const yo = usuarioActual()?.id;
   let activa = ruta;
   if (ruta === 'perfil' || ruta === 'estadisticas') activa = !params[0] || params[0] === yo ? 'perfil' : '';
+  if (ruta === 'columna' || ruta === 'entrada' || ruta === 'escribir') activa = 'columnas';
   for (const a of barra.querySelectorAll('[data-ruta]')) {
     const on = a.dataset.ruta === activa;
     a.classList.toggle('activa', on);

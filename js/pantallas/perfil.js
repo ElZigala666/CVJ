@@ -11,7 +11,6 @@ import { esc, avatar, portada, chipLetra, cabeceraAtras, estadoVacio, tiempoRela
 import * as social from '../social.js';
 import * as insignias from '../insignias.js';
 import { abrirHoja } from '../hoja.js';
-import { botonFoto } from '../foto-perfil.js';
 import { normalizarBusqueda } from '../psn-nombres.js';
 import { iconoFuente, plataformaParaValorar } from '../plataformas-ui.js';
 import { cuentasDe } from '../cuentas-ui.js';
@@ -118,7 +117,6 @@ function renderPerfil(el, id, alSalir) {
     const bib = metricas.biblioteca(id);
     const tiempo = metricas.tiempo(id);
     const vinculado = datos.cuentasDe(u.id).length > 0;
-    const soyAdmin = !!datos.usuario(yo?.id)?.es_admin;
     if (!pestanaRecordada.has(id)) {
       const inicial = p.completados ? 'completado' : PESTANAS.find((x) => p.historial[x.id].length)?.id ?? 'completado';
       pestanaRecordada.set(id, inicial);
@@ -145,7 +143,6 @@ function renderPerfil(el, id, alSalir) {
           <span class="perfil-sub">${esc(sub)}</span>
           ${htmlBio(u)}
           ${esMio && 'perfil_datos' in u ? botonEditar(u) : ''}
-          ${!esMio && soyAdmin && 'foto_url' in u ? botonFoto(u, u.foto_url ? 'Cambiar su foto' : 'Ponerle foto') : ''}
         </div>
 
         <div class="tarjetas-3">

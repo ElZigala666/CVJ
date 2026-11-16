@@ -6,7 +6,7 @@ import * as psn from '../psn.js';
 import * as xbox from '../xbox.js';
 import * as metricas from '../metricas.js';
 import { tarjetaSugerenciaColeccion, clicSugerenciaColeccion } from '../colecciones-ui.js';
-import { logoColumna, textoLectura } from '../columnas-ui.js';
+import { logoColumna, textoLectura, filaEntrada } from '../columnas-ui.js';
 import * as social from '../social.js';
 import * as insignias from '../insignias.js';
 import { usuarioActual } from '../sesion.js';
@@ -126,10 +126,10 @@ function html() {
     ${avisosPersonales()}
     ${yo ? social.avisoNovedades(yo.id) : ''}
     ${bienvenida()}
-    ${nuevoEnColumna()}
     ${yo ? `<div class="inicio-sugerencias">${metricas.sugerenciasColeccion(yo.id).map(tarjetaSugerenciaColeccion).join('')}</div>` : ''}
     <div class="inicio">
       ${jugandoAhora()}
+      ${columnasRecientes()}
       <section class="inicio-seccion">
         <h2 class="seccion-titulo con-margen">Destacados del grupo</h2>
         <div class="pestanas" role="tablist" aria-label="Destacados">
@@ -259,23 +259,20 @@ function avisoRevisar() {
     </a>`;
 }
 
-/** "Nuevo en El Diario de Mateo": la última entrada que no he leído (de otro). Se va al leerla. */
-function nuevoEnColumna() {
+/** "Columnas": las últimas entradas publicadas, con la marca de las que no he leído. */
+function columnasRecientes() {
   const yo = usuarioActual();
   if (!yo || !Array.isArray(datos.estado.columnas)) return '';
-  const e = datos.entradasPublicadas().find((x) => x.usuario_id !== yo.id && !datos.leida(yo.id, x.id)
-    && Date.now() - new Date(x.publicada_en).getTime() < 30 * 86400000);
-  if (!e) return '';
-  const c = datos.columna(e.columna_id);
+  const ents = datos.entradasPublicadas().slice(0, 3);
+  if (!ents.length) return '';
   return `
-    <a class="col-nuevo" href="#entrada/${esc(e.id)}" style="${c?.color ? `--col:${esc(c.color)}` : ''}">
-      ${logoColumna(c, 40)}
-      <span class="col-tarjeta-texto">
-        <small>Nuevo en ${esc(c?.nombre ?? '')}</small>
-        <strong>${esc(e.titulo || 'Sin título')}</strong>
-        <small>${esc(textoLectura(e.palabras))}</small>
-      </span>
-    </a>`;
+    <section class="inicio-seccion inicio-columnas">
+      <div class="seccion-cab con-margen">
+        <h2 class="seccion-titulo">Columnas</h2>
+        <a class="enlace-discreto" href="#columnas">Ver todas</a>
+      </div>
+      <div class="col-ultimas">${ents.map((e) => filaEntrada(e, yo.id)).join('')}</div>
+    </section>`;
 }
 
 /** Mis avisos (p. ej. "tenías valoración en dos versiones de un juego"): Ver y Vale. */
@@ -439,7 +436,7 @@ function actividad() {
   const yo = usuarioActual();
   const conTira = new Set();
   const tiraDe = (a) => {
-    if (!a.texto || a.lote) return '';
+    if (a.lote || (a.nota == null && !a.texto)) return ''; // con nota o con reseña
     let tipo = 'valoracion';
     let v = null;
     if (a.coleccion_id) {
@@ -449,7 +446,7 @@ function actividad() {
       const id = datos.canonico(a.juego_id);
       v = datos.valoracionesEfectivas().find((x) => x.usuario_id === a.usuario_id && Number(x.juego_id) === id);
     }
-    if (!v?.id || !v.resena?.trim() || conTira.has(v.id)) return '';
+    if (!v?.id || (v.nota == null && !v.resena?.trim()) || conTira.has(v.id)) return '';
     conTira.add(v.id);
     return social.tira(tipo, v.id, { visibles: 1 });
   };

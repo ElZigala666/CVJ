@@ -403,17 +403,26 @@ body.hoja-abierta { overflow: hidden; }
    --------------------------------------------------------------------------- */
 .ficha { display: flex; flex-direction: column; gap: 24px; padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
 .ficha-hero {
-  position: relative;
+  --hero-arriba: var(--fondo-hero, #2A1F2A);
+  --hero-medio: var(--fondo-hero, #2A1F2A);
+  position: relative; isolation: isolate;
   padding: calc(68px + env(safe-area-inset-top)) 0 24px;
-  background: linear-gradient(180deg, var(--fondo-hero, #2A1F2A) 0%, var(--fondo-hero, #2A1F2A) 35%, var(--fondo) 100%);
   display: flex; align-items: flex-end; justify-content: center;
 }
-/* Con el color dominante de la portada: intenso arriba y fundido al fondo del tema.
-   La luminosidad la fija el tema (no la portada) para que todo se lea bien. */
+/* El color va en una capa detrás que se desvanece con una máscara (no hacia un color):
+   se funde con lo que haya debajo, sea el fondo del tema, uno de la galería o una imagen
+   propia. Baja un poco más que la cabecera para que el paso sea largo y suave. */
+.ficha-hero::before {
+  content: ''; position: absolute; z-index: -1; left: 0; right: 0; top: 0; bottom: -72px; pointer-events: none;
+  background: linear-gradient(180deg, var(--hero-arriba) 0%, var(--hero-medio) 55%, var(--hero-medio) 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 38%, rgba(0, 0, 0, .72) 58%, rgba(0, 0, 0, .3) 78%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 38%, rgba(0, 0, 0, .72) 58%, rgba(0, 0, 0, .3) 78%, transparent 100%);
+}
+/* Con el color dominante de la portada. La luminosidad la fija el tema (no la portada)
+   para que todo se lea bien. */
 .ficha-hero.con-color {
   --hero-arriba: hsl(var(--hero-h) var(--hero-s) 34%);
   --hero-medio: hsl(var(--hero-h) calc(var(--hero-s) * 0.85) 22%);
-  background: linear-gradient(180deg, var(--hero-arriba) 0%, var(--hero-medio) 55%, var(--fondo) 100%);
 }
 :root:not([data-tema="oscuro"]) .ficha-hero.con-color {
   --hero-arriba: hsl(var(--hero-h) var(--hero-s) 70%);
@@ -2336,3 +2345,63 @@ button.ins-item { cursor: pointer; }
 /* Actividad */
 .actividad-insignia .medalla { align-self: center; }
 .perfil-insignias[hidden] { display: none; }
+
+/* ---------------------------------------------------------------------------
+   Columnas: sección de Inicio y página #columnas
+   --------------------------------------------------------------------------- */
+.barra-solo-escritorio { display: none; }
+.inicio-columnas .seccion-cab { align-items: baseline; margin-bottom: 0; }
+.col-ultimas { display: grid; gap: 8px; padding: 0 20px; }
+.col-ultima {
+  position: relative; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 16px;
+  background: var(--superficie); color: var(--texto); text-decoration: none;
+}
+.col-ultima:active { opacity: .75; }
+.col-ultima-texto { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.col-ultima-texto strong { font: 700 17px/1.2 var(--fuente-lectura); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.col-ultima-texto small { font-size: 12px; color: var(--texto-2); }
+.col-ultima-col { text-transform: uppercase; letter-spacing: .08em; font-weight: 700; font-size: 10.5px !important; color: var(--col, var(--acento-texto)) !important; }
+.col-sin-leer { font-weight: 700; color: var(--acento-texto); }
+.col-punto { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--col, var(--acento)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--col, var(--acento)) 22%, transparent); }
+
+.columnas-pagina { display: grid; gap: 22px; padding: calc(env(safe-area-inset-top, 0px) + 14px) 0 40px; }
+.columnas-cab { display: flex; align-items: flex-start; gap: 14px; padding: 0 16px; }
+.columnas-titulo { margin: 2px 0 0; font: 800 34px/1.05 var(--fuente-lectura); letter-spacing: -.015em; }
+.columnas-sub { margin: 4px 0 0; font-size: 13px; color: var(--texto-2); }
+.columnas-bloque { display: grid; gap: 10px; }
+.columnas-bloque-cab { display: flex; align-items: center; gap: 12px; padding: 0 20px; color: var(--texto); text-decoration: none; }
+.columnas-bloque-texto { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.columnas-bloque-texto strong { font: 800 20px/1.15 var(--fuente-lectura); }
+.columnas-bloque-texto small { font-size: 12px; color: var(--texto-2); }
+.columnas-bloque .col-ultima-col { display: none; }
+.columnas-mas { justify-self: start; margin: 0 20px; }
+.columnas-vacia { margin: 0 20px; font: italic 16px var(--fuente-lectura); color: var(--texto-2); }
+
+/* ---------------------------------------------------------------------------
+   Ajustes → Plataformas: una línea plegada por plataforma
+   --------------------------------------------------------------------------- */
+.plat-filas { display: flex; flex-direction: column; gap: 8px; }
+.plat-fila { border-radius: 16px; background: var(--superficie); overflow: hidden; }
+.plat-cab { display: flex; align-items: center; gap: 4px; min-height: 58px; padding: 0 6px 0 0; }
+.plat-cab-boton {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 10px 0 10px 14px; border: 0; background: none;
+  color: var(--texto); font: inherit; text-align: left; cursor: pointer;
+}
+.plat-cab-texto { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.plat-cab-texto strong { font-size: 15px; }
+.plat-cab-texto small { font-size: 12px; color: var(--texto-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plat-cab-texto small.plat-conectar { color: var(--acento-texto); font-weight: 700; }
+.plat-sinc, .plat-flecha {
+  flex: none; display: grid; place-items: center; width: 38px; height: 38px; border: 0; border-radius: 12px;
+  background: none; color: var(--texto-2); cursor: pointer;
+}
+.plat-sinc { color: var(--acento-texto); background: var(--acento-suave); width: 36px; height: 36px; }
+.plat-sinc:disabled { opacity: .7; cursor: default; }
+.plat-sinc.girando svg { animation: plat-gira 900ms linear infinite; }
+@keyframes plat-gira { to { transform: rotate(360deg); } }
+.plat-cuerpo { padding: 0 14px 14px; }
+.plat-cuerpo .tarjeta-plataforma { padding: 0; background: none; border-radius: 0; }
+.plat-cuerpo .plataforma-cab { display: none; } /* ya está en la línea */
+.plat-cuerpo .plat-pie { justify-content: flex-end; padding: 10px 0 0; }
+.seccion-cab.con-margen { padding: 0 20px; }
+.columnas-bloque .col-ultima .col-logo { display: none; }

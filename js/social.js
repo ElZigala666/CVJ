@@ -12,6 +12,7 @@ import { icono } from './icons.js';
 import { usuarioActual } from './sesion.js';
 import { esc, avatar, avatarPerfil, nombrePerfil, tiempoRelativo, aviso, portada } from './ui.js';
 import { abrirHoja, cerrarHoja } from './hoja.js';
+import { formatearNota, notaALetra } from './notas.js';
 
 export const REACCIONES = [
   { id: 'buena', texto: 'Buena reseña', icono: 'r-buena' },
@@ -34,12 +35,12 @@ export function objetivo(tipo, id) {
   if (tipo === 'valoracion') {
     const v = (datos.estado.valoraciones ?? []).find((x) => x.id === id);
     const j = v ? datos.juegoConocido(datos.canonico(v.juego_id)) : null;
-    return v && j ? { autorId: v.usuario_id, nombre: j.nombre, ruta: `#juego/${j.igdb_id}`, juego: j, resena: v.resena, clase: 'reseña' } : null;
+    return v && j ? { autorId: v.usuario_id, nombre: j.nombre, ruta: `#juego/${j.igdb_id}`, juego: j, resena: v.resena, nota: v.nota, clase: v.resena?.trim() ? 'reseña' : 'valoración' } : null;
   }
   if (tipo === 'valoracion_coleccion') {
     const v = (datos.estado.valColecciones ?? []).find((x) => x.id === id);
     const c = v ? datos.coleccion(v.coleccion_id) : null;
-    return v && c ? { autorId: v.usuario_id, nombre: c.nombre, ruta: `#coleccion/${c.id}`, juego: datos.comoJuego(c), resena: v.resena, clase: 'reseña' } : null;
+    return v && c ? { autorId: v.usuario_id, nombre: c.nombre, ruta: `#coleccion/${c.id}`, juego: datos.comoJuego(c), resena: v.resena, nota: v.nota, clase: v.resena?.trim() ? 'reseña' : 'valoración' } : null;
   }
   if (tipo === 'entrada') {
     const e = datos.entrada(id);
@@ -54,7 +55,7 @@ export function sobreQue(o, yoId, html = true) {
   const autor = datos.usuario(o.autorId);
   const de = html ? nombrePerfil(autor, 'strong') : autor?.nombre ?? '';
   if (o.clase === 'entrada') return o.autorId === yoId ? `tu entrada «${n}»` : `«${n}», de ${de}`;
-  return o.autorId === yoId ? `tu reseña de ${n}` : `la reseña de ${de} de ${n}`;
+  return o.autorId === yoId ? `tu ${o.clase} de ${n}` : `la ${o.clase} de ${de} de ${n}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -235,7 +236,7 @@ function abrirQuien(tipo, id) {
   if (!o || !lista.length) return;
   abrirHoja({
     titulo: `${lista.length} ${lista.length === 1 ? 'reacción' : 'reacciones'}`,
-    antetitulo: o.clase === 'entrada' ? o.nombre : `Reseña de ${datos.usuario(o.autorId)?.nombre ?? ''} · ${o.nombre}`,
+    antetitulo: o.clase === 'entrada' ? o.nombre : `${o.clase === 'reseña' ? 'Reseña' : 'Valoración'} de ${datos.usuario(o.autorId)?.nombre ?? ''} · ${o.nombre}`,
     html: `
       <div class="social-quien">
         ${lista.map((r) => {
@@ -266,7 +267,7 @@ export function abrirHilo(tipo, id, { enfocar = true } = {}) {
     titulo: 'Respuestas',
     antetitulo: o.clase === 'entrada' ? o.nombre : `${autor?.nombre ?? ''} · ${o.nombre}`,
     html: `
-      ${o.resena ? `<blockquote class="social-original">${avatar(autor, 22)}<p>${esc(o.resena)}</p></blockquote>` : ''}
+      ${o.resena?.trim() ? `<blockquote class="social-original">${avatar(autor, 22)}<p>${esc(o.resena)}</p></blockquote>` : o.nota != null ? `<blockquote class="social-original">${avatar(autor, 22)}<p>Le puso un <strong>${formatearNota(o.nota)}</strong> (${notaALetra(o.nota)}), sin reseña.</p></blockquote>` : ''}
       <div class="social-hilo-lista" data-ref="lista"></div>
       <form class="social-escribir" data-ref="form">
         <textarea rows="1" maxlength="${MAX_TEXTO}" placeholder="${o.autorId === yo.id ? 'Contesta a quien te ha respondido' : `Responde a ${esc(autor?.nombre ?? '')}`}" aria-label="Tu respuesta" enterkeyhint="send"></textarea>
@@ -382,7 +383,7 @@ export function frase(ev, yoId) {
   const sobre = sobreQue(ev.o, yoId);
   if (ev.tipo === 'reaccion') return `${quien} ha dicho «${esc(REACCION[ev.reaccion]?.texto ?? '')}» a ${sobre}`;
   if (ev.tipo === 'respuesta') {
-    if (ev.quien === ev.o.autorId) return `${quien} ha contestado en su ${ev.o.clase === 'entrada' ? `entrada «<strong>${esc(ev.o.nombre)}</strong>»` : `reseña de <strong>${esc(ev.o.nombre)}</strong>`}`;
+    if (ev.quien === ev.o.autorId) return `${quien} ha contestado en su ${ev.o.clase === 'entrada' ? `entrada «<strong>${esc(ev.o.nombre)}</strong>»` : `${ev.o.clase} de <strong>${esc(ev.o.nombre)}</strong>`}`;
     return `${quien} ha respondido a ${sobre}`;
   }
   return `${quien} ha leído ${sobre}`;

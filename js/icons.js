@@ -39,6 +39,10 @@ const ICONOS = {
   reaccionar: { d: 'M4 2.5h16A2.5 2.5 0 0 1 22.5 5v10a2.5 2.5 0 0 1-2.5 2.5h-8.2L6 22v-4.5H4A2.5 2.5 0 0 1 1.5 15V5A2.5 2.5 0 0 1 4 2.5zM11 5.5h2V9h3.5v2H13v3.5h-2V11H7.5V9H11z' },
   comentario: { d: 'M4 2.5h16A2.5 2.5 0 0 1 22.5 5v10a2.5 2.5 0 0 1-2.5 2.5h-8.2L6 22v-4.5H4A2.5 2.5 0 0 1 1.5 15V5A2.5 2.5 0 0 1 4 2.5z' },
   leido: { d: 'M12 5c5.2 0 9 4.4 10 7-1 2.6-4.8 7-10 7S3 14.6 2 12c1-2.6 4.8-7 10-7zm0 3.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8z' },
+  // Sincronizar: flecha en círculo.
+  recargar: { d: 'M12 3.5a8.5 8.5 0 0 1 7.6 4.7l1.4-1.4v5.7h-5.7l2.3-2.3A6 6 0 1 0 18 13.4l2.4.6A8.5 8.5 0 1 1 12 3.5z' },
+  // Columnas de opinión: un periódico.
+  columnas: { d: 'M3 3.5h15V19a2 2 0 0 0 2 2H5a2 2 0 0 1-2-2zM19.5 8H22v11a1.5 1.5 0 0 1-3 0V8zM6 6.5v4.5h4.5V6.5zM12.5 6.5V8h3V6.5zM12.5 9.5V11h3V9.5zM6 13.5V15h9.5v-1.5zM6 16.5V18h7v-1.5z' },
   // Editor de columnas: deshacer, rehacer e imagen.
   deshacer: { d: 'M9 3.5 2.5 9.5 9 15.5v-4h5.5a4 4 0 0 1 0 8H11V22h3.5a6.5 6.5 0 0 0 0-13H9z' },
   rehacer: { d: 'M15 3.5 21.5 9.5 15 15.5v-4H9.5a4 4 0 0 0 0 8H13V22H9.5a6.5 6.5 0 0 1 0-13H15z' },

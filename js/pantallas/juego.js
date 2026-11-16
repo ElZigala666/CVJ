@@ -242,7 +242,7 @@ export function render(el, { params }) {
         </div>
         ${v.heredada ? `<a class="etiqueta-heredada" href="#coleccion/${esc(v.heredada.coleccionId)}">Por la colección ${esc(v.heredada.nombre)}</a>` : ''}
         ${v.resena ? `<p class="grupo-resena">${esc(v.resena)}</p>` : ''}
-        ${v.resena && !v.heredada && v.id ? `<div class="grupo-social">${social.tira('valoracion', v.id)}</div>` : ''}
+        ${(v.resena?.trim() || v.nota != null) && !v.heredada && v.id ? `<div class="grupo-social">${social.tira('valoracion', v.id)}</div>` : ''}
       </div>`;
   }
 

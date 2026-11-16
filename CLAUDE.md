@@ -47,7 +47,8 @@ español (código, comentarios, commits, interfaz).
   aviso "Lo nuevo en lo tuyo" y filas de actividad).
 - `js/pantallas/`: `inicio`, `buscar`, `juego`, `perfil` (+ tier list), `rankings`
   (+ comparar), `estadisticas`, `coleccion`, `saga`, `revisar`, `duplicados`, `entrada`
-  (login), `escribir` (editor de columna), `lectura` (#entrada/{id}), `columna`.
+  (login), `escribir` (editor de columna), `lectura` (#entrada/{id}), `columna`,
+  `columnas` (todas; en móvil se llega desde Inicio, en escritorio desde la barra lateral).
 - `prueba-local.html` (solo en este equipo: excluido en `.git/info/exclude`): la app con
   un Supabase simulado en memoria, para probar en local
   (`.claude/launch.json` → `cvj-local`: `herramientas/servidor-local.py`, sin caché,
@@ -65,7 +66,8 @@ español (código, comentarios, commits, interfaz).
   (jsonb), `umbral_probados`, `estimar_horas`, `plataformas_ocultas`.
 - `juegos` (PK `igdb_id`): caché de IGDB + `es_online`(_manual) = sin final,
   `relaciones` (jsonb de IGDB), `ttb_*` tiempo para terminar, `mostrar_como` (versión
-  cuya portada/nombre se enseña).
+  cuya portada/nombre se enseña), `arte_id`/`arte_tipo` arte horizontal de IGDB (artwork o
+  captura; `t_1080p`), aún sin usar en la interfaz. Función igdb, acción "arte" (cron cada hora).
 - `juegos_alias` (alias → principal, `auto`): versiones fusionadas. `versiones_separadas`:
   lo que el admin separó (no se vuelve a fusionar solo). `fusiones_rechazadas`: "son
   distintos" por usuario.

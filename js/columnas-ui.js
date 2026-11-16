@@ -202,3 +202,20 @@ export function bloqueColumnas(tema) {
       ${mia ? `<a class="boton-secundario neutro con-icono col-escribir" href="#escribir/nueva/${ruta}">${logoColumna(mia, 22)}<span>Escribir en mi columna</span></a>` : ''}
     </section>`;
 }
+
+/** Una entrada en una lista: logo y columna, título, autor y tiempo; "Sin leer" si no la he leído. */
+export function filaEntrada(e, yoId) {
+  const c = datos.columna(e.columna_id);
+  const autor = datos.usuario(e.usuario_id);
+  const sinLeer = e.usuario_id !== yoId && !datos.leida(yoId, e.id);
+  return `
+    <a class="col-ultima${sinLeer ? ' sin-leer' : ''}" href="#entrada/${esc(e.id)}" style="${c?.color ? `--col:${esc(c.color)}` : ''}">
+      ${logoColumna(c, 44)}
+      <span class="col-ultima-texto">
+        <small class="col-ultima-col">${esc(c?.nombre ?? '')}</small>
+        <strong>${esc(e.titulo || 'Sin título')}</strong>
+        <small>${esc(autor?.nombre ?? '')} · ${esc(textoLectura(e.palabras))}${sinLeer ? ' · <span class="col-sin-leer">Sin leer</span>' : ''}</small>
+      </span>
+      ${sinLeer ? '<span class="col-punto" aria-hidden="true"></span>' : ''}
+    </a>`;
+}

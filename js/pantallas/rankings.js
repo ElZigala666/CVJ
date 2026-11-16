@@ -26,7 +26,7 @@ export function render(el, { params }) {
             <button type="button" role="tab" data-modo="comparar" class="${modo === 'comparar' ? 'activo' : ''}" aria-selected="${modo === 'comparar'}">Comparar</button>
           </div>
         </div>
-        <div data-ref="contenido">${modo === 'grupo' ? grupo() : comparar(params)}</div>
+        <div data-ref="contenido" data-deslizar="[data-orden]">${modo === 'grupo' ? grupo() : comparar(params)}</div>
       </section>`;
   };
 

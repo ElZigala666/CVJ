@@ -39,7 +39,7 @@ export function abrirEditarPerfil(uid, s = null) {
   s ??= { ...perfilDe(u), archivo: null };
   // Mis juegos, los mejor valorados primero: lo normal es elegir entre ellos.
   const mios = metricas.valoracionesDe(uid).slice().sort((a, b) => (Number(b.nota) || 0) - (Number(a.nota) || 0)).map((v) => Number(v.juego_id));
-  const jugando = metricas.valoracionesDe(uid).filter((v) => v.estado === 'jugando').map((v) => datos.juegoConocido(v.juego_id)?.nombre).filter(Boolean).slice(0, 3);
+  const jugando = metricas.valoracionesDe(uid).filter((v) => v.estado === 'jugando' || (v.estado === 'completado' && v.rejugando)).map((v) => datos.juegoConocido(v.juego_id)?.nombre).filter(Boolean).slice(0, 3);
   let guardando = false;
   let volver = false; // se ha abierto el buscador: al cerrarlo se vuelve aquí
 

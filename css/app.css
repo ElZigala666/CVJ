@@ -2,7 +2,8 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
-html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* overscroll-behavior-x: deslizar en horizontal cambia de pestaña (js/deslizar.js), no es el "atrás" del navegador. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overscroll-behavior-x: none; }
 
 body {
   margin: 0;
@@ -2047,3 +2048,73 @@ body.seleccionando #barra { visibility: hidden; }
 .editar-juego { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 14px; background: var(--superficie); }
 .editar-juego .portada { width: 40px; flex: none; border-radius: 6px; }
 .editar-juego-nombre { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Rejugar: pista bajo los estados y marcas en las listas */
+.estado-pista { margin: -6px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--texto-2); }
+.estado-pista[hidden] { display: none; }
+.sello-vueltas, .sello-rejugando {
+  position: absolute; left: 6px; top: 6px; z-index: 3; padding: 2px 7px; border-radius: 7px;
+  font-size: 11px; font-weight: 700; line-height: 1.5; background: rgba(0, 0, 0, .62); color: #FFFFFF;
+}
+.sello-rejugando { background: var(--acento); color: var(--sobre-acento); }
+.tarjeta-rejugando { font-size: 11.5px; font-weight: 700; color: var(--acento-texto); }
+/* Actividad: la miniatura es siempre la portada entera (no se estira a la altura de la fila) */
+.actividad-fila > .portada, .actividad-pila { align-self: flex-start; }
+
+/* Deslizar entre pestañas: la pantalla nueva entra desde el lado hacia el que se va */
+@keyframes entrar-der { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: none; } }
+@keyframes entrar-izq { from { opacity: 0; transform: translateX(-22px); } to { opacity: 1; transform: none; } }
+:root[data-entra="der"] .pantalla { animation: entrar-der 180ms var(--curva) both; }
+:root[data-entra="izq"] .pantalla { animation: entrar-izq 180ms var(--curva) both; }
+
+/* ===========================================================================
+   "¡Completado!" (js/celebracion.js): la portada, un halo del color de acento que la
+   recorre una vez y un destello. Corta, se toca para pasar.
+   =========================================================================== */
+.celebra { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; opacity: 0; transition: opacity 200ms var(--curva); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.celebra.visible { opacity: 1; }
+.celebra.saliendo { opacity: 0; }
+.celebra-fondo { position: absolute; inset: 0; background: radial-gradient(90% 60% at 50% 42%, color-mix(in srgb, var(--acento) 26%, transparent) 0%, transparent 70%), rgba(8, 7, 12, .95); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.celebra-escena { position: relative; width: min(100%, 420px); padding: 0 28px; }
+.celebra-paso { display: flex; flex-direction: column; align-items: center; gap: 26px; text-align: center; color: #FFFFFF; }
+.celebra-portada { position: relative; width: min(52vw, 210px); animation: celebra-sube 620ms cubic-bezier(.2, .9, .25, 1.12) both; }
+.celebra-portada .portada { width: 100%; border-radius: 16px; box-shadow: 0 24px 60px rgba(0, 0, 0, .55); }
+.celebra-halo {
+  position: absolute; inset: -5px; border-radius: 21px; padding: 5px;
+  background: conic-gradient(from var(--giro, 0deg), transparent 0deg, var(--acento) 70deg, #FFFFFF 100deg, var(--acento) 130deg, transparent 200deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  animation: celebra-giro 1500ms 260ms cubic-bezier(.4, 0, .2, 1) both;
+}
+@property --giro { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+.celebra-brillo { position: absolute; inset: 0; border-radius: 16px; overflow: hidden; pointer-events: none; }
+.celebra-brillo::before { content: ''; position: absolute; top: -20%; bottom: -20%; left: -70%; width: 46%; transform: skewX(-18deg); background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .5), transparent); animation: celebra-barrido 900ms 520ms ease-out both; }
+.celebra-sello {
+  position: absolute; right: -14px; bottom: -14px; z-index: 4; width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--acento); color: var(--sobre-acento); box-shadow: 0 0 0 5px rgba(8, 7, 12, .9), 0 10px 24px rgba(0, 0, 0, .4);
+  animation: celebra-sello 460ms 900ms cubic-bezier(.2, .9, .3, 1.4) both;
+}
+.celebra-sello path { stroke-dasharray: 22; stroke-dashoffset: 22; animation: celebra-trazo 360ms 1180ms ease-out forwards; }
+.celebra-texto { display: flex; flex-direction: column; align-items: center; gap: 8px; animation: celebra-texto 420ms 560ms var(--curva) both; }
+.celebra-quien { display: inline-flex; align-items: center; gap: 10px; font-size: 15px; color: rgba(255, 255, 255, .82); }
+.celebra-quien strong { color: #FFFFFF; }
+.celebra-juego { font: 700 26px/1.15 var(--fuente-titulos); color: #FFFFFF; overflow-wrap: anywhere; }
+.celebra-pista { position: absolute; left: 0; right: 0; bottom: calc(28px + env(safe-area-inset-bottom)); text-align: center; font-size: 12.5px; color: rgba(255, 255, 255, .5); }
+.celebra-puntos { position: absolute; left: 0; right: 0; bottom: calc(58px + env(safe-area-inset-bottom)); display: flex; justify-content: center; gap: 7px; }
+.celebra-puntos i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, .28); }
+.celebra-puntos i.activo { background: var(--acento); }
+.celebra-pila { display: flex; justify-content: center; padding-left: 34px; }
+.celebra-pila span { margin-left: -34px; transform: rotate(calc((var(--i) - 2) * 4deg)); animation: celebra-sube 520ms calc(var(--i) * 70ms) cubic-bezier(.2, .9, .25, 1.12) both; }
+.celebra-pila .portada { width: 92px; border-radius: 10px; box-shadow: 0 12px 28px rgba(0, 0, 0, .5); }
+.celebra-lista { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; font-size: 14px; color: rgba(255, 255, 255, .8); }
+.celebra-lista strong { color: #FFFFFF; }
+@keyframes celebra-sube { from { opacity: 0; transform: translateY(34px) scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes celebra-giro { from { --giro: 0deg; opacity: 0; } 12% { opacity: 1; } 80% { opacity: 1; } to { --giro: 360deg; opacity: 0; } }
+@keyframes celebra-barrido { to { left: 130%; } }
+@keyframes celebra-sello { from { opacity: 0; transform: scale(.3); } to { opacity: 1; transform: none; } }
+@keyframes celebra-trazo { to { stroke-dashoffset: 0; } }
+@keyframes celebra-texto { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .celebra-portada, .celebra-sello, .celebra-texto, .celebra-pila span { animation: none; }
+  .celebra-halo, .celebra-brillo { display: none; }
+  .celebra-sello path { animation: none; stroke-dashoffset: 0; }
+}

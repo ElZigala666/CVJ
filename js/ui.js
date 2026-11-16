@@ -45,6 +45,17 @@ export const ESTADOS = [
   { id: 'pendiente', nombre: 'Pendiente', icono: 'pendiente' },
 ];
 export const nombreEstado = (id) => ESTADOS.find((e) => e.id === id)?.nombre ?? id;
+/** Veces que ha completado un juego (las valoraciones antiguas completadas cuentan 1). */
+export const vueltasDe = (v) => (v?.estado === 'completado' ? Math.max(1, Number(v.vueltas) || 1) : Number(v?.vueltas) || 0);
+/** ¿Lo completó y ha vuelto a jugarlo? */
+export const estaRejugando = (v) => v?.estado === 'completado' && v.rejugando === true;
+/** El estado tal como se lee: "Rejugando", "Completado ×2", "Jugando"... */
+export function textoEstado(v) {
+  if (v?.estado !== 'completado') return nombreEstado(v?.estado);
+  const n = vueltasDe(v);
+  if (estaRejugando(v)) return n > 1 ? `Rejugando · completado ×${n}` : 'Rejugando';
+  return n > 1 ? `Completado ×${n}` : 'Completado';
+}
 
 // ---------------------------------------------------------------------------
 // Avatares

@@ -4,7 +4,7 @@ import { icono } from './icons.js';
 import * as datos from './datos.js';
 import { usuarioActual } from './sesion.js';
 import { notaALetra, letraANota, redondear, formatearNota, LETRAS } from './notas.js';
-import { esc, portada, aviso, ESTADOS } from './ui.js';
+import { esc, portada, aviso, ESTADOS, vueltasDe, estaRejugando } from './ui.js';
 import { fichaJuego } from './igdb.js';
 import * as metricas from './metricas.js';
 import { plataformaParaValorar } from './plataformas-ui.js';
@@ -78,7 +78,18 @@ export function abrirValorar(igdbId, op = {}) {
     const v = sg ? datos.miValoracionColeccion(yo.id, sg.id) : null;
     return v ? { sg, v } : null;
   })();
-  const estados = coleccion ? ESTADOS_COLECCION : online ? ESTADOS_ONLINE : ESTADOS;
+  // Ya completado: en vez de "Jugando" se ofrece "Rejugando" (no pierde el completado y, al
+  // volver a acabarlo, cuenta otra vuelta: "Completado ×2").
+  const yaCompletado = !coleccion && !online && previa?.estado === 'completado';
+  const rejugandoAntes = yaCompletado && estaRejugando(previa);
+  const vueltasAntes = yaCompletado ? vueltasDe(previa) : 0;
+  const estados = coleccion ? ESTADOS_COLECCION : online ? ESTADOS_ONLINE : !yaCompletado ? ESTADOS : ESTADOS.map((e) => (
+    e.id === 'jugando' ? { id: 'rejugando', nombre: 'Rejugando', icono: 'jugando' }
+      : e.id === 'completado' ? { ...e, nombre: rejugandoAntes ? `Completado ×${vueltasAntes + 1}` : vueltasAntes > 1 ? `Completado ×${vueltasAntes}` : 'Completado' }
+        : e));
+  // ¿Ha vuelto a jugarlo hace poco? (la sincronización lo ve antes de que él lo marque)
+  const jugadoHacePoco = yaCompletado && !rejugandoAntes && (metricas.bibliotecaDeJuego(id).get(yo.id)?.filas ?? [])
+    .some((f) => f.ultima_vez && Date.now() - new Date(f.ultima_vez).getTime() < 3 * 86400000 && new Date(f.ultima_vez) > new Date(previa.actualizado_en ?? 0));
   // Horas: las sincronizadas (solo lectura, por plataforma y cuenta) + las extra a mano.
   // En una colección: las totales de cada uno de sus juegos + las extra propias de la colección.
   const horas = coleccion ? (() => {
@@ -109,7 +120,7 @@ export function abrirValorar(igdbId, op = {}) {
 
   const s = {
     // Un juego online no se "completa": si lo estaba, pasa a "Lo juego".
-    estado: online ? (previa?.estado && previa.estado !== 'completado' ? previa.estado : 'jugando') : (previa?.estado ?? 'completado'),
+    estado: online ? (previa?.estado && previa.estado !== 'completado' ? previa.estado : 'jugando') : rejugandoAntes ? 'rejugando' : (previa?.estado ?? 'completado'),
     modo: leer(CLAVE_MODO) === 'letra' ? 'letra' : 'nota',
     nota: previa?.nota != null ? redondear(previa.nota) : null,
     recomendado: previa?.recomendado ?? null,
@@ -157,6 +168,7 @@ export function abrirValorar(igdbId, op = {}) {
               <span>${e.nombre}</span>
             </button>`).join('')}
         </div>
+        ${yaCompletado ? `<p class="estado-pista" data-ref="pista-estado"></p>` : ''}
 
         <div class="bloque-nota" data-bloque="nota">
           <div class="fila-titulo-campo">
@@ -277,6 +289,14 @@ export function abrirValorar(igdbId, op = {}) {
       const on = b.dataset.estado === s.estado;
       b.classList.toggle('activo', on);
       b.setAttribute('aria-checked', String(on));
+    }
+    const pistaEstado = $('[data-ref="pista-estado"]');
+    if (pistaEstado) {
+      pistaEstado.textContent = s.estado === 'rejugando' ? (rejugandoAntes ? 'Sigue contando como completado. Cuando lo acabes otra vez, márcalo como completado y sumará una vuelta.' : 'Sigue contando como completado y además sale en «Jugando ahora».')
+        : s.estado === 'completado' && rejugandoAntes ? `Lo has vuelto a acabar: será tu vuelta número ${vueltasAntes + 1}.`
+          : s.estado === 'completado' && jugadoHacePoco ? 'Has vuelto a jugarlo hace poco: si lo estás rejugando, márcalo.'
+            : '';
+      pistaEstado.hidden = !pistaEstado.textContent;
     }
     const conNota = s.estado !== 'pendiente';
     $('[data-bloque="nota"]').hidden = !conNota;

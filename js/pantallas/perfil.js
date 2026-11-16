@@ -7,7 +7,7 @@ import * as datos from '../datos.js';
 import * as metricas from '../metricas.js';
 import { usuarioActual } from '../sesion.js';
 import { LETRAS, rangoTier, formatearNota, notaALetra as notaLetra } from '../notas.js';
-import { esc, avatar, portada, chipLetra, cabeceraAtras, estadoVacio, tiempoRelativo, aviso } from '../ui.js';
+import { esc, avatar, portada, chipLetra, cabeceraAtras, estadoVacio, tiempoRelativo, aviso, vueltasDe, estaRejugando } from '../ui.js';
 import { abrirHoja } from '../hoja.js';
 import { botonFoto } from '../foto-perfil.js';
 import { normalizarBusqueda } from '../psn-nombres.js';
@@ -200,7 +200,7 @@ function renderPerfil(el, id, alSalir) {
         <div class="perfil-principal">
         <section class="perfil-seccion">
           <h2 class="seccion-titulo">Historial</h2>
-          <div data-ref="historial"></div>
+          <div data-ref="historial" data-deslizar="[data-pestana]"></div>
         </section>
 
         ${p.online.length ? `
@@ -235,6 +235,8 @@ function renderPerfil(el, id, alSalir) {
       else pintarBiblioteca(bib);
     }
     primeraPintada = false;
+    // Si es el perfil de otro y tiene un "¡Completado!" que no he visto, aquí también.
+    if (!esMio) import('../celebracion.js').then((m) => { if (el.isConnected) m.revisarCelebraciones(id); });
 
     if (enFiltro) {
       const inp = el.querySelector(`[data-filtro="${enFiltro}"] [data-filtro-texto]`);
@@ -645,6 +647,7 @@ function itemRejilla(v, i, horas, conMenu = false) {
       <a class="rejilla-item" href="${metricas.rutaDe(j)}" data-precarga="${esc(j.cover_id ?? '')}" aria-label="${esc(j.nombre)}${v.esColeccion ? ' (coleccion)' : ''}${n ? `, ${n}` : ''}${h ? `, ${h}` : ''}">
         ${portada(j, { clase: 'portada-rejilla', titulo: 'arriba', prioridad: i < 6 })}
         ${v.esColeccion ? `<span class="sello-coleccion">Colección · ${datos.juegosDeColeccion(v.coleccion_id).length}</span>` : ''}
+        ${!v.esColeccion && estaRejugando(v) ? '<span class="sello-rejugando">Rejugando</span>' : !v.esColeccion && vueltasDe(v) > 1 ? `<span class="sello-vueltas">×${vueltasDe(v)}</span>` : ''}
         ${n || h ? `<span class="rejilla-nota">${n ? `${n}${chipLetra(notaLetra(v.nota), 'mini')}` : ''}${h ? `<span class="rejilla-horas">${h}</span>` : ''}</span>` : ''}
       </a>
       ${conMenu ? `<button type="button" class="bib-menu" data-menu-item="${esc(clave)}" aria-label="Opciones de ${esc(j.nombre)}">${icono('opciones', { tam: 18, color: '#FFFFFF' })}</button>` : ''}

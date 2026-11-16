@@ -9,7 +9,7 @@ const CLAVE = 'cvj.datos.v1';
 const LIMITE_ACTIVIDAD = 60;
 const VENTANA_ACTIVIDAD_MS = 10 * 60 * 1000; // agrupar cambios del mismo juego en 10 min
 
-const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sugRechazadas: [], servicios: [], cuentas: [], horasExtra: [], avisos: [], coleccionesG: [], coleccionesJuegos: [], valColecciones: [], sagas: [], sagasJuegos: [], columnas: [], entradas: [], lecturas: [], horasAjustes: [], horasEstimadas: [], cargadoEn: null });
+const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sugRechazadas: [], servicios: [], cuentas: [], horasExtra: [], avisos: [], coleccionesG: [], coleccionesJuegos: [], valColecciones: [], sagas: [], sagasJuegos: [], columnas: [], entradas: [], lecturas: [], horasAjustes: [], horasEstimadas: [], celebracionesVistas: [], cargadoEn: null });
 
 // Versión de los datos: sube cada vez que cambian (refresco, escritura o reversión).
 // metricas.js la usa para memoizar los cálculos.
@@ -37,12 +37,12 @@ let refrescoAplazado = false;
 //  - La caché va en IndexedDB (localStorage se queda sin sitio a los 5 MB y entonces no
 //    se guardaba nada, sin avisar).
 // ---------------------------------------------------------------------------
-const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sugRechazadas, s.servicios, s.cuentas, s.horasExtra, s.avisos, s.coleccionesG, s.coleccionesJuegos, s.valColecciones, s.sagas, s.sagasJuegos, s.columnas, s.entradas, s.lecturas, s.horasAjustes, s.horasEstimadas]);
+const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sugRechazadas, s.servicios, s.cuentas, s.horasExtra, s.avisos, s.coleccionesG, s.coleccionesJuegos, s.valColecciones, s.sagas, s.sagasJuegos, s.columnas, s.entradas, s.lecturas, s.horasAjustes, s.horasEstimadas, s.celebracionesVistas]);
 const COLUMNAS_USUARIO = 'id, nombre, inicial, color, acento, creado_en';
 const COLUMNAS_ENTRADA = 'id, columna_id, usuario_id, juego_id, coleccion_id, saga_id, titulo, subtitulo, palabras, estado, publicada_en, creado_en, actualizado_en';
 const PAGINA = 1000;
 const SIN_USUARIO = '00000000-0000-0000-0000-000000000000';
-const COLUMNAS_JUEGO = 'igdb_id, nombre, slug, cover_id, anio, plataformas, desarrolladora, generos, actualizado_en, color_dominante, es_online, es_online_manual, relaciones, ttb_historia, ttb_extras, ttb_completo';
+const COLUMNAS_JUEGO = 'igdb_id, nombre, slug, cover_id, anio, plataformas, desarrolladora, generos, actualizado_en, color_dominante, es_online, es_online_manual, relaciones, ttb_historia, ttb_extras, ttb_completo, mostrar_como';
 
 /**
  * Las tablas que se cargan: k = dónde va en estado, t = tabla, orden = columnas para
@@ -76,6 +76,8 @@ const TABLAS = [
   { k: 'lecturas', t: 'lecturas', deUsuario: true, q: (uid) => `usuario_id=eq.${uid}` },
   { k: 'horasAjustes', t: 'horas_ajustes', orden: ['usuario_id', 'juego_id'] },
   { k: 'horasEstimadas', t: 'horas_estimadas', orden: ['usuario_id', 'juego_id'] },
+  // Celebraciones de "completado" que ya he visto (solo las mías).
+  { k: 'celebracionesVistas', t: 'celebraciones_vistas', deUsuario: true, q: (uid) => `usuario_id=eq.${uid}` },
 ];
 
 /** Petición de lectura a la API de Supabase (PostgREST). Lanza si no va bien. */
@@ -275,6 +277,15 @@ function construirIndices(s) {
     for (let i = 0; i < 6 && aliasA.has(x); i++) x = aliasA.get(x);
     return x;
   };
+  // Juego con versiones: el admin puede elegir que se enseñe con la portada y el nombre de
+  // una de ellas (juegos.mostrar_como). Solo cambia cómo se ve; todo lo demás sigue igual.
+  for (const j of s.juegos) {
+    if (j.mostrar_como == null) continue;
+    const v = juegos.get(Number(j.mostrar_como));
+    if (v && Number(v.igdb_id) !== Number(j.igdb_id) && canon(v.igdb_id) === Number(j.igdb_id)) {
+      juegos.set(Number(j.igdb_id), { ...j, nombre: v.nombre, cover_id: v.cover_id ?? j.cover_id, color_dominante: v.color_dominante ?? null });
+    }
+  }
   // Valoraciones "efectivas": con el juego principal y una sola por usuario y juego
   // (si alguien tiene las dos versiones sin fusionar, cuenta la más reciente).
   const efectivas = new Map();
@@ -398,6 +409,33 @@ export function ajusteHoras(usuarioId, igdbId) {
   return (estado.horasAjustes ?? []).find((x) => x.usuario_id === usuarioId && Number(x.juego_id) === id) ?? AJUSTE_VACIO;
 }
 export const hayAjustesHoras = () => Array.isArray(estado.horasAjustes);
+
+/** El juego tal como está guardado (sin la portada y el nombre elegidos para enseñarlo). */
+export const juegoGuardado = (igdbId) => (estado.juegos ?? []).find((j) => Number(j.igdb_id) === Number(igdbId)) ?? null;
+
+/** Admin: con qué versión se enseña un juego (su portada y su nombre). null = la principal. */
+export function elegirPortadaVersion(principalId, versionId, onError) {
+  const id = Number(principalId);
+  const valor = versionId == null || Number(versionId) === id ? null : Number(versionId);
+  return escribirOptimista(
+    (s) => { s.juegos = s.juegos.map((x) => (Number(x.igdb_id) === id ? { ...x, mostrar_como: valor } : x)); },
+    async (sb) => { comprobar(await sb.from('juegos').update({ mostrar_como: valor }).eq('igdb_id', id)); },
+    onError,
+    'No se ha podido cambiar la portada. Se ha deshecho el cambio.',
+  );
+}
+
+/** Celebraciones de "completado" que acabo de ver: no se repiten (ni en otro dispositivo). */
+export function marcarCelebracionesVistas(usuarioId, actividadIds) {
+  const ya = new Set((estado.celebracionesVistas ?? []).filter((x) => x.usuario_id === usuarioId).map((x) => x.actividad_id));
+  const filas = [...new Set(actividadIds)].filter((id) => !ya.has(id)).map((id) => ({ usuario_id: usuarioId, actividad_id: id, visto_en: new Date().toISOString() }));
+  if (!filas.length) return Promise.resolve(true);
+  // Si falla al guardar NO se deshace: en este dispositivo ya se han visto.
+  estado.celebracionesVistas = [...(estado.celebracionesVistas ?? []), ...filas];
+  guardarCache();
+  return cliente().then((sb) => sb.from('celebraciones_vistas').upsert(filas, { onConflict: 'usuario_id,actividad_id', ignoreDuplicates: true }))
+    .then((r) => !r.error, () => false);
+}
 
 // ---------------------------------------------------------------------------
 // Horas estimadas con el tiempo para terminar de IGDB
@@ -852,6 +890,7 @@ async function escribirOptimista(aplicar, guardar, onError, mensajeError = 'No s
     sagas: estado.sagas, sagasJuegos: estado.sagasJuegos, columnas: estado.columnas, entradas: estado.entradas, lecturas: estado.lecturas,
     horasAjustes: estado.horasAjustes,
     horasEstimadas: estado.horasEstimadas,
+    celebracionesVistas: estado.celebracionesVistas,
   };
   escriturasEnCurso++;
   aplicar(estado);
@@ -881,6 +920,7 @@ async function escribirOptimista(aplicar, guardar, onError, mensajeError = 'No s
 const comprobar = (r) => { if (r?.error) throw r.error; return r; };
 
 const TIPO_POR_ESTADO = { jugando: 'empezo', completado: 'completo', abandonado: 'abandono', pendiente: 'pendiente' };
+const DIAS_PARA_CELEBRAR = 2;
 
 /** Columnas de la tabla juegos a partir de lo que se sepa del juego. */
 function filaJuego(j) {
@@ -913,11 +953,26 @@ export function guardarValoracion(v, onError) {
   const sobran = estado.valoraciones.filter((x) => x.usuario_id === v.usuarioId && grupo.includes(Number(x.juego_id)) && Number(x.juego_id) !== destino).map((x) => x.id);
   const ahora = new Date().toISOString();
   const pendiente = v.estado === 'pendiente';
+  // "Rejugando" no es un estado aparte: sigue Completado (no se pierde) y vuelve a estar en
+  // juego. Al acabarlo otra vez, suma una vuelta ("Completado ×2").
+  const vueltasAntes = antes?.estado === 'completado' ? Math.max(1, Number(antes.vueltas) || 1) : Number(antes?.vueltas) || 0;
+  const eraRejugando = antes?.estado === 'completado' && antes.rejugando === true;
+  const rejugando = v.estado === 'rejugando';
+  const estadoFinal = rejugando ? 'completado' : v.estado;
+  const vueltas = typeof v.vueltas === 'number' ? Math.max(estadoFinal === 'completado' ? 1 : 0, Math.round(v.vueltas))
+    : rejugando ? Math.max(1, vueltasAntes)
+    : estadoFinal === 'completado' ? (eraRejugando ? vueltasAntes + 1 : Math.max(1, vueltasAntes))
+    : vueltasAntes;
+  const enJuego = estadoFinal === 'jugando' || rejugando;
+  const estabaEnJuego = antes?.estado === 'jugando' || eraRejugando;
   const fila = {
     id: antes?.id ?? crypto.randomUUID(),
     usuario_id: v.usuarioId,
     juego_id: destino,
-    estado: v.estado,
+    estado: estadoFinal,
+    vueltas,
+    rejugando,
+    jugando_desde: enJuego ? (estabaEnJuego ? antes.jugando_desde ?? antes.actualizado_en ?? ahora : ahora) : null,
     nota: pendiente ? null : redondear(v.nota),
     recomendado: pendiente ? null : (v.recomendado ?? null),
     plataformas: (v.plataformas ?? []).length ? [...new Set(v.plataformas)] : null,
@@ -932,6 +987,8 @@ export function guardarValoracion(v, onError) {
   // ¿Qué se cuenta en la actividad?
   let tipo = null;
   if (!antes || antes.estado !== fila.estado) tipo = TIPO_POR_ESTADO[fila.estado];
+  else if (fila.rejugando && !eraRejugando) tipo = 'rejuega';            // ha vuelto a jugarlo
+  else if (eraRejugando && !fila.rejugando) tipo = 'completo';           // otra vuelta completada
   else if (redondear(antes.nota) !== fila.nota || (antes.recomendado ?? null) !== fila.recomendado || (antes.resena || null) !== fila.resena) tipo = 'valoro';
 
   let act = null;
@@ -940,13 +997,18 @@ export function guardarValoracion(v, onError) {
     const reciente = estado.actividad.find((a) =>
       a.usuario_id === v.usuarioId && Number(a.juego_id) === id && Date.now() - new Date(a.creado_en).getTime() < VENTANA_ACTIVIDAD_MS);
     const comun = { nota: fila.nota, recomendado: fila.recomendado, texto: fila.resena, creado_en: ahora };
+    // Celebración para los demás: solo si lo tenía en juego DE VERDAD (al menos 2 días), no
+    // al ordenar el catálogo de golpe (pendiente → completado, cambios en lote...).
+    const desde = estabaEnJuego ? new Date(antes.jugando_desde ?? antes.actualizado_en ?? ahora).getTime() : null;
+    const celebrar = tipo === 'completo' && desde != null && Date.now() - desde >= DIAS_PARA_CELEBRAR * 86400000;
+    const extra = tipo === 'completo' ? { vuelta: fila.vueltas > 1 ? fila.vueltas : null, celebrar } : {};
     if (reciente) {
       // Mismo juego hace menos de 10 min: se actualiza esa entrada.
       // Si ahora solo cambia la nota o la reseña, se conserva lo que contaba (completó, empezó...).
-      act = { ...reciente, ...comun, tipo: tipo === 'valoro' ? reciente.tipo : tipo };
+      act = { ...reciente, ...comun, tipo: tipo === 'valoro' ? reciente.tipo : tipo, ...(tipo === 'valoro' ? {} : { vuelta: extra.vuelta ?? null, celebrar: !!extra.celebrar }) };
       actualizarAct = true;
     } else {
-      act = { id: crypto.randomUUID(), usuario_id: v.usuarioId, juego_id: id, tipo, ...comun };
+      act = { id: crypto.randomUUID(), usuario_id: v.usuarioId, juego_id: id, tipo, ...comun, ...extra };
     }
   }
 
@@ -1560,16 +1622,27 @@ export function valoracionesEnLote(usuarioId, igdbIds, cambiar, onError) {
       plataformas: null, resena: null, cuenta_ranking: !esOnline(id), creado_en: ahora,
     };
     const fila = { ...base, ...cambios, actualizado_en: ahora };
+    if (cambios.estado) {
+      // "Jugando" sobre uno ya completado = rejugarlo (no se pierde el completado); y
+      // "Completado" sobre uno que se estaba rejugando = otra vuelta.
+      const veces = previa?.estado === 'completado' ? Math.max(1, Number(previa.vueltas) || 1) : Number(previa?.vueltas) || 0;
+      const eraRejugando = previa?.estado === 'completado' && previa.rejugando === true;
+      if (cambios.estado === 'jugando' && previa?.estado === 'completado') { fila.estado = 'completado'; fila.rejugando = true; fila.vueltas = veces; }
+      else if (cambios.estado === 'completado') { fila.rejugando = false; fila.vueltas = eraRejugando ? veces + 1 : Math.max(1, veces); }
+      else { fila.rejugando = false; fila.vueltas = veces; }
+      const enJuego = fila.estado === 'jugando' || fila.rejugando;
+      fila.jugando_desde = enJuego ? (previa?.jugando_desde && (previa.estado === 'jugando' || eraRejugando) ? previa.jugando_desde : ahora) : null;
+    }
     if (fila.estado === 'pendiente') { fila.nota = null; fila.recomendado = null; }
     if (Array.isArray(fila.plataformas) && !fila.plataformas.length) fila.plataformas = null;
     nuevas.push(fila);
     if (previa) antes.push(previa); else creadas.push(fila.id);
   }
   // Actividad: los cambios de estado. Si son varios, una sola entrada agrupada (mismo "lote").
-  const conCambio = nuevas.filter((f) => !antes.some((a) => a.id === f.id && a.estado === f.estado));
+  const conCambio = nuevas.filter((f) => !antes.some((a) => a.id === f.id && a.estado === f.estado && !!a.rejugando === !!f.rejugando));
   const lote = conCambio.length > 1 ? crypto.randomUUID() : null;
   const acts = conCambio.map((f) => ({
-    id: crypto.randomUUID(), usuario_id: usuarioId, juego_id: canonico(f.juego_id), tipo: TIPO_POR_ESTADO[f.estado],
+    id: crypto.randomUUID(), usuario_id: usuarioId, juego_id: canonico(f.juego_id), tipo: f.rejugando ? 'rejuega' : TIPO_POR_ESTADO[f.estado],
     nota: f.nota, recomendado: f.recomendado, texto: null, creado_en: ahora, ...(lote ? { lote } : {}),
   })).filter((a) => a.tipo);
   const faltan = juegosQueFaltan(creadas.map((cid) => Number(nuevas.find((f) => f.id === cid).juego_id)));

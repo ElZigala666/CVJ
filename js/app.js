@@ -46,6 +46,7 @@ function cargarSegundoPlano() {
   segundoPlano = true;
   setTimeout(() => enCalma(() => {
     cargarSeleccion();
+    import('./deslizar.js').then((m) => m.iniciarDeslizar(vista));
     import('./estimaciones.js').then((m) => m.iniciarEstimaciones());
     for (const r of ['inicio', 'perfil', 'buscar', 'rankings', 'juego']) RUTAS[r]().catch(() => {});
     import('./hoja-valorar.js').catch(() => {});

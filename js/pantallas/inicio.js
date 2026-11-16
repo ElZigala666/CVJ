@@ -13,7 +13,7 @@ import { abrirHoja } from '../hoja.js';
 import { imagenPlataforma } from '../portadas.js';
 import {
   esc, cabecera, portada, notaConLetra, avatar, iconoRecomendacion, avatarPerfil, nombrePerfil, avatarInsignia,
-  tiempoRelativo, conservarScroll, aviso,
+  tiempoRelativo, conservarScroll, aviso, estaRejugando,
 } from '../ui.js';
 
 const PESTANAS = [
@@ -29,7 +29,11 @@ const VERBOS = {
   completo: 'completó',
   abandono: 'abandonó',
   pendiente: 'añadió a pendientes',
+  rejuega: 'ha vuelto a jugar a',
 };
+const ORDINAL = { 2: '2.ª', 3: '3.ª', 4: '4.ª', 5: '5.ª' };
+/** "completó", o "completó por 2.ª vez" si es otra vuelta. */
+const verboDe = (a) => (a.tipo === 'completo' && a.vuelta > 1 ? `completó por ${ORDINAL[a.vuelta] ?? `${a.vuelta}.ª`} vez` : VERBOS[a.tipo] ?? 'actualizó');
 // Colecciones: una entrada por la colección, no una por cada juego.
 const VERBOS_COLECCION = {
   valoro: 'valoró la colección',
@@ -49,7 +53,11 @@ const VERBOS_VARIOS = {
 let pestana = 'mejor'; // se recuerda mientras la app está abierta
 
 export function render(el) {
-  const pintar = () => conservarScroll(el, () => { el.innerHTML = html(); });
+  const pintar = () => {
+    conservarScroll(el, () => { el.innerHTML = html(); });
+    // "¡Completado!" de los demás: una vez, al entrar (aunque sea días después).
+    import('../celebracion.js').then((m) => { if (el.isConnected) m.revisarCelebraciones(); });
+  };
   el.addEventListener('click', (e) => {
     const b = e.target.closest('[data-pestana]');
     if (!b || b.dataset.pestana === pestana) return;
@@ -137,13 +145,14 @@ function jugandoAhora() {
   const porUsuario = new Map();
   for (const v of datos.valoracionesEfectivas()) {
     // Los juegos online / sin final no salen: se juegan siempre.
-    if (v.estado !== 'jugando' || !datos.usuario(v.usuario_id) || datos.esOnline(v.juego_id)) continue;
+    // También lo que alguien completó y ha vuelto a jugar ("Rejugando").
+    if ((v.estado !== 'jugando' && !estaRejugando(v)) || !datos.usuario(v.usuario_id) || datos.esOnline(v.juego_id)) continue;
     const prev = porUsuario.get(v.usuario_id);
     if (!prev || new Date(v.actualizado_en) > new Date(prev.actualizado_en)) porUsuario.set(v.usuario_id, v);
   }
   const lista = [...porUsuario.values()]
     .sort((a, b) => new Date(b.actualizado_en) - new Date(a.actualizado_en))
-    .map((v) => ({ v, j: datos.juegoConocido(v.juego_id), u: datos.usuario(v.usuario_id), cuando: v.actualizado_en }))
+    .map((v) => ({ v, j: datos.juegoConocido(v.juego_id), u: datos.usuario(v.usuario_id), cuando: v.actualizado_en, rejugando: estaRejugando(v) }))
     .filter((x) => x.j);
   // Quien no tiene nada en "Jugando" pero ha jugado en PSN en los últimos 3 días.
   const conJugando = new Set(lista.map((x) => x.u.id));
@@ -197,13 +206,14 @@ function jugandoPsn(excluir) {
     .sort((a, b) => b.ultima_vez.localeCompare(a.ultima_vez))
     .map((f) => {
       const igdbId = datos.igdbDeBiblioteca(f);
-      return { u: datos.usuario(f.usuario_id), j: igdbId != null ? datos.juegoConocido(igdbId) : null, fila: f, psn: true };
+      const mia = igdbId != null ? datos.miValoracion(f.usuario_id, igdbId) : null;
+      return { u: datos.usuario(f.usuario_id), j: igdbId != null ? datos.juegoConocido(igdbId) : null, fila: f, psn: true, rejugando: mia?.estado === 'completado' };
     });
 }
 
 function tarjetaJugando(x, i) {
   const { j, u } = x;
-  const etiqueta = x.psn ? `<span class="etiqueta-psn sobre-portada">${x.fila?.fuente === 'xbox' ? 'Xbox' : 'PSN'}</span>` : '';
+  const etiqueta = x.psn ? `<span class="etiqueta-psn sobre-portada">${x.fila?.fuente === 'xbox' ? 'Xbox' : x.fila?.fuente === 'steam' ? 'Steam' : 'PSN'}</span>` : '';
   if (j) {
     return `
       <a class="tarjeta-jugando" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}">
@@ -213,6 +223,7 @@ function tarjetaJugando(x, i) {
           ${etiqueta}
         </div>
         ${nombrePerfil(u, 'span', 'tarjeta-nombre')}
+        ${x.rejugando ? '<span class="tarjeta-rejugando">Rejugando</span>' : ''}
         ${(() => { const h = metricas.textoHorasDe(u.id, j.igdb_id); return h ? `<span class="tarjeta-horas">${esc(h)}</span>` : ''; })()}
       </a>`;
   }
@@ -419,7 +430,7 @@ function actividad() {
         <a class="actividad-fila" href="${metricas.rutaDe(j)}" data-precarga="${esc(j.cover_id ?? '')}">
           ${avatarPerfil(u, 36)}
           <div class="actividad-texto">
-            <span class="actividad-frase">${nombrePerfil(u, 'strong')} ${(a.coleccion_id ? VERBOS_COLECCION : VERBOS)[a.tipo] ?? 'actualizó'} <strong>${esc(j.nombre)}</strong></span>
+            <span class="actividad-frase">${nombrePerfil(u, 'strong')} ${a.coleccion_id ? VERBOS_COLECCION[a.tipo] ?? 'actualizó' : verboDe(a)} <strong>${esc(j.nombre)}</strong></span>
             ${a.nota != null || a.recomendado != null || h ? `
               <div class="actividad-nota">
                 ${a.nota != null ? notaConLetra(a.nota, 'act') : ''}

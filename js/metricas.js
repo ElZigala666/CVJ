@@ -71,7 +71,11 @@ export function perfil(uid) {
     const juegosOnline = [];
     for (const v of vals) {
       if (online(v)) juegosOnline.push(v);
-      else historial[v.estado]?.push(v);
+      else {
+        historial[v.estado]?.push(v);
+        // Lo que se está rejugando sigue en Completados y además sale en Jugando.
+        if (v.estado === 'completado' && v.rejugando === true) historial.jugando.push(v);
+      }
     }
     juegosOnline.sort((a, b) => (nota(b) ?? -1) - (nota(a) ?? -1) || porFecha(a, b));
     // Completados y abandonados: por nota (los que no tienen nota, al final por fecha).

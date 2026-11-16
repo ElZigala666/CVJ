@@ -6,7 +6,7 @@ import { usuarioActual } from '../sesion.js';
 import { LETRAS } from '../notas.js';
 import {
   esc, portada, urlPortada, colorBloque, colorFondo, mejorCargada, notaConLetra,
-  iconoRecomendacion, avatar, avatarInsignia, avatarPerfil, nombrePerfil, nombreEstado, ESTADOS, aviso,
+  iconoRecomendacion, avatar, avatarInsignia, avatarPerfil, nombrePerfil, nombreEstado, textoEstado, ESTADOS, aviso,
 } from '../ui.js';
 import { yaCargada, tamPara, ANCHOS } from '../portadas.js';
 import { volver, reemplazarRuta } from '../navegacion.js';
@@ -225,7 +225,7 @@ export function render(el, { params }) {
     if (!u) return '';
     const est = ESTADOS.find((e) => e.id === v.estado);
     const version = nombreVersion(v.juego_origen);
-    const sub = [nombreEstado(v.estado), version, ...datos.plataformasDe(v)].filter(Boolean).join(' · ') + extraPsn(u.id);
+    const sub = [textoEstado(v), version, ...datos.plataformasDe(v)].filter(Boolean).join(' · ') + extraPsn(u.id);
     const derecha = v.nota != null
       ? `<div class="grupo-nota">${notaConLetra(v.nota, 'lg')}${iconoRecomendacion(v.recomendado, 20)}</div>`
       : `<span class="grupo-sin-nota">Sin nota aún</span>`;
@@ -356,6 +356,37 @@ export function render(el, { params }) {
    * Lo que IGDB sabe (coleccion, versión de, incluido en...), "¿Es el mismo juego?" con
    * mis otras versiones y las versiones ya fusionadas (con "Deshacer").
    */
+  /** Admin: portada y nombre de un juego con versiones, entre los de todas ellas. */
+  function elegirPortada() {
+    const propio = datos.juegoGuardado(id);
+    const versiones = [propio, ...datos.aliasDe(id).map((a) => datos.juegoGuardado(a))].filter(Boolean);
+    const actual = Number(propio?.mostrar_como ?? id);
+    import('../hoja.js').then(({ abrirHoja }) => abrirHoja({
+      titulo: 'Portada y nombre',
+      antetitulo: 'Cómo se enseña este juego',
+      html: `
+        <div class="fusion">
+          <p class="ajustes-nota">Solo cambia la portada y el nombre con los que se ve el juego. Las valoraciones y las horas siguen siendo las de todas sus versiones.</p>
+          <div class="elegir-lista">
+            ${versiones.map((v) => `
+              <button type="button" class="fila-elegir${Number(v.igdb_id) === actual ? ' elegida' : ''}" data-version="${v.igdb_id}" aria-pressed="${Number(v.igdb_id) === actual}">
+                ${portada(v, { clase: 'portada-lista' })}
+                <span class="fila-elegir-texto"><strong>${esc(v.nombre)}</strong><small>${[v.anio, Number(v.igdb_id) === id ? 'principal' : ''].filter(Boolean).join(' · ')}</small></span>
+                ${Number(v.igdb_id) === actual ? icono('completado', { tam: 22, color: 'var(--acento)', trazo: 'var(--sobre-acento)' }) : ''}
+              </button>`).join('')}
+          </div>
+        </div>`,
+      alMontar(cuerpo, cerrar) {
+        cuerpo.addEventListener('click', (e) => {
+          const b = e.target.closest('[data-version]');
+          if (!b) return;
+          cerrar();
+          datos.elegirPortadaVersion(id, Number(b.dataset.version), aviso).then((ok) => { if (ok) aviso('Portada y nombre cambiados'); });
+        });
+      },
+    }));
+  }
+
   function bloqueVersiones() {
     const j = datos.juegoConocido(id);
     const r = j?.relaciones ?? {};
@@ -396,6 +427,7 @@ export function render(el, { params }) {
         ${alias.length ? `
           <div class="ficha-fusionadas">
             <span class="campo-titulo">Versiones incluidas</span>
+            ${admin ? '<button type="button" class="boton-secundario neutro boton-pequeno" data-elegir-portada>Elegir portada y nombre…</button>' : ''}
             ${alias.map(({ j: a, x }) => `
               <div class="ficha-fusionada">
                 <span>«${esc(a.nombre)}»${a.anio ? ` · ${a.anio}` : ''}${x.auto ? '' : ' · fusionada a mano'}</span>
@@ -464,6 +496,7 @@ export function render(el, { params }) {
       if (sg) { datos.quitarDeColeccion(id, aviso); aviso(`Quitado de «${sg.nombre}»`); }
       return;
     }
+    if (e.target.closest('[data-elegir-portada]') && esAdmin()) { elegirPortada(); return; }
     const separar = e.target.closest('[data-separar]');
     if (separar && yo) {
       datos.separarVersion(separar.dataset.separar, yo.id, aviso);

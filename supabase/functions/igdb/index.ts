@@ -839,6 +839,63 @@ async function actualizarTiempos(limite = 500) {
   return { ok: true, mirados: ids.length, con_datos: conDatos };
 }
 
+/**
+ * Arte horizontal (para cabeceras panorámicas): el "artwork" más ancho y apaisado de cada
+ * juego y, si no tiene, la captura más ancha. → Map(igdb_id → { id, tipo })
+ */
+type Imagen = { game?: number; image_id?: string; width?: number; height?: number };
+async function arteDe(ids: number[]): Promise<Map<number, { id: string; tipo: "artwork" | "screenshot" }>> {
+  const mejor = (lista: Imagen[]) => {
+    const porJuego = new Map<number, Imagen>();
+    for (const x of lista) {
+      if (!x.game || !x.image_id) continue;
+      const w = Number(x.width) || 0;
+      const h = Number(x.height) || 0;
+      if (h && w < h * 1.2) continue; // solo apaisadas
+      const prev = porJuego.get(x.game);
+      if (!prev || w > (Number(prev.width) || 0)) porJuego.set(x.game, x);
+    }
+    return porJuego;
+  };
+  const r = new Map<number, { id: string; tipo: "artwork" | "screenshot" }>();
+  for (let i = 0; i < ids.length; i += 50) {
+    const trozo = ids.slice(i, i + 50);
+    const arts = mejor(await igdb<Imagen[]>("artworks", `fields game,image_id,width,height; where game = (${trozo.join(",")}); limit 500;`));
+    for (const [g, x] of arts) r.set(g, { id: String(x.image_id), tipo: "artwork" });
+    const faltan = trozo.filter((id) => !r.has(id));
+    if (!faltan.length) continue;
+    const caps = mejor(await igdb<Imagen[]>("screenshots", `fields game,image_id,width,height; where game = (${faltan.join(",")}); limit 500;`));
+    for (const [g, x] of caps) r.set(g, { id: String(x.image_id), tipo: "screenshot" });
+  }
+  return r;
+}
+
+/**
+ * Rellena juegos.arte_* poco a poco (tarea de cada hora): los que nunca se han mirado y,
+ * cada 30 días, los que no tenían arte (a los juegos nuevos les llega más tarde).
+ */
+async function actualizarArte(limite = 400) {
+  const hace30 = new Date(Date.now() - 30 * 86400000).toISOString();
+  const { data, error } = await sb.from("juegos").select("igdb_id")
+    .or(`arte_en.is.null,and(arte_id.is.null,arte_en.lt.${hace30})`)
+    .order("arte_en", { ascending: true, nullsFirst: true }).limit(limite);
+  if (error) throw new Error("arte: " + error.message);
+  const ids = (data ?? []).map((x) => Number(x.igdb_id));
+  const arte = await arteDe(ids);
+  const ahora = new Date().toISOString();
+  const sin = ids.filter((id) => !arte.has(id));
+  for (let i = 0; i < sin.length; i += 200) {
+    const { error: e } = await sb.from("juegos").update({ arte_id: null, arte_tipo: null, arte_en: ahora }).in("igdb_id", sin.slice(i, i + 200));
+    if (e) throw new Error("arte: " + e.message);
+  }
+  for (const [id, a] of arte) {
+    const { error: e } = await sb.from("juegos").update({ arte_id: a.id, arte_tipo: a.tipo, arte_en: ahora }).eq("igdb_id", id);
+    if (e) throw new Error("arte: " + e.message);
+  }
+  const { count } = await sb.from("juegos").select("igdb_id", { count: "exact", head: true }).is("arte_en", null);
+  return { ok: true, mirados: ids.length, con_arte: arte.size, artworks: [...arte.values()].filter((a) => a.tipo === "artwork").length, quedan: count ?? null };
+}
+
 async function juego(igdbId: number) {
   const [j] = await igdb<JuegoIGDB[]>("games", `fields ${CAMPOS_FICHA}; where id = ${igdbId}; limit 1;`);
   if (!j) throw new ErrorPublico("Ese juego no existe en IGDB", 404);
@@ -858,6 +915,11 @@ async function juego(igdbId: number) {
   };
   if (manual) fila.es_online = manual.get(j.id) ?? detectarOnline(j);
   fila.relaciones = relacionesDe(j);
+  // Arte horizontal (si falla, no impide guardar el juego; lo recoge la tarea de cada hora).
+  try {
+    const a = (await arteDe([j.id])).get(j.id);
+    Object.assign(fila, { arte_id: a?.id ?? null, arte_tipo: a?.tipo ?? null, arte_en: new Date().toISOString() });
+  } catch (e) { console.warn("arte", e); }
 
   await guardarJuegos([fila]);
   await asegurarPadres([fila]);
@@ -1221,6 +1283,8 @@ Deno.serve(async (req) => {
         return json(await porAppidSteam(Array.isArray(cuerpo.appids) ? cuerpo.appids.map(String) : []));
       case "tiempos":
         return json(await actualizarTiempos());
+      case "arte":
+        return json(await actualizarArte());
       case "fusionar_versiones":
         return json(await fusionarVersiones());
       case "juego": {

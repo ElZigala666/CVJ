@@ -41,11 +41,14 @@ español (código, comentarios, commits, interfaz).
 - `js/apariencia.js`, `js/tema.js`, `js/acento.js`, `js/selector-color.js`,
   `js/ajustes-fondo.js`, `js/perfil-editar.js`, `js/perfil-personal.js`, `js/foto-perfil.js`.
 - `js/columnas-ui.js`: piezas de columnas (formato del cuerpo, tarjetas).
+- `js/social.js`: reacciones y respuestas (tira bajo reseñas y entradas, menú, hilo,
+  aviso "Lo nuevo en lo tuyo" y filas de actividad).
 - `js/pantallas/`: `inicio`, `buscar`, `juego`, `perfil` (+ tier list), `rankings`
   (+ comparar), `estadisticas`, `coleccion`, `saga`, `revisar`, `duplicados`, `entrada`
   (login), `escribir` (editor de columna), `lectura` (#entrada/{id}), `columna`.
-- `prueba-local.html`: la app con un Supabase simulado en memoria, para probar en local
-  (`.claude/launch.json` → `cvj-local`, puerto 8765; `localStorage['prueba.escenario'] =
+- `prueba-local.html` (solo en este equipo: excluido en `.git/info/exclude`): la app con
+  un Supabase simulado en memoria, para probar en local
+  (`.claude/launch.json` → `cvj-local`, `herramientas/servidor-local.py` sin caché, puerto 8766; `localStorage['prueba.escenario'] =
   'fase3'` trae columnas y entradas; `window.__fallar = true` simula sin red). El service
   worker sirve archivos viejos: desregistrarlo y vaciar cachés antes de recargar.
 - `herramientas/`: restaurar copia (`RESTAURAR.md`, `restaurar-copia.sh`), pruebas de
@@ -79,7 +82,13 @@ español (código, comentarios, commits, interfaz).
   completo, `auto`, `descartada`), `horas_ajustes` (líneas excluidas, plataforma corregida,
   `distintas`).
 - `columnas` (una por columnista, creada por el admin) → `entradas` (borrador/publicada,
-  `cuerpo` texto ≤ 100 000, sobre juego/colección/saga) → `lecturas`.
+  `cuerpo` texto ≤ 100 000, sobre juego/colección/saga) → `lecturas` (de todos; solo se
+  apuntan al leer de verdad: final del texto + unos segundos, o un rato a la vista).
+- `reacciones` (una por usuario y objetivo: buena/mala/acuerdo/discrepo/wtf) y
+  `comentarios` (respuestas ≤ 500): `objetivo` = valoracion | valoracion_coleccion |
+  entrada + `objetivo_id`. Se borran solos con su reseña o entrada (trigger).
+  `usuarios.social_visto_en`: hasta cuándo vio cada uno lo nuevo de lo suyo.
+  Todo lo social va en `js/social.js` y se repinta en su sitio (`datos.suscribirSocial`).
 - `actividad` (feed: valoro/empezo/completo/abandono/pendiente/rejuega, `lote`,
   `celebrar`), `celebraciones_vistas`, `avisos`, `estado_servicios`, `igdb_token`,
   `openxbl_uso`.

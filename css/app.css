@@ -2128,3 +2128,134 @@ body.seleccionando #barra { visibility: hidden; }
   .celebra-halo, .celebra-brillo { display: none; }
   .celebra-sello path { animation: none; stroke-dashoffset: 0; }
 }
+
+/* ---------------------------------------------------------------------------
+   Reacciones y respuestas (js/social.js): compactas, debajo de reseñas y entradas
+   --------------------------------------------------------------------------- */
+.oculto-accesible { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.grupo-social { margin-left: 52px; }
+.social { display: grid; gap: 8px; min-width: 0; }
+.social-fila { display: flex; align-items: center; gap: 2px; min-height: 30px; } /* una sola línea: los textos se acortan */
+.social-hueco { flex: 1; }
+.social-resumen {
+  display: inline-flex; flex: none; align-items: center; gap: 6px; height: 28px; padding: 0 10px 0 8px; border: 0; border-radius: 999px;
+  background: var(--superficie); color: var(--texto); font: 600 12px var(--fuente-texto); cursor: pointer;
+}
+.social-chip { display: inline-flex; align-items: center; gap: 3px; color: var(--texto-2); }
+.social-chip > span { color: var(--texto); }
+.social [data-r="wtf"], .social-quien-icono[data-r="wtf"], .social-evento-icono[data-r="wtf"] { color: var(--acento); }
+.social-boton {
+  display: inline-flex; flex: 0 1 auto; min-width: 0; align-items: center; gap: 5px; height: 30px; padding: 0 8px; border: 0; border-radius: 999px;
+  background: none; color: var(--texto-2); font: 600 12px var(--fuente-texto); cursor: pointer;
+}
+.social-boton:active { background: var(--superficie); }
+.social-boton.activa { background: var(--acento-suave); color: var(--acento-texto); }
+.social-boton-icono, .social-boton > svg { display: inline-grid; flex: none; }
+.social-boton-texto { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.social-hilo { display: grid; gap: 8px; padding-left: 10px; border-left: 2px solid var(--borde); }
+.social-mas { justify-self: start; padding: 0; border: 0; background: none; color: var(--acento-texto); font: 600 12px var(--fuente-texto); cursor: pointer; }
+.social-respuesta { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.social-respuesta-texto { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.social-respuesta-cab { display: flex; gap: 6px; align-items: baseline; font-size: 12px; }
+.social-tiempo { font-size: 11px; color: var(--texto-2); }
+.social-respuesta p { margin: 0; font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; white-space: pre-wrap; }
+.social-borrar { flex: none; padding: 4px; border: 0; background: none; color: var(--texto-2); font: 600 11px var(--fuente-texto); cursor: pointer; }
+.social-borrar.confirmar { color: var(--peligro); }
+
+/* Elegir reacción: menú pegado al botón */
+.social-menu {
+  position: fixed; z-index: 40; display: grid; min-width: 236px; max-width: calc(100vw - 24px); padding: 6px;
+  border: 1px solid var(--borde); border-radius: 16px; background: var(--superficie); box-shadow: 0 12px 32px rgba(0, 0, 0, .18);
+  opacity: 0; transform: scale(.96); transform-origin: top right; transition: opacity 120ms linear, transform 140ms var(--curva);
+}
+.social-menu.visible { opacity: 1; transform: none; }
+.social-menu-op {
+  display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 10px; border: 0; border-radius: 10px;
+  background: none; color: var(--texto); font: 600 14px var(--fuente-texto); text-align: left; cursor: pointer;
+}
+.social-menu-op:hover, .social-menu-op:active { background: var(--fondo); }
+.social-menu-op.activa { background: var(--acento-suave); color: var(--acento-texto); }
+.social-menu-icono { display: grid; place-items: center; width: 28px; flex: none; color: var(--texto-2); }
+.social-menu-op.activa .social-menu-icono, .social-menu-op.estrella .social-menu-icono { color: var(--acento); }
+.social-menu-op.quitar { min-height: 38px; color: var(--texto-2); font-size: 13px; font-weight: 500; }
+
+/* "¿Qué cojones me estás contando?": un golpe del icono y un temblor corto */
+@keyframes social-golpe {
+  0% { transform: none; } 25% { transform: scale(1.55) rotate(-14deg); } 45% { transform: scale(.88) rotate(10deg); }
+  62% { transform: scale(1.14) rotate(-6deg); } 80% { transform: scale(.98) rotate(3deg); } 100% { transform: none; }
+}
+@keyframes social-temblor { 0%, 100% { transform: none; } 20% { transform: translateX(-3px); } 40% { transform: translateX(3px); } 60% { transform: translateX(-2px); } 80% { transform: translateX(1px); } }
+.social.golpe .social-boton.activa .social-boton-icono, .social.golpe .social-chip[data-r="wtf"] svg { animation: social-golpe 600ms var(--curva); }
+.social.golpe .social-boton.activa { animation: social-temblor 300ms 150ms linear; }
+@media (prefers-reduced-motion: reduce) { .social.golpe .social-boton-icono, .social.golpe svg, .social.golpe .social-boton { animation: none; } }
+
+/* Quién ha reaccionado / leído */
+.social-quien { display: grid; gap: 2px; }
+.social-quien-fila { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+.social-quien-texto { flex: 1; min-width: 0; display: grid; gap: 1px; font-size: 15px; }
+.social-quien-texto small { font-size: 12px; color: var(--texto-2); }
+.social-quien-icono { display: grid; color: var(--texto-2); }
+
+/* Hilo de respuestas (hoja) */
+.social-original { display: flex; gap: 10px; align-items: flex-start; margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--superficie); }
+.social-original p { margin: 0; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.social-hilo-lista { display: grid; gap: 14px; }
+.social-hilo-lista .social-respuesta { cursor: default; }
+.social-hilo-lista .social-respuesta p { font-size: 15px; }
+.social-vacio { margin: 0; font-size: 14px; color: var(--texto-2); }
+.social-escribir { position: sticky; bottom: 0; display: flex; gap: 8px; align-items: flex-end; padding-top: 6px; background: var(--fondo); }
+.social-escribir textarea {
+  flex: 1; min-width: 0; height: 42px; max-height: 140px; resize: none; padding: 10px 14px; border: 1px solid var(--borde); border-radius: 18px;
+  background: var(--superficie); color: var(--texto); font: 16px/1.3 var(--fuente-texto); outline: none;
+}
+.social-escribir textarea:focus { border-color: var(--acento); }
+.social-escribir .boton-principal { flex: none; width: auto; height: 42px; }
+
+/* Aviso de Inicio: lo nuevo en lo mío */
+.social-novedades {
+  display: flex; align-items: center; gap: 12px; width: calc(100% - 40px); margin: 12px 20px 0; padding: 12px 14px;
+  border: 1px solid var(--borde); border-radius: 14px; background: var(--superficie); color: var(--texto); text-align: left; cursor: pointer;
+  font-family: var(--fuente-texto);
+}
+.social-novedades-icono { display: grid; color: var(--texto-2); }
+.social-novedades-icono.estrella { color: var(--acento); }
+.social-novedades-texto { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.social-novedades-texto strong { font-size: 14px; }
+.social-novedades-texto small { font-size: 12px; color: var(--texto-2); }
+.social-eventos { display: grid; }
+.social-evento { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--borde); color: var(--texto); text-decoration: none; }
+.social-evento:last-child { border-bottom: 0; }
+.social-evento-texto { flex: 1; min-width: 0; display: grid; gap: 3px; font-size: 14px; line-height: 1.35; }
+.social-evento-texto small { font-size: 12px; color: var(--texto-2); }
+.social-evento-cita { font-style: italic; overflow-wrap: anywhere; }
+.social-evento-icono { display: grid; color: var(--texto-2); }
+
+/* Actividad */
+.actividad-bloque { border-bottom: 1px solid var(--borde); padding-bottom: 10px; }
+.actividad-fila.con-social { border-bottom: 0; padding-bottom: 8px; }
+.actividad-tira { padding-left: 48px; }
+.actividad-reaccion { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--texto-2); }
+.actividad-reaccion[data-r="wtf"] { color: var(--acento-texto); }
+
+/* Perfil: reseñas */
+.perfil-resenas { display: grid; }
+.perfil-resena { display: grid; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--borde); }
+.perfil-resena-cab { display: flex; align-items: center; gap: 10px; color: var(--texto); text-decoration: none; }
+.portada-resena { width: 32px; flex: none; border-radius: 6px; }
+.perfil-resena-juego { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.perfil-resena-juego strong { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.perfil-resena-juego small { font-size: 12px; color: var(--texto-2); }
+.perfil-resena-texto { margin: 0; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.perfil-resenas-mas { margin-top: 10px; }
+
+/* Lectura: leído por, reacciones y respuestas */
+.lectura-social { display: grid; gap: 14px; margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--borde); font-family: var(--fuente-texto); }
+.lectura-leidos-boton { display: inline-flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; color: var(--texto-2); font: 600 13px var(--fuente-texto); cursor: pointer; }
+.lectura-leidos-nadie { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--texto-2); }
+.lectura-leidos-mas { font-size: 12px; }
+.lectura-social .social-respuesta p { font-size: 14px; }
+
+/* Columna: lecturas, reacciones y respuestas de cada entrada */
+.social-cuentas { display: inline-flex; gap: 10px; font-size: 12px; color: var(--texto-2); }
+.social-cuentas:empty { display: none; }
+.social-cuentas > span { display: inline-flex; align-items: center; gap: 3px; }

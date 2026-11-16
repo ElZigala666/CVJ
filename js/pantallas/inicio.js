@@ -7,6 +7,7 @@ import * as xbox from '../xbox.js';
 import * as metricas from '../metricas.js';
 import { tarjetaSugerenciaColeccion, clicSugerenciaColeccion } from '../colecciones-ui.js';
 import { logoColumna, textoLectura } from '../columnas-ui.js';
+import * as social from '../social.js';
 import { usuarioActual } from '../sesion.js';
 import { mediaGrupo, recomendacionGrupo, desviacionTipica } from '../notas.js';
 import { abrirHoja } from '../hoja.js';
@@ -122,6 +123,7 @@ function html() {
     ${avisoPsn()}
     ${avisoRevisar()}
     ${avisosPersonales()}
+    ${yo ? social.avisoNovedades(yo.id) : ''}
     ${bienvenida()}
     ${nuevoEnColumna()}
     ${yo ? `<div class="inicio-sugerencias">${metricas.sugerenciasColeccion(yo.id).map(tarjetaSugerenciaColeccion).join('')}</div>` : ''}
@@ -422,12 +424,41 @@ function actividad() {
     .filter((x) => x.u && x.j)
     .reduce(juntarLotes, [])
     .concat(deColumnas)
+    // Reacciones y respuestas a lo mío ("Nico ha dicho «Discrepo» a tu reseña de…") y, de
+    // todo el grupo, los "¿Qué cojones me estás contando?". Lo demás se ve en cada reseña.
+    .concat(social.eventos()
+      .filter((ev) => ev.quien !== usuarioActual()?.id && (ev.o.autorId === usuarioActual()?.id || ev.reaccion === 'wtf'))
+      .slice(0, MAX_ACTIVIDAD).map((ev) => ({ social: ev, creado_en: ev.fecha })))
     .sort((a, b) => new Date(b.a?.creado_en ?? b.creado_en) - new Date(a.a?.creado_en ?? a.creado_en))
     .slice(0, MAX_ACTIVIDAD);
 
+  // La tira de reacciones va en la fila más reciente de cada reseña que sigue existiendo.
+  const yo = usuarioActual();
+  const conTira = new Set();
+  const tiraDe = (a) => {
+    if (!a.texto || a.lote) return '';
+    let tipo = 'valoracion';
+    let v = null;
+    if (a.coleccion_id) {
+      tipo = 'valoracion_coleccion';
+      v = (datos.estado.valColecciones ?? []).find((x) => x.usuario_id === a.usuario_id && x.coleccion_id === a.coleccion_id);
+    } else {
+      const id = datos.canonico(a.juego_id);
+      v = datos.valoracionesEfectivas().find((x) => x.usuario_id === a.usuario_id && Number(x.juego_id) === id);
+    }
+    if (!v?.id || !v.resena?.trim() || conTira.has(v.id)) return '';
+    conTira.add(v.id);
+    return social.tira(tipo, v.id, { visibles: 1 });
+  };
   const contenido = filas.length
-    ? filas.map(({ a, u, j, columna: ce, lote }) => { if (ce) return filaColumna(ce, u, ahora); if (lote) return filaLote(a, u, lote, ahora); const h = j.igdb_id ? metricas.textoHorasDe(u.id, j.igdb_id) : ''; return `
-        <a class="actividad-fila" href="${metricas.rutaDe(j)}" data-precarga="${esc(j.cover_id ?? '')}">
+    ? filas.map(({ a, u, j, columna: ce, lote, social: ev }) => {
+      if (ev) return social.filaActividad(ev, yo?.id, ahora);
+      if (ce) return filaColumna(ce, u, ahora);
+      if (lote) return filaLote(a, u, lote, ahora);
+      const h = j.igdb_id ? metricas.textoHorasDe(u.id, j.igdb_id) : '';
+      const t = tiraDe(a);
+      const fila = `
+        <a class="actividad-fila${t ? ' con-social' : ''}" href="${metricas.rutaDe(j)}" data-precarga="${esc(j.cover_id ?? '')}">
           ${avatarPerfil(u, 36)}
           <div class="actividad-texto">
             <span class="actividad-frase">${nombrePerfil(u, 'strong')} ${a.coleccion_id ? VERBOS_COLECCION[a.tipo] ?? 'actualizó' : verboDe(a)} <strong>${esc(j.nombre)}</strong></span>
@@ -441,7 +472,9 @@ function actividad() {
             <span class="actividad-tiempo" data-fecha="${esc(a.creado_en)}">${tiempoRelativo(a.creado_en, ahora)}</span>
           </div>
           ${portada(j, { clase: 'portada-actividad' })}
-        </a>`; }).join('')
+        </a>`;
+      return t ? `<div class="actividad-bloque">${fila}<div class="actividad-tira">${t}</div></div>` : fila;
+    }).join('')
     : `<p class="seccion-vacia">${icono('pendiente', { tam: 20, color: 'var(--texto-2)', trazo: 'var(--fondo)' })}<span>Todavía no hay actividad.</span></p>`;
 
   return `

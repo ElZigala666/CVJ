@@ -9,7 +9,7 @@ const CLAVE = 'cvj.datos.v1';
 const LIMITE_ACTIVIDAD = 60;
 const VENTANA_ACTIVIDAD_MS = 10 * 60 * 1000; // agrupar cambios del mismo juego en 10 min
 
-const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sugRechazadas: [], servicios: [], cuentas: [], horasExtra: [], avisos: [], coleccionesG: [], coleccionesJuegos: [], valColecciones: [], sagas: [], sagasJuegos: [], columnas: [], entradas: [], lecturas: [], horasAjustes: [], horasEstimadas: [], celebracionesVistas: [], cargadoEn: null });
+const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sugRechazadas: [], servicios: [], cuentas: [], horasExtra: [], avisos: [], coleccionesG: [], coleccionesJuegos: [], valColecciones: [], sagas: [], sagasJuegos: [], columnas: [], entradas: [], lecturas: [], horasAjustes: [], horasEstimadas: [], celebracionesVistas: [], reacciones: [], comentarios: [], cargadoEn: null });
 
 // Versión de los datos: sube cada vez que cambian (refresco, escritura o reversión).
 // metricas.js la usa para memoizar los cálculos.
@@ -37,7 +37,7 @@ let refrescoAplazado = false;
 //  - La caché va en IndexedDB (localStorage se queda sin sitio a los 5 MB y entonces no
 //    se guardaba nada, sin avisar).
 // ---------------------------------------------------------------------------
-const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sugRechazadas, s.servicios, s.cuentas, s.horasExtra, s.avisos, s.coleccionesG, s.coleccionesJuegos, s.valColecciones, s.sagas, s.sagasJuegos, s.columnas, s.entradas, s.lecturas, s.horasAjustes, s.horasEstimadas, s.celebracionesVistas]);
+const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sugRechazadas, s.servicios, s.cuentas, s.horasExtra, s.avisos, s.coleccionesG, s.coleccionesJuegos, s.valColecciones, s.sagas, s.sagasJuegos, s.columnas, s.entradas, s.lecturas, s.horasAjustes, s.horasEstimadas, s.celebracionesVistas, s.reacciones, s.comentarios]);
 const COLUMNAS_USUARIO = 'id, nombre, inicial, color, acento, creado_en';
 const COLUMNAS_ENTRADA = 'id, columna_id, usuario_id, juego_id, coleccion_id, saga_id, titulo, subtitulo, palabras, estado, publicada_en, creado_en, actualizado_en';
 const PAGINA = 1000;
@@ -51,7 +51,7 @@ const COLUMNAS_JUEGO = 'igdb_id, nombre, slug, cover_id, anio, plataformas, desa
  */
 const TABLAS = [
   { k: 'usuarios', t: 'usuarios', orden: ['creado_en', 'id'], esencial: true,
-    sel: `${COLUMNAS_USUARIO}, foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas, estimar_horas, apariencia, perfil_datos`, alt: COLUMNAS_USUARIO },
+    sel: `${COLUMNAS_USUARIO}, foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas, estimar_horas, apariencia, perfil_datos, social_visto_en`, alt: COLUMNAS_USUARIO },
   { k: 'valoraciones', t: 'valoraciones', orden: ['id'], esencial: true },
   { k: 'juegos', t: 'juegos', orden: ['igdb_id'], esencial: true, sel: COLUMNAS_JUEGO, alt: '*' },
   { k: 'actividad', t: 'actividad', esencial: true, q: () => `order=creado_en.desc&limit=${LIMITE_ACTIVIDAD}`, unaPagina: true },
@@ -73,7 +73,12 @@ const TABLAS = [
   // Entradas de las columnas: sin el texto (puede ser larguísimo; se pide al leer).
   // Las publicadas de todos y los borradores propios.
   { k: 'entradas', t: 'entradas', sel: COLUMNAS_ENTRADA, deUsuario: true, q: (uid) => `or=(estado.eq.publicada,usuario_id.eq.${uid})` },
-  { k: 'lecturas', t: 'lecturas', deUsuario: true, q: (uid) => `usuario_id=eq.${uid}` },
+  // Lecturas de todo el grupo ("Leído por"). v: antes solo se pedían las propias; con la
+  // versión, la caché de antes se vuelve a pedir entera aunque la tabla no haya cambiado.
+  { k: 'lecturas', t: 'lecturas', orden: ['entrada_id', 'usuario_id'], v: '2' },
+  // Reacciones y respuestas a reseñas y entradas (migración 031).
+  { k: 'reacciones', t: 'reacciones', orden: ['objetivo_id', 'usuario_id'] },
+  { k: 'comentarios', t: 'comentarios', orden: ['creado_en', 'id'] },
   { k: 'horasAjustes', t: 'horas_ajustes', orden: ['usuario_id', 'juego_id'] },
   { k: 'horasEstimadas', t: 'horas_estimadas', orden: ['usuario_id', 'juego_id'] },
   // Celebraciones de "completado" que ya he visto (solo las mías).
@@ -196,7 +201,8 @@ export function refrescar() {
       const r = await api('rpc/huellas', {});
       if (r && typeof r === 'object' && !Array.isArray(r)) nuevas = r;
     } catch { /* se pide todo */ }
-    const cambiada = (def) => !nuevas || !nuevas[def.t] || nuevas[def.t] !== huellas[def.t]
+    const huellaDe = (def) => (nuevas?.[def.t] ? nuevas[def.t] + (def.v ?? '') : null);
+    const cambiada = (def) => !nuevas || !nuevas[def.t] || huellaDe(def) !== huellas[def.t]
       || (def.deUsuario && huellasDe !== uid) || !estado.cargadoEn;
     const pedir = TABLAS.filter(cambiada);
     const resultados = await Promise.all(pedir.map((def) => leerTabla(def, uid).then(
@@ -208,7 +214,7 @@ export function refrescar() {
     for (const { def, filas } of resultados) {
       if (!filas) continue;
       nuevo[def.k] = filas;
-      if (nuevas?.[def.t]) huellas[def.t] = nuevas[def.t]; else delete huellas[def.t];
+      if (nuevas?.[def.t]) huellas[def.t] = huellaDe(def); else delete huellas[def.t];
     }
     huellasDe = uid;
     // Con huellas, lo pedido es lo que ha cambiado; sin ellas, se compara el contenido.
@@ -259,6 +265,20 @@ export function suscribir(fn) {
 
 function avisar() {
   for (const fn of oyentes) {
+    try { fn(estado); } catch (e) { console.error(e); }
+  }
+  avisarSocial();
+}
+
+// Reacciones, respuestas y lecturas: lo que se escribe desde aquí solo avisa a quien lo
+// pinta (js/social.js cambia las tiras en su sitio), sin repintar la pantalla entera.
+const oyentesSocial = new Set();
+export function suscribirSocial(fn) {
+  oyentesSocial.add(fn);
+  return () => oyentesSocial.delete(fn);
+}
+function avisarSocial() {
+  for (const fn of oyentesSocial) {
     try { fn(estado); } catch (e) { console.error(e); }
   }
 }
@@ -774,10 +794,95 @@ export function despublicarEntrada(id, onError) {
 export function marcarLeida(usuarioId, entradaId) {
   if (!usuarioId || leida(usuarioId, entradaId)) return;
   const fila = { usuario_id: usuarioId, entrada_id: entradaId, leida_en: new Date().toISOString() };
-  escribirOptimista(
+  escribirSocial(
     (s) => { s.lecturas = [...(s.lecturas ?? []), fila]; },
     async (sb) => { comprobar(await sb.from('lecturas').upsert(fila, { onConflict: 'usuario_id,entrada_id', ignoreDuplicates: true })); },
   );
+}
+
+// ---------------------------------------------------------------------------
+// Reacciones y respuestas (a reseñas y a entradas de columnas)
+// ---------------------------------------------------------------------------
+export const reaccionesDe = (objetivo, id) => (estado.reacciones ?? []).filter((r) => r.objetivo === objetivo && r.objetivo_id === id);
+export const comentariosDe = (objetivo, id) => (estado.comentarios ?? []).filter((c) => c.objetivo === objetivo && c.objetivo_id === id)
+  .sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en));
+/** Quién ha leído una entrada (y cuándo). */
+export const lecturasDe = (entradaId) => (estado.lecturas ?? []).filter((l) => l.entrada_id === entradaId);
+/** Hasta cuándo ha visto alguien lo nuevo de lo suyo (null: nunca). */
+export const socialVistoEn = (usuarioId) => usuario(usuarioId)?.social_visto_en ?? null;
+
+async function escribirSocial(aplicar, guardar, onError, mensajeError = 'No se ha podido guardar. Se ha deshecho el cambio.') {
+  const copia = { reacciones: estado.reacciones, comentarios: estado.comentarios, lecturas: estado.lecturas };
+  escriturasEnCurso++;
+  aplicar(estado);
+  avisarSocial();
+  try {
+    const sb = await cliente();
+    await guardar(sb);
+    guardarCache();
+    return true;
+  } catch (e) {
+    console.warn('[datos] Escritura fallida:', e?.message || e);
+    Object.assign(estado, copia);
+    avisarSocial();
+    onError?.(mensajeError);
+    return false;
+  } finally {
+    escriturasEnCurso--;
+    if (!escriturasEnCurso && refrescoAplazado) {
+      refrescoAplazado = false;
+      refrescar();
+    }
+  }
+}
+
+/** Mi reacción a una reseña o entrada (buena, mala, acuerdo, discrepo, wtf), o null para quitarla. */
+export function reaccionar(usuarioId, objetivo, id, tipo, onError) {
+  const clave = { usuario_id: usuarioId, objetivo, objetivo_id: id };
+  const fila = { ...clave, tipo, creado_en: new Date().toISOString() };
+  return escribirSocial(
+    (s) => { s.reacciones = [...(s.reacciones ?? []).filter((r) => !(r.usuario_id === usuarioId && r.objetivo === objetivo && r.objetivo_id === id)), ...(tipo ? [fila] : [])]; },
+    async (sb) => {
+      if (tipo) comprobar(await sb.from('reacciones').upsert(fila, { onConflict: 'usuario_id,objetivo,objetivo_id' }));
+      else comprobar(await sb.from('reacciones').delete().match(clave));
+    },
+    onError,
+    'No se ha podido guardar la reacción.',
+  );
+}
+
+/** Responder (comentario corto, hasta 500 caracteres). */
+export function comentar(usuarioId, objetivo, id, texto, onError) {
+  const fila = { id: crypto.randomUUID(), usuario_id: usuarioId, objetivo, objetivo_id: id, texto: String(texto ?? '').trim().slice(0, 500), creado_en: new Date().toISOString() };
+  if (!fila.texto) return Promise.resolve(false);
+  return escribirSocial(
+    (s) => { s.comentarios = [...(s.comentarios ?? []), fila]; },
+    async (sb) => { comprobar(await sb.from('comentarios').insert(fila)); },
+    onError,
+    'No se ha podido enviar la respuesta.',
+  );
+}
+
+export function borrarComentario(id, onError) {
+  return escribirSocial(
+    (s) => { s.comentarios = (s.comentarios ?? []).filter((c) => c.id !== id); },
+    async (sb) => { comprobar(await sb.from('comentarios').delete().eq('id', id)); },
+    onError,
+    'No se ha podido borrar. Se ha deshecho el cambio.',
+  );
+}
+
+/** "Ya lo he visto": lo nuevo de lo mío deja de salir como nuevo (en todos mis dispositivos). */
+export function marcarSocialVisto(usuarioId) {
+  if (!usuario(usuarioId)) return;
+  const ahora = new Date().toISOString();
+  estado.usuarios = estado.usuarios.map((x) => (x.id === usuarioId ? { ...x, social_visto_en: ahora } : x));
+  indices = construirIndices(estado);
+  guardarCache();
+  avisarSocial();
+  cliente().then((sb) => sb.from('usuarios').update({ social_visto_en: ahora }).eq('id', usuarioId))
+    .then((r) => { if (r?.error) console.warn('[datos] social_visto_en:', r.error.message); })
+    .catch(() => {});
 }
 
 /** Sube una imagen al Storage de las columnas. Devuelve su URL pública. */
@@ -891,6 +996,7 @@ async function escribirOptimista(aplicar, guardar, onError, mensajeError = 'No s
     horasAjustes: estado.horasAjustes,
     horasEstimadas: estado.horasEstimadas,
     celebracionesVistas: estado.celebracionesVistas,
+    reacciones: estado.reacciones, comentarios: estado.comentarios,
   };
   escriturasEnCurso++;
   aplicar(estado);

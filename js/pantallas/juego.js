@@ -17,6 +17,7 @@ import { tarjetaFusion, clicFusion } from '../fusiones.js';
 import { activarDeslizar } from '../galeria.js';
 import { anadirAColeccionUI } from '../colecciones-ui.js';
 import { bloqueColumnas } from '../columnas-ui.js';
+import * as social from '../social.js';
 import { lineasHoras, manejarHoras } from '../horas-ui.js';
 
 export function render(el, { params }) {
@@ -241,6 +242,7 @@ export function render(el, { params }) {
         </div>
         ${v.heredada ? `<a class="etiqueta-heredada" href="#coleccion/${esc(v.heredada.coleccionId)}">Por la colección ${esc(v.heredada.nombre)}</a>` : ''}
         ${v.resena ? `<p class="grupo-resena">${esc(v.resena)}</p>` : ''}
+        ${v.resena && !v.heredada && v.id ? `<div class="grupo-social">${social.tira('valoracion', v.id)}</div>` : ''}
       </div>`;
   }
 

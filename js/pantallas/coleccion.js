@@ -19,6 +19,7 @@ import { abrirHoja } from '../hoja.js';
 import { colorDominante, hexAHsl } from '../color-dominante.js';
 import { anadirJuegosUI } from '../menu-juego.js';
 import { bloqueColumnas } from '../columnas-ui.js';
+import * as social from '../social.js';
 
 const ESTADO_COLECCION = { jugando: 'La sigue', abandonado: 'La dejó', pendiente: 'Pendiente' };
 
@@ -144,6 +145,7 @@ export function render(el, { params }) {
             <a href="#juego/${dj.juegoId}">Por ${esc(dj.nombre)}</a>${dj.otros.length ? ` <button type="button" class="enlace-discreto" data-otros="${esc(uid)}">y ${dj.otros.length} más</button>` : ''}
           </span>` : ''}
         ${v?.resena ? `<p class="grupo-resena">${esc(v.resena)}</p>` : ''}
+        ${v?.resena && !v.desdeJuego && v.id ? `<div class="grupo-social">${social.tira('valoracion_coleccion', v.id)}</div>` : ''}
       </div>`;
   }
 

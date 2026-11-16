@@ -7,7 +7,8 @@ import * as datos from '../datos.js';
 import * as metricas from '../metricas.js';
 import { usuarioActual } from '../sesion.js';
 import { LETRAS, rangoTier, formatearNota, notaALetra as notaLetra } from '../notas.js';
-import { esc, avatar, portada, chipLetra, cabeceraAtras, estadoVacio, tiempoRelativo, aviso, vueltasDe, estaRejugando } from '../ui.js';
+import { esc, avatar, portada, chipLetra, cabeceraAtras, estadoVacio, tiempoRelativo, aviso, vueltasDe, estaRejugando, notaConLetra } from '../ui.js';
+import * as social from '../social.js';
 import { abrirHoja } from '../hoja.js';
 import { botonFoto } from '../foto-perfil.js';
 import { normalizarBusqueda } from '../psn-nombres.js';
@@ -202,6 +203,8 @@ function renderPerfil(el, id, alSalir) {
           <h2 class="seccion-titulo">Historial</h2>
           <div data-ref="historial" data-deslizar="[data-pestana]"></div>
         </section>
+
+        ${bloqueResenas(id)}
 
         ${p.online.length ? `
           <section class="perfil-seccion">
@@ -450,6 +453,12 @@ function renderPerfil(el, id, alSalir) {
   };
 
   el.addEventListener('click', (e) => {
+    if (e.target.closest('[data-accion="ver-resenas"]')) {
+      if (resenasAbiertas.has(id)) resenasAbiertas.delete(id); else resenasAbiertas.add(id);
+      const b = el.querySelector('[data-ref="resenas"]');
+      if (b) b.outerHTML = bloqueResenas(id);
+      return;
+    }
     const menuHist = e.target.closest('[data-menu-item]');
     if (menuHist) {
       e.preventDefault();
@@ -510,6 +519,46 @@ function renderPerfil(el, id, alSalir) {
 // PlayStation en el perfil
 // ---------------------------------------------------------------------------
 /** Una fila por plataforma (PlayStation, Xbox): conectada con su ID y juegos, o el botón de conectar. */
+// ---------------------------------------------------------------------------
+// Reseñas: las últimas, con sus reacciones y respuestas
+// ---------------------------------------------------------------------------
+const resenasAbiertas = new Set(); // perfiles con "Ver todas" abierto (mientras la app está abierta)
+const RESENAS_A_LA_VISTA = 3;
+function bloqueResenas(uid) {
+  const fecha = (v) => v.actualizado_en || v.creado_en;
+  const lista = datos.valoracionesEfectivas()
+    .filter((v) => v.usuario_id === uid && v.resena?.trim() && v.id)
+    .map((v) => ({ tipo: 'valoracion', v, j: datos.juegoConocido(v.juego_id) }))
+    .concat((datos.estado.valColecciones ?? [])
+      .filter((v) => v.usuario_id === uid && v.resena?.trim())
+      .map((v) => ({ tipo: 'valoracion_coleccion', v, j: datos.coleccion(v.coleccion_id) ? datos.comoJuego(datos.coleccion(v.coleccion_id)) : null })))
+    .filter((x) => x.j)
+    .sort((a, b) => new Date(fecha(b.v)) - new Date(fecha(a.v)));
+  if (!lista.length) return '<div data-ref="resenas" hidden></div>';
+  const todas = resenasAbiertas.has(uid);
+  const vista = todas ? lista : lista.slice(0, RESENAS_A_LA_VISTA);
+  return `
+    <section class="perfil-seccion" data-ref="resenas">
+      <div class="seccion-cab">
+        <h2 class="seccion-titulo">Reseñas</h2>
+        <span class="seccion-extra">${lista.length}</span>
+      </div>
+      <div class="perfil-resenas">
+        ${vista.map(({ tipo, v, j }) => `
+          <article class="perfil-resena">
+            <a class="perfil-resena-cab" href="${metricas.rutaDe(j)}">
+              ${portada(j, { clase: 'portada-resena' })}
+              <span class="perfil-resena-juego"><strong>${esc(j.nombre)}</strong><small data-fecha="${esc(fecha(v))}">${tiempoRelativo(fecha(v))}</small></span>
+              ${v.nota != null ? notaConLetra(v.nota, 'act') : ''}
+            </a>
+            <p class="perfil-resena-texto">${esc(v.resena)}</p>
+            ${social.tira(tipo, v.id, { visibles: 1 })}
+          </article>`).join('')}
+      </div>
+      ${lista.length > RESENAS_A_LA_VISTA ? `<button type="button" class="enlace-discreto perfil-resenas-mas" data-accion="ver-resenas">${todas ? 'Ver menos' : `Ver las ${lista.length} reseñas`}</button>` : ''}
+    </section>`;
+}
+
 function bloqueBibliotecas(u, esMio, vinculado, bib) {
   const filas = [];
   const fila = (fuente, nombre, conectada, id, juegos, horas, sincronizado, caducada) => `

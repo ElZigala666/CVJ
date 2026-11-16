@@ -8,6 +8,7 @@ import { esc, portada } from '../ui.js';
 import { volver } from '../navegacion.js';
 import { textoLectura, logoColumna } from '../columnas-ui.js';
 import { temaDe } from './lectura.js';
+import { cuentasHtml } from '../social.js';
 
 const FECHA = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
 const FECHA_CORTA = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short' });
@@ -38,6 +39,7 @@ export function render(el, { params }) {
             <strong>${esc(e.titulo || 'Sin título')}</strong>
             ${grande && e.subtitulo ? `<span class="col-entrada-sub">${esc(e.subtitulo)}</span>` : ''}
             <small>${esc((grande ? FECHA : FECHA_CORTA).format(new Date(e.publicada_en ?? e.actualizado_en)))} · ${esc(textoLectura(e.palabras))}</small>
+            ${cuentasHtml('entrada', e.id)}
           </span>
         </a>`;
     };

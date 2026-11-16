@@ -9,7 +9,7 @@ const CLAVE = 'cvj.datos.v1';
 const LIMITE_ACTIVIDAD = 60;
 const VENTANA_ACTIVIDAD_MS = 10 * 60 * 1000; // agrupar cambios del mismo juego en 10 min
 
-const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sugRechazadas: [], servicios: [], cuentas: [], horasExtra: [], avisos: [], coleccionesG: [], coleccionesJuegos: [], valColecciones: [], sagas: [], sagasJuegos: [], columnas: [], entradas: [], lecturas: [], horasAjustes: [], horasEstimadas: [], celebracionesVistas: [], reacciones: [], comentarios: [], cargadoEn: null });
+const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sugRechazadas: [], servicios: [], cuentas: [], horasExtra: [], avisos: [], coleccionesG: [], coleccionesJuegos: [], valColecciones: [], sagas: [], sagasJuegos: [], columnas: [], entradas: [], lecturas: [], horasAjustes: [], horasEstimadas: [], celebracionesVistas: [], reacciones: [], comentarios: [], insignias: [], insigniasGrupo: [], cargadoEn: null });
 
 // Versión de los datos: sube cada vez que cambian (refresco, escritura o reversión).
 // metricas.js la usa para memoizar los cálculos.
@@ -37,7 +37,7 @@ let refrescoAplazado = false;
 //  - La caché va en IndexedDB (localStorage se queda sin sitio a los 5 MB y entonces no
 //    se guardaba nada, sin avisar).
 // ---------------------------------------------------------------------------
-const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sugRechazadas, s.servicios, s.cuentas, s.horasExtra, s.avisos, s.coleccionesG, s.coleccionesJuegos, s.valColecciones, s.sagas, s.sagasJuegos, s.columnas, s.entradas, s.lecturas, s.horasAjustes, s.horasEstimadas, s.celebracionesVistas, s.reacciones, s.comentarios]);
+const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sugRechazadas, s.servicios, s.cuentas, s.horasExtra, s.avisos, s.coleccionesG, s.coleccionesJuegos, s.valColecciones, s.sagas, s.sagasJuegos, s.columnas, s.entradas, s.lecturas, s.horasAjustes, s.horasEstimadas, s.celebracionesVistas, s.reacciones, s.comentarios, s.insignias, s.insigniasGrupo]);
 const COLUMNAS_USUARIO = 'id, nombre, inicial, color, acento, creado_en';
 const COLUMNAS_ENTRADA = 'id, columna_id, usuario_id, juego_id, coleccion_id, saga_id, titulo, subtitulo, palabras, estado, publicada_en, creado_en, actualizado_en';
 const PAGINA = 1000;
@@ -51,7 +51,7 @@ const COLUMNAS_JUEGO = 'igdb_id, nombre, slug, cover_id, anio, plataformas, desa
  */
 const TABLAS = [
   { k: 'usuarios', t: 'usuarios', orden: ['creado_en', 'id'], esencial: true,
-    sel: `${COLUMNAS_USUARIO}, foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas, estimar_horas, apariencia, perfil_datos, social_visto_en`, alt: COLUMNAS_USUARIO },
+    sel: `${COLUMNAS_USUARIO}, foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas, estimar_horas, apariencia, perfil_datos, social_visto_en, insignias_visto_en`, alt: COLUMNAS_USUARIO },
   { k: 'valoraciones', t: 'valoraciones', orden: ['id'], esencial: true },
   { k: 'juegos', t: 'juegos', orden: ['igdb_id'], esencial: true, sel: COLUMNAS_JUEGO, alt: '*' },
   { k: 'actividad', t: 'actividad', esencial: true, q: () => `order=creado_en.desc&limit=${LIMITE_ACTIVIDAD}`, unaPagina: true },
@@ -79,6 +79,9 @@ const TABLAS = [
   // Reacciones y respuestas a reseñas y entradas (migración 031).
   { k: 'reacciones', t: 'reacciones', orden: ['objetivo_id', 'usuario_id'] },
   { k: 'comentarios', t: 'comentarios', orden: ['creado_en', 'id'] },
+  // Insignias (migración 032): lo que ya se ha calculado y guardado (js/insignias.js).
+  { k: 'insignias', t: 'insignias', orden: ['usuario_id', 'insignia'] },
+  { k: 'insigniasGrupo', t: 'insignias_grupo', orden: ['insignia'] },
   { k: 'horasAjustes', t: 'horas_ajustes', orden: ['usuario_id', 'juego_id'] },
   { k: 'horasEstimadas', t: 'horas_estimadas', orden: ['usuario_id', 'juego_id'] },
   // Celebraciones de "completado" que ya he visto (solo las mías).
@@ -885,6 +888,61 @@ export function marcarSocialVisto(usuarioId) {
     .catch(() => {});
 }
 
+// ---------------------------------------------------------------------------
+// Insignias (el cálculo está en js/insignias.js; aquí, guardar lo que cambia)
+// ---------------------------------------------------------------------------
+/** ¿Hay tablas de insignias? (migración 032; sin ella no se guarda nada) */
+export const hayInsignias = () => 'insignias' in huellas || (estado.insignias ?? []).length > 0;
+
+/**
+ * Guarda insignias nuevas o subidas de nivel y cambios de dueño de las de grupo.
+ * Sin repetir trabajo si otro móvil ya lo ha hecho: lo personal solo sube de nivel y un
+ * cambio de dueño solo se aplica si el dueño guardado sigue siendo el que se vio aquí.
+ * @param {{ personales: object[], grupo: { insignia, usuario_id, anterior_id, valor, inicial }[] }} c
+ */
+export async function guardarInsignias({ personales = [], grupo = [] }) {
+  if (!personales.length && !grupo.length) return;
+  const sb = await cliente();
+  const ahora = new Date().toISOString();
+  for (const f of personales) {
+    const fila = { ...f, conseguida_en: ahora };
+    const previa = (estado.insignias ?? []).find((x) => x.usuario_id === f.usuario_id && x.insignia === f.insignia);
+    const r = previa
+      ? await sb.from('insignias').update({ nivel: f.nivel, conseguida_en: ahora, inicial: f.inicial }).match({ usuario_id: f.usuario_id, insignia: f.insignia }).lt('nivel', f.nivel)
+      : await sb.from('insignias').upsert(fila, { onConflict: 'usuario_id,insignia', ignoreDuplicates: true });
+    if (r.error) { console.warn('[insignias]', r.error.message); continue; }
+    estado.insignias = [...(estado.insignias ?? []).filter((x) => !(x.usuario_id === f.usuario_id && x.insignia === f.insignia)), fila];
+  }
+  for (const g of grupo) {
+    const fila = { ...g, desde: ahora };
+    const previa = (estado.insigniasGrupo ?? []).find((x) => x.insignia === g.insignia);
+    let q;
+    if (!previa) q = sb.from('insignias_grupo').upsert(fila, { onConflict: 'insignia', ignoreDuplicates: true });
+    else {
+      q = sb.from('insignias_grupo').update(fila).eq('insignia', g.insignia);
+      q = previa.usuario_id ? q.eq('usuario_id', previa.usuario_id) : q.is('usuario_id', null);
+    }
+    const r = await q;
+    if (r.error) { console.warn('[insignias]', r.error.message); continue; }
+    estado.insigniasGrupo = [...(estado.insigniasGrupo ?? []).filter((x) => x.insignia !== g.insignia), fila];
+  }
+  version++;
+  guardarCache();
+  avisar();
+}
+
+/** Hasta cuándo he visto mis avisos de insignias. */
+export function marcarInsigniasVistas(usuarioId) {
+  if (!usuario(usuarioId)) return;
+  const ahora = new Date().toISOString();
+  estado.usuarios = estado.usuarios.map((x) => (x.id === usuarioId ? { ...x, insignias_visto_en: ahora } : x));
+  indices = construirIndices(estado);
+  guardarCache();
+  cliente().then((sb) => sb.from('usuarios').update({ insignias_visto_en: ahora }).eq('id', usuarioId))
+    .then((r) => { if (r?.error) console.warn('[datos] insignias_visto_en:', r.error.message); })
+    .catch(() => {});
+}
+
 /** Sube una imagen al Storage de las columnas. Devuelve su URL pública. */
 export async function subirImagenColumna(ruta, blob) {
   const sb = await cliente();
@@ -997,6 +1055,7 @@ async function escribirOptimista(aplicar, guardar, onError, mensajeError = 'No s
     horasEstimadas: estado.horasEstimadas,
     celebracionesVistas: estado.celebracionesVistas,
     reacciones: estado.reacciones, comentarios: estado.comentarios,
+    insignias: estado.insignias, insigniasGrupo: estado.insigniasGrupo,
   };
   escriturasEnCurso++;
   aplicar(estado);

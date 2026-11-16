@@ -8,6 +8,7 @@ import * as metricas from '../metricas.js';
 import { tarjetaSugerenciaColeccion, clicSugerenciaColeccion } from '../colecciones-ui.js';
 import { logoColumna, textoLectura } from '../columnas-ui.js';
 import * as social from '../social.js';
+import * as insignias from '../insignias.js';
 import { usuarioActual } from '../sesion.js';
 import { mediaGrupo, recomendacionGrupo, desviacionTipica } from '../notas.js';
 import { abrirHoja } from '../hoja.js';
@@ -429,6 +430,8 @@ function actividad() {
     .concat(social.eventos()
       .filter((ev) => ev.quien !== usuarioActual()?.id && (ev.o.autorId === usuarioActual()?.id || ev.reaccion === 'wtf'))
       .slice(0, MAX_ACTIVIDAD).map((ev) => ({ social: ev, creado_en: ev.fecha })))
+    // Insignias nuevas, subidas de nivel y cambios de dueño (no las del estreno).
+    .concat(insignias.eventosActividad().map((ev) => ({ insignia: ev, creado_en: ev.fecha })))
     .sort((a, b) => new Date(b.a?.creado_en ?? b.creado_en) - new Date(a.a?.creado_en ?? a.creado_en))
     .slice(0, MAX_ACTIVIDAD);
 
@@ -451,7 +454,8 @@ function actividad() {
     return social.tira(tipo, v.id, { visibles: 1 });
   };
   const contenido = filas.length
-    ? filas.map(({ a, u, j, columna: ce, lote, social: ev }) => {
+    ? filas.map(({ a, u, j, columna: ce, lote, social: ev, insignia: ins }) => {
+      if (ins) return insignias.filaActividad(ins, yo?.id, ahora);
       if (ev) return social.filaActividad(ev, yo?.id, ahora);
       if (ce) return filaColumna(ce, u, ahora);
       if (lote) return filaLote(a, u, lote, ahora);

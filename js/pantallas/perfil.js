@@ -9,6 +9,7 @@ import { usuarioActual } from '../sesion.js';
 import { LETRAS, rangoTier, formatearNota, notaALetra as notaLetra } from '../notas.js';
 import { esc, avatar, portada, chipLetra, cabeceraAtras, estadoVacio, tiempoRelativo, aviso, vueltasDe, estaRejugando, notaConLetra } from '../ui.js';
 import * as social from '../social.js';
+import * as insignias from '../insignias.js';
 import { abrirHoja } from '../hoja.js';
 import { botonFoto } from '../foto-perfil.js';
 import { normalizarBusqueda } from '../psn-nombres.js';
@@ -166,8 +167,7 @@ function renderPerfil(el, id, alSalir) {
         </div>
 
         ${htmlVitrina(u, esMio)}
-        <!-- Vitrina de insignias: sitio reservado (sin contenido no ocupa nada). -->
-        <div class="perfil-insignias" data-ref="insignias" hidden></div>
+        ${insignias.vitrinaHtml(u, esMio)}
 
         ${esMio ? '' : `<a class="boton-principal enlace perfil-comparar" href="#rankings/comparar/${esc(yo.id)}/${esc(id)}">${icono('rankings', { tam: 20, color: 'currentColor' })}<span>Comparar conmigo</span></a>`}
 
@@ -453,6 +453,7 @@ function renderPerfil(el, id, alSalir) {
   };
 
   el.addEventListener('click', (e) => {
+    if (e.target.closest('[data-accion="insignias"]')) { insignias.abrirColeccion(id); return; }
     if (e.target.closest('[data-accion="ver-resenas"]')) {
       if (resenasAbiertas.has(id)) resenasAbiertas.delete(id); else resenasAbiertas.add(id);
       const b = el.querySelector('[data-ref="resenas"]');

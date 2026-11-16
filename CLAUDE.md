@@ -41,6 +41,8 @@ español (código, comentarios, commits, interfaz).
 - `js/apariencia.js`, `js/tema.js`, `js/acento.js`, `js/selector-color.js`,
   `js/ajustes-fondo.js`, `js/perfil-editar.js`, `js/perfil-personal.js`, `js/foto-perfil.js`.
 - `js/columnas-ui.js`: piezas de columnas (formato del cuerpo, tarjetas).
+- `js/insignias.js`: catálogo de insignias (condiciones), medallas SVG, cálculo memorizado
+  por versión de datos, guardado de cambios tras cada refresco, avisos y vitrina del perfil.
 - `js/social.js`: reacciones y respuestas (tira bajo reseñas y entradas, menú, hilo,
   aviso "Lo nuevo en lo tuyo" y filas de actividad).
 - `js/pantallas/`: `inicio`, `buscar`, `juego`, `perfil` (+ tier list), `rankings`
@@ -48,9 +50,9 @@ español (código, comentarios, commits, interfaz).
   (login), `escribir` (editor de columna), `lectura` (#entrada/{id}), `columna`.
 - `prueba-local.html` (solo en este equipo: excluido en `.git/info/exclude`): la app con
   un Supabase simulado en memoria, para probar en local
-  (`.claude/launch.json` → `cvj-local`, `herramientas/servidor-local.py` sin caché, puerto 8766; `localStorage['prueba.escenario'] =
-  'fase3'` trae columnas y entradas; `window.__fallar = true` simula sin red). El service
-  worker sirve archivos viejos: desregistrarlo y vaciar cachés antes de recargar.
+  (`.claude/launch.json` → `cvj-local`: `herramientas/servidor-local.py`, sin caché,
+  puerto 8766; sin service worker; `localStorage['prueba.escenario'] = 'fase3'` trae
+  columnas, entradas, reacciones e insignias; `window.__fallar = true` simula sin red).
 - `herramientas/`: restaurar copia (`RESTAURAR.md`, `restaurar-copia.sh`), pruebas de
   PSN/Xbox/buscador, generar iconos y hash de código.
 - `cvj-diseno/`: diseño original de referencia (no se publica).
@@ -89,6 +91,10 @@ español (código, comentarios, commits, interfaz).
   entrada + `objetivo_id`. Se borran solos con su reseña o entrada (trigger).
   `usuarios.social_visto_en`: hasta cuándo vio cada uno lo nuevo de lo suyo.
   Todo lo social va en `js/social.js` y se repinta en su sitio (`datos.suscribirSocial`).
+- `insignias` (personales: usuario, insignia, nivel 1-3, nunca bajan) e `insignias_grupo`
+  (una fila por insignia: dueño actual, anterior, desde). `inicial` = calculada al
+  estrenar (no sale en la actividad). `usuarios.insignias_visto_en` para los avisos; la
+  vitrina elegida va en `perfil_datos.insignias`. Las condiciones viven en el cliente.
 - `actividad` (feed: valoro/empezo/completo/abandono/pendiente/rejuega, `lote`,
   `celebrar`), `celebraciones_vistas`, `avisos`, `estado_servicios`, `igdb_token`,
   `openxbl_uso`.

@@ -219,7 +219,7 @@ a, button, label[for], summary, [role="button"], .chip, .pestana { cursor: point
   .lectura-articulo { padding-top: 48px; }
   .lectura-cuerpo { font-size: 21px; }
   .lectura-cuerpo figure { margin-left: -60px; margin-right: -60px; }
-  .editor { max-width: 780px; }
+  .editor-cuerpo { font-size: 21px; } /* como .lectura-cuerpo */
   .revisar { max-width: 980px; margin: 0 auto; }
 }
 

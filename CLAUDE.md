@@ -44,7 +44,10 @@ español (código, comentarios, commits, interfaz).
 - `js/pantallas/`: `inicio`, `buscar`, `juego`, `perfil` (+ tier list), `rankings`
   (+ comparar), `estadisticas`, `coleccion`, `saga`, `revisar`, `duplicados`, `entrada`
   (login), `escribir` (editor de columna), `lectura` (#entrada/{id}), `columna`.
-- `prueba-local.html`: la app con un Supabase simulado en memoria, para probar en local.
+- `prueba-local.html`: la app con un Supabase simulado en memoria, para probar en local
+  (`.claude/launch.json` → `cvj-local`, puerto 8765; `localStorage['prueba.escenario'] =
+  'fase3'` trae columnas y entradas; `window.__fallar = true` simula sin red). El service
+  worker sirve archivos viejos: desregistrarlo y vaciar cachés antes de recargar.
 - `herramientas/`: restaurar copia (`RESTAURAR.md`, `restaurar-copia.sh`), pruebas de
   PSN/Xbox/buscador, generar iconos y hash de código.
 - `cvj-diseno/`: diseño original de referencia (no se publica).

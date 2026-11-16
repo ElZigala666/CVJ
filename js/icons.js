@@ -28,6 +28,10 @@ const ICONOS = {
   atras: { d: 'M14.6 3.4 16 4.8 8.8 12l7.2 7.2-1.4 1.4L6 12z' },
   adelante: { d: 'M9.4 3.4 8 4.8l7.2 7.2L8 19.2l1.4 1.4L18 12z' },
   desplegable: { d: 'M4 8h16l-8 9z' },
+  // Editor de columnas: deshacer, rehacer e imagen.
+  deshacer: { d: 'M9 3.5 2.5 9.5 9 15.5v-4h5.5a4 4 0 0 1 0 8H11V22h3.5a6.5 6.5 0 0 0 0-13H9z' },
+  rehacer: { d: 'M15 3.5 21.5 9.5 15 15.5v-4H9.5a4 4 0 0 0 0 8H13V22H9.5a6.5 6.5 0 0 1 0-13H15z' },
+  imagen: { d: 'M4 3h16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', t: 'M5.5 17.5l4-4.5 3.2 3.4 2.3-2.2 3.5 3.3M15.5 8h.01' },
   // Instalar la app (flecha hacia una bandeja) y los dos pasos de iPhone
   instalar: { d: 'M10.5 2.5h3v8.2H17l-5 5.6-5-5.6h3.5zM3 18.5h18V22H3z' },
   compartir: { d: 'M12 1.5l5 5h-3.5v8.5h-3V6.5H7zM4 10h5v2.5H6.5v7h11v-7H15V10h5v12H4z' },

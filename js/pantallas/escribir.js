@@ -1,46 +1,97 @@
 // Editor de una entrada de columna (#escribir/{id} o #escribir/nueva[/juego|coleccion|saga/{id}]).
 // A pantalla completa y pensado para textos muy largos en el móvil: título, subtítulo y
 // cuerpo en Markdown ligero, con una barra de formato pegada encima del teclado y
-// "Vista previa". El borrador se guarda solo: en el móvil al momento y en la base cada
-// pocos segundos (si ya está publicada, en la base solo al pulsar "Actualizar").
+// "Vista previa" idéntica a la lectura final.
+//  - El cursor siempre queda a la vista, con margen, por encima del teclado y de la barra
+//    (visualViewport: Android Chrome e iPhone Safari).
+//  - El borrador se guarda solo: en el móvil al momento y en la base cada pocos segundos,
+//    al salir (también con el gesto de atrás) y al cerrar o cambiar de app. Si ya está
+//    publicada, en la base solo al pulsar "Actualizar".
+//  - Formato, pegar e imágenes pasan por el historial del navegador: "Deshacer" funciona.
 import { icono } from '../icons.js';
 import * as datos from '../datos.js';
 import { usuarioActual } from '../sesion.js';
-import { esc, portada, aviso } from '../ui.js';
+import { esc, portada, aviso, avatar } from '../ui.js';
 import { volver, corregirRuta, reemplazarRuta } from '../navegacion.js';
-import { markdown, palabras, textoLectura, imagenRedimensionada, logoColumna } from '../columnas-ui.js';
+import { markdown, palabras, textoLectura, imagenRedimensionada, logoColumna, limpiarTexto, MAX_LINEAS_EN_BLANCO } from '../columnas-ui.js';
 
 const MAX = 100000;
 const CADA_BD_MS = 4000;
+const CADA_LOCAL_MS = 400;
 const clave = (id) => `cvj.borrador.${id}`;
 const leerLocal = (id) => { try { return JSON.parse(localStorage.getItem(clave(id)) || 'null'); } catch { return null; } };
 const guardarLocal = (id, x) => { try { localStorage.setItem(clave(id), JSON.stringify(x)); } catch { /* lleno o privado */ } };
 const borrarLocal = (id) => { try { localStorage.removeItem(clave(id)); } catch { /* nada */ } };
+const conFieldSizing = !!window.CSS?.supports?.('field-sizing', 'content');
+const esSalto = (e) => e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph' || (e.inputType === 'insertText' && e.data === '\n');
 
-export function render(el, { params }) {
+// Estilos que deciden dónde se corta cada línea (para saber dónde está el cursor).
+const ESTILOS_ESPEJO = ['boxSizing', 'width', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderTopWidth', 'borderRightWidth',
+  'borderBottomWidth', 'borderLeftWidth', 'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'fontVariant', 'fontStretch', 'fontKerning',
+  'fontFeatureSettings', 'lineHeight', 'letterSpacing', 'wordSpacing', 'textTransform', 'textIndent', 'tabSize', 'wordBreak', 'overflowWrap'];
+
+/**
+ * Si se abre (o se recarga) el editor antes de que lleguen los datos, se espera a ellos
+ * en vez de decir "Solo para columnistas" o "No se encuentra esa entrada".
+ */
+export function render(el, ctx) {
+  const yo = usuarioActual();
+  const falta = () => {
+    if (!yo || !datos.columnaDe(yo.id)) return true;
+    const p = ctx.params[0];
+    return p !== 'nueva' && !datos.entrada(p) && !leerLocal(p);
+  };
+  if (!falta() || datos.datosFrescos()) return editor(el, ctx);
+  el.innerHTML = '<div class="vacio"><p class="vacio-texto">Cargando…</p></div>';
+  let hecho = false;
+  let limpiar = null;
+  const probar = () => {
+    if (hecho || (falta() && !datos.datosFrescos())) return;
+    hecho = true;
+    quitar();
+    clearInterval(reloj);
+    limpiar = editor(el, ctx) ?? null;
+  };
+  const quitar = datos.suscribir(probar);
+  const reloj = setInterval(probar, 400);
+  return () => { hecho = true; quitar(); clearInterval(reloj); limpiar?.(); };
+}
+
+function editor(el, { params }) {
   const yo = usuarioActual();
   const col = yo ? datos.columnaDe(yo.id) : null;
   if (!col) {
     el.innerHTML = `<div class="vacio"><h2 class="vacio-titulo">Solo para columnistas</h2><p class="vacio-texto">El admin da las columnas en Ajustes → Gestionar grupo.</p><a class="boton-secundario" href="#inicio">Volver</a></div>`;
     return;
   }
-  // Entrada nueva (con su tema) o una que ya existe.
+  // Entrada nueva (con su tema), una que ya existe o una nueva que solo está en este móvil
+  // (se empezó, y se volvió a ella antes de que llegara a la base).
   const nueva = params[0] === 'nueva';
   const id = nueva ? crypto.randomUUID() : params[0];
   const previa = nueva ? null : datos.entrada(id);
-  if (!nueva && (!previa || previa.usuario_id !== yo.id)) {
+  const loc = nueva ? null : leerLocal(id);
+  const soloLocal = !nueva && !previa && loc?.usuario_id === yo.id;
+  if (!nueva && !soloLocal && (!previa || previa.usuario_id !== yo.id)) {
     el.innerHTML = `<div class="vacio"><h2 class="vacio-titulo">No se encuentra esa entrada</h2><a class="boton-secundario" href="#inicio">Volver</a></div>`;
     return;
   }
   const tema = previa
     ? { juego_id: previa.juego_id, coleccion_id: previa.coleccion_id, saga_id: previa.saga_id }
-    : { juego_id: params[1] === 'juego' ? Number(params[2]) : null, coleccion_id: params[1] === 'coleccion' ? params[2] : null, saga_id: params[1] === 'saga' ? params[2] : null };
+    : soloLocal ? { juego_id: null, coleccion_id: null, saga_id: null, ...loc.tema }
+      : { juego_id: params[1] === 'juego' ? Number(params[2]) : null, coleccion_id: params[1] === 'coleccion' ? params[2] : null, saga_id: params[1] === 'saga' ? params[2] : null };
   const s = {
     titulo: previa?.titulo ?? '', subtitulo: previa?.subtitulo ?? '', cuerpo: '',
-    estado: previa?.estado ?? 'borrador', vista: false, guardado: 'nuevo', enBD: !nueva, cargando: !nueva,
+    estado: previa?.estado ?? 'borrador', vista: false, guardado: 'nuevo', cargando: !!previa, fallo: false,
   };
+  // Versiones: cada cambio suma uno; se sabe qué hay ya en el móvil y qué en la base.
+  let cambios = 0;
+  let enLocal = 0;
+  let enBase = 0;
+  let guardandoP = null;   // guardado en la base en marcha
+  let terminado = false;   // borrada o publicada: al salir no se vuelve a guardar
+  let rutaFijada = !nueva;
   let relojBD = null;
-  let guardando = false;
+  let relojLocal = null;
 
   const temaHtml = () => {
     if (tema.juego_id) { const j = datos.juegoConocido(tema.juego_id); return j ? `${portada(j, { clase: 'portada-mini' })}<span>Sobre <strong>${esc(j.nombre)}</strong></span>` : ''; }
@@ -60,11 +111,11 @@ export function render(el, { params }) {
       <div class="editor-columna">${logoColumna(col, 28)}<span>${esc(col.nombre)}</span></div>
       <div class="editor-tema">${temaHtml()}</div>
       <div data-ref="escribir">
-        <textarea class="editor-titulo" data-ref="titulo" rows="1" maxlength="200" placeholder="Título"></textarea>
-        <textarea class="editor-subtitulo" data-ref="subtitulo" rows="1" maxlength="300" placeholder="Subtítulo (opcional)"></textarea>
-        <textarea class="editor-cuerpo" data-ref="cuerpo" maxlength="${MAX}" placeholder="Escribe aquí. Sin prisa: se guarda solo.&#10;&#10;**negrita**, *cursiva*, ## intertítulo, > cita, - lista"></textarea>
+        <textarea class="editor-titulo" data-ref="titulo" rows="1" maxlength="200" placeholder="Título" enterkeyhint="next"></textarea>
+        <textarea class="editor-subtitulo" data-ref="subtitulo" rows="1" maxlength="300" placeholder="Subtítulo (opcional)" enterkeyhint="next"></textarea>
+        <textarea class="editor-cuerpo" data-ref="cuerpo" maxlength="${MAX}" autocapitalize="sentences" spellcheck="true" placeholder="Escribe aquí. Sin prisa: se guarda solo.&#10;&#10;**negrita**, *cursiva*, ## intertítulo, > cita, - lista"></textarea>
       </div>
-      <article class="lectura-cuerpo editor-previa" data-ref="previa" hidden></article>
+      <div class="editor-previa" data-ref="vista-previa" style="${col.color ? `--col:${esc(col.color)}` : ''}" hidden></div>
       <p class="editor-cuenta" data-ref="cuenta"></p>
       ${s.estado === 'publicada' || !nueva ? `
         <div class="editor-mas">
@@ -73,116 +124,293 @@ export function render(el, { params }) {
           <div data-ref="confirmar"></div>
         </div>` : ''}
       <div class="editor-formato" data-ref="formato" role="toolbar" aria-label="Formato">
+        <button type="button" data-f="deshacer" aria-label="Deshacer">${icono('deshacer', { tam: 20 })}</button>
+        <button type="button" data-f="rehacer" aria-label="Rehacer">${icono('rehacer', { tam: 20 })}</button>
+        <span class="editor-formato-sep" aria-hidden="true"></span>
         <button type="button" data-f="negrita" aria-label="Negrita"><b>B</b></button>
         <button type="button" data-f="cursiva" aria-label="Cursiva"><i>I</i></button>
         <button type="button" data-f="titulo" aria-label="Intertítulo">H</button>
         <button type="button" data-f="cita" aria-label="Cita">“ ”</button>
         <button type="button" data-f="lista" aria-label="Lista">•</button>
         <button type="button" data-f="numerada" aria-label="Lista numerada">1.</button>
-        <label aria-label="Imagen">${icono('perfil', { tam: 18, color: 'currentColor' })}<input type="file" accept="image/*" data-ref="imagen" hidden></label>
+        <label aria-label="Imagen">${icono('imagen', { tam: 20, trazo: 'var(--superficie)' })}<input type="file" accept="image/*" data-ref="imagen" hidden></label>
       </div>
     </section>`;
   const $ = (r) => el.querySelector(`[data-ref="${r}"]`);
+  const seccion = el.querySelector('.editor');
+  const cabecera = el.querySelector('.editor-barra');
+  const barra = $('formato');
   const titulo = $('titulo');
   const subtitulo = $('subtitulo');
   const cuerpo = $('cuerpo');
+  const campos = [titulo, subtitulo, cuerpo];
+  const hayTexto = () => !!(s.titulo.trim() || s.cuerpo.trim());
 
-  const crecer = (t) => { t.style.height = 'auto'; t.style.height = `${t.scrollHeight}px`; };
-  const pintarEstado = () => {
-    const txt = { nuevo: '', escribiendo: 'Guardado en el móvil', guardando: 'Guardando…', guardado: s.estado === 'publicada' ? 'Cambios en el móvil · pulsa Actualizar' : 'Borrador guardado', error: 'Sin conexión: guardado en el móvil', publicada: 'Publicada' }[s.guardado] ?? '';
-    $('estado').textContent = s.cargando ? 'Cargando…' : txt;
-    const n = palabras(s.cuerpo);
-    $('cuenta').textContent = `${n.toLocaleString('es-ES')} palabras · ${textoLectura(n)}`;
+  // Altura según el texto. Sin field-sizing se mide con height:auto, y la página no
+  // puede encoger mientras tanto: el navegador recortaría el scroll y el texto saltaría.
+  const caja = $('escribir');
+  const crecer = (t) => {
+    if (conFieldSizing) return;
+    caja.style.minHeight = `${caja.offsetHeight}px`;
+    t.style.height = 'auto';
+    t.style.height = `${t.scrollHeight}px`;
+    caja.style.minHeight = '';
   };
 
-  const local = () => guardarLocal(id, { titulo: s.titulo, subtitulo: s.subtitulo, cuerpo: s.cuerpo, ts: Date.now(), tema });
+  const pintarEstado = () => {
+    const txt = s.cargando ? 'Cargando…' : s.fallo ? 'No se ha podido cargar' : {
+      nuevo: '',
+      escribiendo: s.estado === 'publicada' ? 'Sin publicar: pulsa Actualizar' : 'Guardado en el móvil',
+      guardando: 'Guardando…',
+      guardado: 'Borrador guardado',
+      publicada: 'Publicada',
+      error: 'Sin red: guardado en el móvil',
+    }[s.guardado] ?? '';
+    $('estado').textContent = txt;
+    const n = palabras(s.cuerpo);
+    $('cuenta').innerHTML = s.fallo
+      ? 'Revisa la conexión. <button type="button" class="enlace-discreto" data-accion="reintentar">Reintentar</button>'
+      : `${n.toLocaleString('es-ES')} palabras · ${textoLectura(n)}`;
+  };
 
-  const aBD = async (estadoNuevo = null) => {
-    if (guardando) return false;
-    guardando = true;
+  // ---- Guardar --------------------------------------------------------------------
+  const guardarYa = () => {
+    clearTimeout(relojLocal);
+    if (cambios !== enLocal && !terminado) {
+      guardarLocal(id, { titulo: s.titulo, subtitulo: s.subtitulo, cuerpo: s.cuerpo, ts: Date.now(), tema, usuario_id: yo.id });
+      enLocal = cambios;
+    }
+    pintarEstado();
+  };
+
+  const aBD = (estadoNuevo = null) => {
+    if (guardandoP) return guardandoP.then(() => aBD(estadoNuevo)); // después del que va
+    const version = cambios;
     s.guardado = 'guardando'; pintarEstado();
-    try {
-      await datos.guardarEntrada({
-        id, columna_id: col.id, usuario_id: yo.id, ...tema,
-        titulo: s.titulo, subtitulo: s.subtitulo, cuerpo: s.cuerpo, palabras: palabras(s.cuerpo),
-        estado: estadoNuevo ?? s.estado,
-      });
+    guardandoP = datos.guardarEntrada({
+      id, columna_id: col.id, usuario_id: yo.id, ...tema,
+      titulo: limpiarTexto(s.titulo, { unaLinea: true }), subtitulo: limpiarTexto(s.subtitulo, { unaLinea: true }),
+      cuerpo: limpiarTexto(s.cuerpo), palabras: palabras(s.cuerpo),
+      estado: estadoNuevo ?? s.estado,
+    }).then(() => {
       if (estadoNuevo) s.estado = estadoNuevo;
-      s.enBD = true;
-      s.guardado = s.estado === 'publicada' && !estadoNuevo ? 'guardado' : 'guardado';
-      if (nueva) corregirRuta(`#escribir/${id}`);
+      enBase = Math.max(enBase, version);
+      if (!rutaFijada) { corregirRuta(`#escribir/${id}`); rutaFijada = true; }
+      s.guardado = cambios !== version ? 'escribiendo' : s.estado === 'publicada' ? 'publicada' : 'guardado';
       return true;
-    } catch (e) {
+    }).catch((e) => {
       console.warn('[columna]', e?.message || e);
       s.guardado = 'error';
       return false;
-    } finally {
-      guardando = false;
-      pintarEstado();
-    }
+    }).finally(() => { guardandoP = null; pintarEstado(); });
+    return guardandoP;
   };
+  const pendienteEnBase = () => !terminado && !s.cargando && !s.fallo && s.estado !== 'publicada' && hayTexto() && cambios !== enBase;
 
   const alEscribir = () => {
     s.titulo = titulo.value; s.subtitulo = subtitulo.value; s.cuerpo = cuerpo.value;
+    cambios += 1;
     s.guardado = 'escribiendo';
-    local();
-    pintarEstado();
+    // Nueva: la ruta pasa a ser la de esta entrada (recargar o volver a ella la recupera).
+    if (!rutaFijada) { rutaFijada = true; corregirRuta(`#escribir/${id}`); guardarYa(); }
+    clearTimeout(relojLocal);
+    relojLocal = setTimeout(guardarYa, CADA_LOCAL_MS);
     clearTimeout(relojBD);
     // Si ya está publicada, la base solo cambia al pulsar "Actualizar".
-    if (s.estado !== 'publicada' && (s.titulo.trim() || s.cuerpo.trim())) relojBD = setTimeout(() => aBD(), CADA_BD_MS);
+    if (pendienteEnBase()) relojBD = setTimeout(() => aBD(), CADA_BD_MS);
   };
-  for (const t of [titulo, subtitulo, cuerpo]) {
-    t.addEventListener('input', () => { crecer(t); alEscribir(); });
-  }
-  // Intro en el título: al subtítulo / cuerpo (no hay saltos de línea en el título).
-  titulo.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); subtitulo.focus(); } });
-  subtitulo.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); cuerpo.focus(); } });
 
-  // ---- Formato: envolver la selección o poner un prefijo a las líneas ---------
+  // ---- El cursor siempre a la vista -------------------------------------------------
+  const espejo = document.createElement('div');
+  espejo.setAttribute('aria-hidden', 'true');
+  /** Posición del cursor en pantalla (coordenadas de la ventana). */
+  const cursorEn = (t) => {
+    const cs = getComputedStyle(t);
+    for (const k of ESTILOS_ESPEJO) espejo.style[k] = cs[k];
+    Object.assign(espejo.style, { position: 'absolute', top: '0', left: '-9999px', visibility: 'hidden', whiteSpace: 'pre-wrap', height: 'auto', overflow: 'hidden' });
+    espejo.textContent = t.value.slice(0, t.selectionEnd);
+    const marca = document.createElement('span');
+    marca.textContent = '\u200b';
+    espejo.appendChild(marca);
+    document.body.appendChild(espejo);
+    const y = t.getBoundingClientRect().top + t.clientTop + marca.offsetTop - t.scrollTop;
+    const alto = marca.offsetHeight || parseFloat(cs.lineHeight) || 32;
+    espejo.remove();
+    return { arriba: y, abajo: y + alto, alto };
+  };
+  const vv = window.visualViewport;
+  let pedidoVer = 0;
+  const verCursor = () => {
+    cancelAnimationFrame(pedidoVer);
+    pedidoVer = requestAnimationFrame(() => {
+      const t = document.activeElement;
+      if (s.vista || !campos.includes(t) || t.selectionStart !== t.selectionEnd) return; // seleccionando: no se mueve
+      const c = cursorEn(t);
+      const vTop = vv ? vv.offsetTop : 0;
+      const vFin = vTop + (vv ? vv.height : window.innerHeight);
+      const tope = Math.max(vTop, cabecera.getBoundingClientRect().bottom) + 12;
+      const suelo = Math.min(vFin, barra.hidden ? vFin : barra.getBoundingClientRect().top) - Math.round(c.alto * 1.2);
+      let d = 0;
+      if (c.abajo > suelo) d = c.abajo - suelo;
+      else if (c.arriba < tope) d = c.arriba - tope;
+      if (Math.abs(d) > 1) window.scrollBy(0, d);
+    });
+  };
+
+  // La barra de formato, encima del teclado; con el teclado abierto la página tiene sitio
+  // de sobra abajo para poder subir hasta la última línea.
+  let teclado = 0;
+  const colocarBarra = () => {
+    if (!vv) return;
+    teclado = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+    barra.style.transform = teclado ? `translateY(${-teclado}px)` : '';
+    barra.classList.toggle('con-teclado', teclado > 80);
+    seccion.style.paddingBottom = teclado > 80 ? `${teclado + 160}px` : '';
+  };
+  let altoAntes = vv?.height ?? window.innerHeight;
+  let relojVer = null;
+  const alCambiarVista = () => {
+    colocarBarra();
+    // Se abre el teclado (o rota la pantalla): el cursor, a la vista. No con la barra
+    // del navegador que se esconde al bajar (unos 60 px): se respeta lo que lee el usuario.
+    const alto = vv.height;
+    const encoge = altoAntes - alto > 120;
+    altoAntes = alto;
+    if (encoge) { verCursor(); clearTimeout(relojVer); relojVer = setTimeout(verCursor, 350); }
+  };
+  const alSeleccionar = () => { if (campos.includes(document.activeElement)) verCursor(); };
+  vv?.addEventListener('resize', alCambiarVista);
+  vv?.addEventListener('scroll', colocarBarra);
+  document.addEventListener('selectionchange', alSeleccionar);
+  colocarBarra();
+
+  // ---- Escribir ---------------------------------------------------------------------
+  for (const t of campos) {
+    t.addEventListener('input', () => { crecer(t); alEscribir(); verCursor(); });
+    // Pegar desde otra app: solo texto, sin espacios raros ni caracteres invisibles.
+    t.addEventListener('paste', (e) => {
+      const txt = e.clipboardData?.getData('text/plain');
+      if (!txt) return;
+      const limpio = limpiarTexto(txt, { unaLinea: t !== cuerpo });
+      if (limpio === txt) return; // nada que limpiar: el pegado normal
+      e.preventDefault();
+      insertar(t, limpio, t.selectionStart, t.selectionEnd);
+    });
+  }
+  // Intro en el título y el subtítulo: al campo siguiente (no hay saltos de línea en ellos).
+  const siguiente = new Map([[titulo, subtitulo], [subtitulo, cuerpo]]);
+  for (const [t, sig] of siguiente) {
+    t.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sig.focus(); } });
+    t.addEventListener('beforeinput', (e) => { if (esSalto(e)) { e.preventDefault(); sig.focus(); } });
+  }
+  // Líneas en blanco seguidas: como mucho MAX_LINEAS_EN_BLANCO.
+  cuerpo.addEventListener('beforeinput', (e) => {
+    if (!esSalto(e)) return;
+    const { value: v, selectionStart: a, selectionEnd: b } = cuerpo;
+    const antes = /\n*$/.exec(v.slice(Math.max(0, a - 12), a))[0].length;
+    const despues = /^\n*/.exec(v.slice(b, b + 12))[0].length;
+    if (antes + despues >= MAX_LINEAS_EN_BLANCO + 1) e.preventDefault();
+  });
+
+  /** Escribe texto como si se tecleara (queda en el historial de deshacer). */
+  const insertar = (t, texto, a, b) => {
+    if (document.activeElement !== t) t.focus({ preventScroll: true });
+    t.setSelectionRange(a, b);
+    let ok = false;
+    try { ok = document.execCommand('insertText', false, texto); } catch { ok = false; }
+    if (!ok) {
+      t.setRangeText(texto, a, b, 'end');
+      t.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  };
+
+  // ---- Formato: envolver la selección o poner (o quitar) un prefijo a las líneas ------
   const envolver = (marca) => {
     const { selectionStart: a, selectionEnd: b, value: v } = cuerpo;
-    const sel = v.slice(a, b) || 'texto';
-    cuerpo.setRangeText(`${marca}${sel}${marca}`, a, b, 'end');
-    if (a === b) cuerpo.setSelectionRange(a + marca.length, a + marca.length + sel.length);
+    const sel = v.slice(a, b);
+    const otra = (i) => v[i] === '*' || v[i] === '_';
+    // Ya tiene esa marca: se quita.
+    if (sel && v.slice(a - marca.length, a) === marca && v.slice(b, b + marca.length) === marca
+      && !otra(a - marca.length - 1) && !otra(b + marca.length)) {
+      insertar(cuerpo, sel, a - marca.length, b + marca.length);
+      cuerpo.setSelectionRange(a - marca.length, b - marca.length);
+      return;
+    }
+    if (!sel) {
+      insertar(cuerpo, `${marca}texto${marca}`, a, b);
+      cuerpo.setSelectionRange(a + marca.length, a + marca.length + 5);
+      return;
+    }
+    // Cada línea por separado y sin los espacios de los bordes (si no, no se lee como formato).
+    const texto = sel.split('\n').map((l) => {
+      const m = l.match(/^(\s*)(.*?)(\s*)$/);
+      return m[2] ? `${m[1]}${marca}${m[2]}${marca}${m[3]}` : l;
+    }).join('\n');
+    insertar(cuerpo, texto, a, b);
+    cuerpo.setSelectionRange(a, a + texto.length);
   };
-  const prefijo = (p, numerar = false) => {
+  const PREFIJOS = {
+    titulo: { p: '## ', ya: /^#{1,3}\s+/ },
+    cita: { p: '> ', ya: /^>\s?/ },
+    lista: { p: '- ', ya: /^[-*•]\s+/ },
+    numerada: { p: null, ya: /^\d{1,3}[.)]\s+/ },
+  };
+  const CUALQUIERA = /^(#{1,3}\s+|>\s?|[-*•]\s+|\d{1,3}[.)]\s+)/;
+  const prefijo = (tipo) => {
+    const { p, ya } = PREFIJOS[tipo];
     const v = cuerpo.value;
-    let a = v.lastIndexOf('\n', cuerpo.selectionStart - 1) + 1;
+    const a = v.lastIndexOf('\n', cuerpo.selectionStart - 1) + 1;
     let b = v.indexOf('\n', cuerpo.selectionEnd);
     if (b < 0) b = v.length;
-    const lineas = v.slice(a, b).split('\n').map((l, i) => {
-      const limpia = l.replace(/^(#{1,3}\s+|>\s?|[-*•]\s+|\d+[.)]\s+)/, '');
-      return (numerar ? `${i + 1}. ` : p) + limpia;
-    });
-    cuerpo.setRangeText(lineas.join('\n'), a, b, 'end');
+    const lineas = v.slice(a, b).split('\n');
+    const llenas = lineas.filter((l) => l.trim());
+    const quitar = llenas.length > 0 && llenas.every((l) => ya.test(l)); // pulsar otra vez lo quita
+    let n = 0;
+    const texto = lineas.map((l) => {
+      if (!l.trim() && lineas.length > 1) return l;
+      const limpia = l.replace(CUALQUIERA, '');
+      if (quitar) return limpia;
+      n += 1;
+      return (p ?? `${n}. `) + limpia;
+    }).join('\n');
+    insertar(cuerpo, texto, a, b);
+    cuerpo.setSelectionRange(a + texto.length, a + texto.length);
   };
-  $('formato').addEventListener('pointerdown', (e) => { if (e.target.closest('[data-f]')) e.preventDefault(); }); // no perder el foco (ni el teclado)
-  $('formato').addEventListener('click', (e) => {
+  let ultimoCampo = cuerpo;
+  for (const t of campos) t.addEventListener('focus', () => { ultimoCampo = t; });
+  barra.addEventListener('pointerdown', (e) => { if (e.target.closest('[data-f]')) e.preventDefault(); }); // no perder el foco (ni el teclado)
+  barra.addEventListener('mousedown', (e) => { if (e.target.closest('[data-f]')) e.preventDefault(); });
+  barra.addEventListener('click', (e) => {
     const b = e.target.closest('[data-f]');
-    if (!b) return;
-    cuerpo.focus();
+    if (!b || cuerpo.readOnly) return;
     const f = b.dataset.f;
+    if (f === 'deshacer' || f === 'rehacer') {
+      if (document.activeElement !== ultimoCampo) ultimoCampo.focus({ preventScroll: true });
+      try { document.execCommand(f === 'deshacer' ? 'undo' : 'redo'); } catch { /* sin historial */ }
+      verCursor();
+      return;
+    }
+    if (document.activeElement !== cuerpo) cuerpo.focus({ preventScroll: true });
     if (f === 'negrita') envolver('**');
     else if (f === 'cursiva') envolver('*');
-    else if (f === 'titulo') prefijo('## ');
-    else if (f === 'cita') prefijo('> ');
-    else if (f === 'lista') prefijo('- ');
-    else if (f === 'numerada') prefijo('', true);
-    crecer(cuerpo);
-    alEscribir();
+    else prefijo(f);
+    verCursor();
   });
   $('imagen').addEventListener('change', async (e) => {
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
+    const pos = cuerpo.selectionStart ?? cuerpo.value.length;
     aviso('Subiendo la imagen…');
     try {
       const blob = await imagenRedimensionada(f, 1600);
       const url = await datos.subirImagenColumna(`entradas/${id}/${Date.now()}.${blob.type === 'image/webp' ? 'webp' : 'jpg'}`, blob);
-      const pos = cuerpo.selectionStart ?? cuerpo.value.length;
-      cuerpo.setRangeText(`\n\n![](${url})\n\n`, pos, pos, 'end');
-      crecer(cuerpo);
-      alEscribir();
+      // En su propia línea, separada por una línea en blanco (sin sumar huecos de más).
+      const v = cuerpo.value;
+      const antes = /\n*$/.exec(v.slice(0, pos))[0].length;
+      const despues = /^\n*/.exec(v.slice(pos))[0].length;
+      const texto = `${pos > 0 ? '\n'.repeat(Math.max(0, 2 - antes)) : ''}![](${url})${'\n'.repeat(Math.max(0, 2 - despues))}`;
+      insertar(cuerpo, texto, pos, pos);
       aviso('Imagen añadida (puedes escribir un pie entre los corchetes)');
     } catch (err) {
       console.warn('[imagen]', err?.message || err);
@@ -190,20 +418,45 @@ export function render(el, { params }) {
     }
   });
 
-  // La barra de formato, siempre encima del teclado (visualViewport).
-  const vv = window.visualViewport;
-  const colocarBarra = () => {
-    if (!vv) return;
-    const abajo = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-    $('formato').style.transform = `translateY(${-abajo}px)`;
+  // ---- Vista previa: exactamente como se leerá ---------------------------------------
+  let scrollEscribiendo = 0;
+  const htmlPrevia = () => {
+    const autor = datos.usuario(yo.id) ?? yo;
+    const subt = s.subtitulo.trim();
+    return `
+      <article class="lectura-articulo">
+        <p class="lectura-borrador">Vista previa</p>
+        <h1 class="lectura-titulo">${esc(limpiarTexto(s.titulo, { unaLinea: true }) || 'Sin título')}</h1>
+        ${subt ? `<p class="lectura-subtitulo">${esc(limpiarTexto(subt, { unaLinea: true }))}</p>` : ''}
+        <div class="lectura-firma">
+          ${avatar(autor, 36)}
+          <div><strong>${esc(autor?.nombre ?? '')}</strong><span>${esc(textoLectura(palabras(s.cuerpo)))}</span></div>
+        </div>
+        <div class="lectura-cuerpo">${markdown(limpiarTexto(s.cuerpo))}</div>
+      </article>`;
   };
-  vv?.addEventListener('resize', colocarBarra);
-  vv?.addEventListener('scroll', colocarBarra);
+  const cambiarVista = (ver) => {
+    s.vista = ver;
+    const b = el.querySelector('[data-accion="vista"]');
+    b.setAttribute('aria-pressed', String(ver));
+    b.textContent = ver ? 'Seguir escribiendo' : 'Vista previa';
+    if (ver) { scrollEscribiendo = window.scrollY; document.activeElement?.blur?.(); }
+    $('escribir').hidden = ver;
+    barra.hidden = ver;
+    $('cuenta').hidden = ver;
+    const p = $('vista-previa');
+    p.hidden = !ver;
+    p.innerHTML = ver ? htmlPrevia() : '';
+    if (!ver) for (const t of campos) crecer(t);
+    window.scrollTo(0, ver ? 0 : scrollEscribiendo);
+  };
 
   // ---- Acciones -----------------------------------------------------------------
   const salir = async () => {
+    guardarYa();
     clearTimeout(relojBD);
-    if (s.estado !== 'publicada' && (s.titulo.trim() || s.cuerpo.trim()) && s.guardado !== 'guardado') await aBD();
+    if (pendienteEnBase()) await aBD();
+    terminado = true;
     volver(col ? `#columna/${col.id}` : '#inicio');
   };
   el.addEventListener('click', async (e) => {
@@ -211,23 +464,19 @@ export function render(el, { params }) {
     if (!b) return;
     const a = b.dataset.accion;
     if (a === 'cerrar') salir();
-    else if (a === 'vista') {
-      s.vista = !s.vista;
-      b.setAttribute('aria-pressed', String(s.vista));
-      b.textContent = s.vista ? 'Seguir escribiendo' : 'Vista previa';
-      $('escribir').hidden = s.vista;
-      $('formato').hidden = s.vista;
-      const p = $('previa');
-      p.hidden = !s.vista;
-      if (s.vista) p.innerHTML = `<h1 class="lectura-titulo">${esc(s.titulo || 'Sin título')}</h1>${s.subtitulo ? `<p class="lectura-subtitulo">${esc(s.subtitulo)}</p>` : ''}${markdown(s.cuerpo)}`;
-    } else if (a === 'publicar') {
-      if (!s.titulo.trim()) { aviso('Ponle un título antes de publicar'); titulo.focus(); return; }
-      if (!s.cuerpo.trim()) { aviso('Todavía no has escrito nada'); cuerpo.focus(); return; }
+    else if (a === 'vista') cambiarVista(!s.vista);
+    else if (a === 'reintentar') cargar();
+    else if (a === 'publicar') {
+      if (s.cargando || s.fallo) return;
+      if (!s.titulo.trim()) { if (s.vista) cambiarVista(false); aviso('Ponle un título antes de publicar'); titulo.focus(); return; }
+      if (!s.cuerpo.trim()) { if (s.vista) cambiarVista(false); aviso('Todavía no has escrito nada'); cuerpo.focus(); return; }
+      guardarYa();
       clearTimeout(relojBD);
       b.disabled = true;
       const ok = await aBD('publicada');
       b.disabled = false;
       if (!ok) { aviso('No se ha podido publicar. Lo tienes guardado en el móvil.'); return; }
+      terminado = true;
       borrarLocal(id);
       aviso(previa?.estado === 'publicada' ? 'Actualizada' : `Publicada en ${col.nombre}`);
       reemplazarRuta(`#entrada/${id}`);
@@ -236,6 +485,7 @@ export function render(el, { params }) {
       s.estado = 'borrador';
       el.querySelector('[data-accion="publicar"]').textContent = 'Publicar';
       b.remove();
+      if (pendienteEnBase()) aBD();
       aviso('Despublicada: vuelve a ser un borrador');
     } else if (a === 'pedir-borrar') {
       $('confirmar').innerHTML = `
@@ -249,6 +499,9 @@ export function render(el, { params }) {
     } else if (a === 'no-borrar') $('confirmar').innerHTML = '';
     else if (a === 'borrar') {
       clearTimeout(relojBD);
+      clearTimeout(relojLocal);
+      terminado = true;
+      if (guardandoP) await guardandoP; // que un guardado en marcha no la vuelva a crear
       borrarLocal(id);
       await datos.borrarEntrada(id, aviso);
       aviso('Entrada borrada');
@@ -256,38 +509,69 @@ export function render(el, { params }) {
     }
   });
 
+  // Cerrar la app, cambiar de app o apagar la pantalla: a salvo en el móvil y en la base.
+  const alOcultar = () => {
+    if (document.visibilityState !== 'hidden') return;
+    guardarYa();
+    if (pendienteEnBase()) { clearTimeout(relojBD); aBD(); }
+  };
+  document.addEventListener('visibilitychange', alOcultar);
+  window.addEventListener('pagehide', guardarYa);
+
   // ---- Cargar: la base y, si es más reciente, lo guardado en el móvil ----------
   const poner = () => {
     titulo.value = s.titulo; subtitulo.value = s.subtitulo; cuerpo.value = s.cuerpo;
-    for (const t of [titulo, subtitulo, cuerpo]) crecer(t);
+    for (const t of campos) { t.readOnly = s.cargando || s.fallo; crecer(t); }
     pintarEstado();
   };
-  const loc = leerLocal(id);
-  if (nueva) {
+  const usarLocal = (l) => {
+    Object.assign(s, { titulo: l.titulo ?? '', subtitulo: l.subtitulo ?? '', cuerpo: l.cuerpo ?? '' });
+    cambios = enLocal = 1; // pendiente de llegar a la base
+    s.guardado = 'escribiendo';
+  };
+  const cargar = () => {
+    s.cargando = true; s.fallo = false;
     poner();
-    setTimeout(() => titulo.focus(), 50);
-  } else {
-    pintarEstado();
     datos.cuerpoDe(id).then((txt) => {
       s.cuerpo = txt;
       s.cargando = false;
       const enBD = new Date(previa.actualizado_en).getTime();
-      if (loc && loc.ts > enBD && (loc.cuerpo !== txt || loc.titulo !== s.titulo)) {
-        Object.assign(s, { titulo: loc.titulo, subtitulo: loc.subtitulo ?? '', cuerpo: loc.cuerpo });
-        s.guardado = 'escribiendo';
+      if (loc && loc.ts > enBD && (loc.cuerpo !== txt || loc.titulo !== s.titulo || (loc.subtitulo ?? '') !== (s.subtitulo ?? ''))) {
+        usarLocal(loc);
         aviso('Recuperado lo último que escribiste en este móvil');
       } else s.guardado = s.estado === 'publicada' ? 'publicada' : 'guardado';
       poner();
+      if (pendienteEnBase()) relojBD = setTimeout(() => aBD(), CADA_BD_MS);
     }).catch(() => {
       s.cargando = false;
-      if (loc) { Object.assign(s, { titulo: loc.titulo, subtitulo: loc.subtitulo ?? '', cuerpo: loc.cuerpo }); s.guardado = 'error'; }
+      // Sin conexión: solo se edita lo del móvil si es igual o más reciente que la base;
+      // si no, se esperaría a poder cargar (nunca se guarda encima un texto viejo o vacío).
+      if (loc && loc.ts >= new Date(previa.actualizado_en).getTime()) { usarLocal(loc); s.guardado = 'error'; } else s.fallo = true;
       poner();
     });
-  }
+  };
+  if (nueva) {
+    poner();
+    setTimeout(() => titulo.focus(), 50);
+  } else if (soloLocal) {
+    usarLocal(loc);
+    poner();
+    if (pendienteEnBase()) relojBD = setTimeout(() => aBD(), CADA_BD_MS);
+  } else cargar();
 
   return () => {
+    // Salir de cualquier forma (atrás del sistema, otra pestaña...): nada se pierde.
+    guardarYa();
     clearTimeout(relojBD);
-    vv?.removeEventListener('resize', colocarBarra);
+    if (pendienteEnBase()) aBD();
+    terminado = true;
+    cancelAnimationFrame(pedidoVer);
+    clearTimeout(relojVer);
+    vv?.removeEventListener('resize', alCambiarVista);
     vv?.removeEventListener('scroll', colocarBarra);
+    document.removeEventListener('selectionchange', alSeleccionar);
+    document.removeEventListener('visibilitychange', alOcultar);
+    window.removeEventListener('pagehide', guardarYa);
+    espejo.remove();
   };
 }

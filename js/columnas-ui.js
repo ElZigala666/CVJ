@@ -47,21 +47,57 @@ function enLinea(t) {
     .replace(/(^|[^_\w])_([^_\n]+)_(?=[^_\w]|$)/g, '$1<em>$2</em>');
 }
 
-/** Markdown ligero → HTML seguro. */
+/**
+ * Líneas en blanco seguidas que se respetan (más, se quedan en este número). Una línea
+ * en blanco separa párrafos; cada una de más deja un hueco de una línea, como se ve al
+ * escribir.
+ */
+export const MAX_LINEAS_EN_BLANCO = 4;
+
+/** Texto pegado o guardado, limpio: saltos \n, sin espacios raros ni caracteres invisibles. */
+export function limpiarTexto(texto, { unaLinea = false } = {}) {
+  let t = String(texto ?? '')
+    .replace(/\r\n?|[\u2028\u2029\u0085]/g, '\n')
+    .replace(/[\u00a0\u2007\u202f\u3000]/g, ' ')
+    .replace(/\t/g, '    ')
+    // invisibles (ancho cero, marcas de dirección, BOM) y de control, menos el salto de línea
+    .replace(/[\u200b\u200c\u200e\u200f\u2060\ufeff\u202a-\u202e\u2066-\u2069]|[\u0000-\u0009\u000b-\u001f\u007f]/g, '');
+  if (unaLinea) return t.replace(/\s*\n\s*/g, ' ');
+  return t.replace(/[ ]+$/gm, '').replace(new RegExp(`\\n{${MAX_LINEAS_EN_BLANCO + 2},}`, 'g'), '\n'.repeat(MAX_LINEAS_EN_BLANCO + 1));
+}
+
+/** Markdown ligero → HTML seguro. Lo que se escribe es lo que se ve: saltos y líneas en blanco incluidos. */
 export function markdown(texto) {
   const lineas = esc(String(texto ?? '')).replace(/\r\n?/g, '\n').split('\n');
   const html = [];
   let parrafo = [];
-  let lista = null; // { tipo: 'ul'|'ol', items: [] }
+  let lista = null; // { tipo: 'ul'|'ol', inicio, items: [] }
   let cita = [];
+  let enBlanco = 0; // líneas en blanco seguidas antes de la línea actual
   const cerrarParrafo = () => { if (parrafo.length) { html.push(`<p>${enLinea(parrafo.join('<br>'))}</p>`); parrafo = []; } };
-  const cerrarLista = () => { if (lista) { html.push(`<${lista.tipo}>${lista.items.map((i) => `<li>${enLinea(i)}</li>`).join('')}</${lista.tipo}>`); lista = null; } };
-  const cerrarCita = () => { if (cita.length) { html.push(`<blockquote>${cita.map((c) => `<p>${enLinea(c)}</p>`).join('')}</blockquote>`); cita = []; } };
+  const cerrarLista = () => {
+    if (!lista) return;
+    const inicio = lista.tipo === 'ol' && lista.inicio !== 1 ? ` start="${lista.inicio}"` : '';
+    html.push(`<${lista.tipo}${inicio}>${lista.items.map((i) => `<li>${enLinea(i)}</li>`).join('')}</${lista.tipo}>`);
+    lista = null;
+  };
+  // Una cita de varias líneas seguidas es un párrafo con saltos; "> " sola separa párrafos.
+  const cerrarCita = () => {
+    if (!cita.length) return;
+    const parrafos = cita.join('\n').split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+    html.push(`<blockquote>${parrafos.map((p) => `<p>${enLinea(p.split('\n').join('<br>'))}</p>`).join('')}</blockquote>`);
+    cita = [];
+  };
   const cerrarTodo = () => { cerrarParrafo(); cerrarLista(); cerrarCita(); };
   for (const l of lineas) {
     const t = l.trimEnd();
     let m;
-    if (!t.trim()) { cerrarTodo(); continue; }
+    if (!t.trim()) { cerrarTodo(); enBlanco += 1; continue; }
+    // Huecos de más entre bloques (no al principio del texto).
+    if (enBlanco > 1 && html.length) {
+      html.push('<div class="linea-vacia" aria-hidden="true"></div>'.repeat(Math.min(enBlanco, MAX_LINEAS_EN_BLANCO) - 1));
+    }
+    enBlanco = 0;
     if ((m = t.match(/^(#{1,3})\s+(.+)$/))) {
       cerrarTodo();
       const nivel = m[1].length <= 2 ? 2 : 3; // # y ## → intertítulo grande; ### → pequeño
@@ -75,10 +111,11 @@ export function markdown(texto) {
       lista.items.push(m[1]);
       continue;
     }
-    if ((m = t.match(/^\s*\d+[.)]\s+(.+)$/))) {
+    // "1. ", "2) "... (hasta tres cifras: "2024. Fue un año..." es un párrafo). Empieza por su número.
+    if ((m = t.match(/^\s*(\d{1,3})[.)]\s+(.+)$/))) {
       cerrarParrafo(); cerrarCita();
-      if (lista?.tipo !== 'ol') { cerrarLista(); lista = { tipo: 'ol', items: [] }; }
-      lista.items.push(m[1]);
+      if (lista?.tipo !== 'ol') { cerrarLista(); lista = { tipo: 'ol', inicio: Number(m[1]), items: [] }; }
+      lista.items.push(m[2]);
       continue;
     }
     if (/^(-{3,}|\*{3,})$/.test(t.trim())) { cerrarTodo(); html.push('<hr>'); continue; }

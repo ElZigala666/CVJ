@@ -871,6 +871,28 @@ async function arteDe(ids: number[]): Promise<Map<number, { id: string; tipo: "a
 }
 
 /**
+ * Todas las imágenes horizontales de un juego (para elegir la cabecera del perfil): sus
+ * artworks y después sus capturas, apaisadas, de la más ancha a la más estrecha (hasta 12).
+ * Se guardan en juegos.artes (caché de 30 días). → [{ id, tipo, w, h }]
+ */
+async function artesDe(igdbId: number) {
+  const { data: fila } = await sb.from("juegos").select("artes, artes_en").eq("igdb_id", igdbId).maybeSingle();
+  const fresca = fila?.artes_en && Date.now() - new Date(fila.artes_en).getTime() < 30 * 86400000;
+  if (fresca && Array.isArray(fila?.artes)) return { artes: fila.artes };
+  const apaisadas = (lista: Imagen[], tipo: "artwork" | "screenshot") => lista
+    .filter((x) => x.image_id && (!x.height || Number(x.width) >= Number(x.height) * 1.2))
+    .sort((a, b) => (Number(b.width) || 0) - (Number(a.width) || 0))
+    .map((x) => ({ id: String(x.image_id), tipo, w: Number(x.width) || null, h: Number(x.height) || null }));
+  const [arts, caps] = await Promise.all([
+    igdb<Imagen[]>("artworks", `fields image_id,width,height; where game = ${igdbId}; limit 50;`),
+    igdb<Imagen[]>("screenshots", `fields image_id,width,height; where game = ${igdbId}; limit 50;`),
+  ]);
+  const artes = [...apaisadas(arts, "artwork"), ...apaisadas(caps, "screenshot")].slice(0, 12);
+  await sb.from("juegos").update({ artes, artes_en: new Date().toISOString() }).eq("igdb_id", igdbId);
+  return { artes };
+}
+
+/**
  * Rellena juegos.arte_* poco a poco (tarea de cada hora): los que nunca se han mirado y,
  * cada 30 días, los que no tenían arte (a los juegos nuevos les llega más tarde).
  */
@@ -1285,6 +1307,11 @@ Deno.serve(async (req) => {
         return json(await actualizarTiempos());
       case "arte":
         return json(await actualizarArte());
+      case "artes": {
+        const id = Number(cuerpo.igdb_id);
+        if (!Number.isInteger(id) || id <= 0) throw new ErrorPublico("igdb_id no válido");
+        return json(await artesDe(id));
+      }
       case "fusionar_versiones":
         return json(await fusionarVersiones());
       case "juego": {

@@ -10,6 +10,7 @@ import { logoColumna, textoLectura, filaEntrada } from '../columnas-ui.js';
 import * as social from '../social.js';
 import * as insignias from '../insignias.js';
 import * as cementerio from '../cementerio.js';
+import * as propuestas from '../propuestas.js';
 import { usuarioActual } from '../sesion.js';
 import { mediaGrupo, recomendacionGrupo, desviacionTipica } from '../notas.js';
 import { abrirHoja } from '../hoja.js';
@@ -113,6 +114,7 @@ function html() {
       ${cabecera(yo)}
       ${elGrupo()}
       ${cementerio.avisosInicio()}
+    ${propuestas.avisosInicio()}
       ${avisoPsn()}
       <div class="inicio-vacio">
         <span class="vacio-icono grande">${icono('valorar', { tam: 36, color: 'var(--acento)', trazo: 'var(--acento-suave)' })}</span>
@@ -126,6 +128,7 @@ function html() {
     ${cabecera(yo)}
     ${elGrupo()}
     ${cementerio.avisosInicio()}
+    ${propuestas.avisosInicio()}
     ${avisoPsn()}
     ${avisoRevisar()}
     ${avisosPersonales()}
@@ -193,6 +196,7 @@ function elGrupo() {
             <span>${u.id === yo?.id ? 'Tú' : esc(u.nombre)}</span>
           </a>`).join('')}
         ${cementerio.accesoGrupo()}
+        ${propuestas.accesoGrupo()}
       </div>
     </section>`;
 }
@@ -437,6 +441,8 @@ function actividad() {
     .concat(insignias.eventosActividad().map((ev) => ({ insignia: ev, creado_en: ev.fecha })))
     // El cementerio: expulsiones, intentos de reanimación, vetos, vueltas y exorcismos.
     .concat(cementerio.eventosActividad().map((ev) => ({ vida: ev, creado_en: ev.fecha })))
+    // Propuestas de nuevos miembros: nuevas, aceptadas y las que no pasaron el casting.
+    .concat(propuestas.eventosActividad().map((ev) => ({ propuesta: ev, creado_en: ev.fecha })))
     .sort((a, b) => new Date(b.a?.creado_en ?? b.creado_en) - new Date(a.a?.creado_en ?? a.creado_en))
     .slice(0, MAX_ACTIVIDAD);
 
@@ -459,8 +465,9 @@ function actividad() {
     return social.tira(tipo, v.id, { visibles: 1 });
   };
   const contenido = filas.length
-    ? filas.map(({ a, u, j, columna: ce, lote, social: ev, insignia: ins, vida }) => {
+    ? filas.map(({ a, u, j, columna: ce, lote, social: ev, insignia: ins, vida, propuesta }) => {
       if (vida) return cementerio.filaActividad(vida, ahora);
+      if (propuesta) return propuestas.filaActividad(propuesta, ahora);
       if (ins) return insignias.filaActividad(ins, yo?.id, ahora);
       if (ev) return social.filaActividad(ev, yo?.id, ahora);
       if (ce) return filaColumna(ce, u, ahora);

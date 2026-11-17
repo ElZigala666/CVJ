@@ -9,7 +9,7 @@ const CLAVE = 'cvj.datos.v1';
 const LIMITE_ACTIVIDAD = 60;
 const VENTANA_ACTIVIDAD_MS = 10 * 60 * 1000; // agrupar cambios del mismo juego en 10 min
 
-const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sugRechazadas: [], servicios: [], cuentas: [], horasExtra: [], avisos: [], coleccionesG: [], coleccionesJuegos: [], valColecciones: [], sagas: [], sagasJuegos: [], columnas: [], entradas: [], lecturas: [], horasAjustes: [], horasEstimadas: [], celebracionesVistas: [], reacciones: [], comentarios: [], insignias: [], insigniasGrupo: [], vidas: [], reanimaciones: [], velas: [], cargadoEn: null });
+const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sugRechazadas: [], servicios: [], cuentas: [], horasExtra: [], avisos: [], coleccionesG: [], coleccionesJuegos: [], valColecciones: [], sagas: [], sagasJuegos: [], columnas: [], entradas: [], lecturas: [], horasAjustes: [], horasEstimadas: [], celebracionesVistas: [], reacciones: [], comentarios: [], insignias: [], insigniasGrupo: [], vidas: [], reanimaciones: [], velas: [], propuestas: [], propuestasVotos: [], cargadoEn: null });
 
 // Versión de los datos: sube cada vez que cambian (refresco, escritura o reversión).
 // metricas.js la usa para memoizar los cálculos.
@@ -37,7 +37,7 @@ let refrescoAplazado = false;
 //  - La caché va en IndexedDB (localStorage se queda sin sitio a los 5 MB y entonces no
 //    se guardaba nada, sin avisar).
 // ---------------------------------------------------------------------------
-const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sugRechazadas, s.servicios, s.cuentas, s.horasExtra, s.avisos, s.coleccionesG, s.coleccionesJuegos, s.valColecciones, s.sagas, s.sagasJuegos, s.columnas, s.entradas, s.lecturas, s.horasAjustes, s.horasEstimadas, s.celebracionesVistas, s.reacciones, s.comentarios, s.insignias, s.insigniasGrupo, s.vidas, s.reanimaciones, s.velas]);
+const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sugRechazadas, s.servicios, s.cuentas, s.horasExtra, s.avisos, s.coleccionesG, s.coleccionesJuegos, s.valColecciones, s.sagas, s.sagasJuegos, s.columnas, s.entradas, s.lecturas, s.horasAjustes, s.horasEstimadas, s.celebracionesVistas, s.reacciones, s.comentarios, s.insignias, s.insigniasGrupo, s.vidas, s.reanimaciones, s.velas, s.propuestas, s.propuestasVotos]);
 const COLUMNAS_USUARIO = 'id, nombre, inicial, color, acento, creado_en';
 const COLUMNAS_ENTRADA = 'id, columna_id, usuario_id, juego_id, coleccion_id, saga_id, titulo, subtitulo, palabras, estado, publicada_en, creado_en, actualizado_en';
 const PAGINA = 1000;
@@ -51,8 +51,8 @@ const COLUMNAS_JUEGO = 'igdb_id, nombre, slug, cover_id, anio, plataformas, desa
  */
 const TABLAS = [
   { k: 'usuarios', t: 'usuarios', orden: ['creado_en', 'id'], esencial: true,
-    sel: `${COLUMNAS_USUARIO}, foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas, estimar_horas, apariencia, perfil_datos, social_visto_en, insignias_visto_en, exorcizado`,
-    alt: `${COLUMNAS_USUARIO}, foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas, estimar_horas, apariencia, perfil_datos, social_visto_en, insignias_visto_en` },
+    sel: `${COLUMNAS_USUARIO}, foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas, estimar_horas, apariencia, perfil_datos, social_visto_en, insignias_visto_en, exorcizado, propuesta_id`,
+    alt: `${COLUMNAS_USUARIO}, foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas, estimar_horas, apariencia, perfil_datos, social_visto_en, insignias_visto_en, exorcizado` },
   { k: 'valoraciones', t: 'valoraciones', orden: ['id'], esencial: true },
   // v: con arte_id (cabecera del perfil): la caché de antes se vuelve a pedir una vez.
   { k: 'juegos', t: 'juegos', orden: ['igdb_id'], esencial: true, sel: COLUMNAS_JUEGO, alt: '*', v: '2' },
@@ -88,6 +88,9 @@ const TABLAS = [
   { k: 'vidas', t: 'vidas', orden: ['fecha', 'id'] },
   { k: 'reanimaciones', t: 'reanimaciones', orden: ['empieza_en', 'id'] },
   { k: 'velas', t: 'velas', orden: ['difunto_id', 'usuario_id'] },
+  // Propuestas de nuevos miembros (migración 037) y sus votos.
+  { k: 'propuestas', t: 'propuestas', orden: ['creado_en', 'id'] },
+  { k: 'propuestasVotos', t: 'propuestas_votos', orden: ['propuesta_id', 'usuario_id'] },
   { k: 'horasAjustes', t: 'horas_ajustes', orden: ['usuario_id', 'juego_id'] },
   { k: 'horasEstimadas', t: 'horas_estimadas', orden: ['usuario_id', 'juego_id'] },
   // Celebraciones de "completado" que ya he visto (solo las mías).
@@ -1001,6 +1004,37 @@ export async function pedirReanimacion(autorId, difuntoId) {
     return { ok: false, error: 'Sin conexión con el más allá. Prueba otra vez en un momento.' };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Propuestas de nuevos miembros (migración 037). Se escriben en el servidor (proponer,
+// votar_propuesta y, lo del admin, la función admin); aquí se leen.
+// ---------------------------------------------------------------------------
+export const propuestas = () => estado.propuestas ?? [];
+export const propuesta = (id) => propuestas().find((p) => p.id === id) ?? null;
+export const votosDe = (propuestaId) => (estado.propuestasVotos ?? []).filter((v) => v.propuesta_id === propuestaId);
+/** La propuesta por la que entró alguien (si entró así). */
+export const propuestaDe = (usuarioId) => {
+  const u = usuario(usuarioId);
+  return (u?.propuesta_id && propuesta(u.propuesta_id)) || propuestas().find((p) => p.usuario_id === usuarioId) || null;
+};
+
+async function rpcPropuestas(fn, cuerpo, sinRed) {
+  try {
+    const r = await api(`rpc/${fn}`, cuerpo);
+    if (r?.ok) await refrescar();
+    return r ?? { ok: false, error: 'No ha contestado nadie.' };
+  } catch {
+    return { ok: false, error: sinRed };
+  }
+}
+/** Proponer a alguien. → { ok, error? } */
+export const proponer = (autorId, { nombre, deQue, motivo, plataformas }) => rpcPropuestas('proponer',
+  { p_autor: autorId, p_nombre: nombre, p_de_que: deQue || null, p_motivo: motivo, p_plataformas: plataformas ?? [] },
+  'Sin conexión. La propuesta no ha salido.');
+/** Votar a favor / en contra (con comentario) o quitar el voto (voto null). */
+export const votarPropuesta = (usuarioId, propuestaId, voto, comentario = null) => rpcPropuestas('votar_propuesta',
+  { p_usuario: usuarioId, p_propuesta: propuestaId, p_voto: voto, p_comentario: comentario || null },
+  'Sin conexión. El voto no ha llegado a la urna.');
 
 export async function subirImagenColumna(ruta, blob) {
   const sb = await cliente();

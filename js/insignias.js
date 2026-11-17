@@ -15,6 +15,7 @@ import { esc, avatar, avatarPerfil, nombrePerfil, tiempoRelativo, aviso } from '
 import { abrirHoja } from './hoja.js';
 import { icono } from './icons.js';
 import { historia } from './cementerio.js';
+import { ahijados } from './propuestas.js';
 
 export const NIVELES = ['', 'bronce', 'plata', 'oro'];
 const NOMBRE_NIVEL = ['', 'Bronce', 'Plata', 'Oro'];
@@ -71,6 +72,9 @@ const GLIFOS = {
   // El cementerio: lápida con un rayo (Lázaro) y un gato (Siete vidas).
   resucitado: 'M6 20V10a6 6 0 0 1 12 0v10zM3 20h18v2H3zM13.4 6.2 9 12.6h3l-1.4 5.2 4.4-6.6h-3z',
   gato: 'M4 2.5 8.5 7h7L20 2.5V13a8 8 0 0 1-16 0zM7.8 10.8h2.6v2.6H7.8zM13.6 10.8h2.6v2.6h-2.6z',
+  // Propuestas: el sombrero del padrino y la lápida de su ahijado.
+  sombrero: 'M2 16.6c0-1.2 2.1-2.1 5-2.5l1-6.6c.2-1.4 1.4-2.2 2.7-1.8l1.3.4 1.3-.4c1.3-.4 2.5.4 2.7 1.8l1 6.6c2.9.4 5 1.3 5 2.5 0 1.9-4.5 3.2-10 3.2S2 18.5 2 16.6zM7.7 12.4l-.2 1.5c1.4.3 2.9.4 4.5.4s3.1-.1 4.5-.4l-.2-1.5c-1.3.3-2.7.4-4.3.4s-3-.1-4.3-.4z',
+  tumba: 'M6 20V10a6 6 0 0 1 12 0v10zM3 20h18v2H3zM11 7.5h2v2h2.2v2H13V16h-2v-4.5H8.8v-2H11z',
   calavera: 'M12 2a9 9 0 0 1 9 9c0 3-1.4 4.8-3 6v3.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 20.5V17c-1.6-1.2-3-3-3-6a9 9 0 0 1 9-9zM8.5 9.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM15.5 9.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z',
 };
 // Dibujos de trazo (sin relleno): el latido del desfibrilador.
@@ -116,6 +120,8 @@ export const CATALOGO = [
   { id: 'tinta-fresca', tipo: 'hito', nombre: 'Tinta fresca', glifo: 'plumin', umbrales: [1, 5, 15], que: 'entradas publicadas en tu columna', que1: 'entrada publicada en tu columna' },
   { id: 'lectura-obligada', tipo: 'hito', nombre: 'Lectura obligada', glifo: 'libro', desc: 'Una entrada de su columna la ha leído todo el grupo.', pista: 'Que todo el grupo lea una entrada de tu columna.' },
   { id: 'lazaro', tipo: 'hito', nombre: 'Lázaro', glifo: 'resucitado', desc: 'Volvió de entre los muertos.' },
+  { id: 'buen-padrino', tipo: 'hito', nombre: 'Buen padrino', glifo: 'sombrero', desc: 'Propuso a alguien que entró y aguantó vivo al menos 30 días.' },
+  { id: 'mal-padrino', tipo: 'hito', nombre: 'Mal padrino', glifo: 'tumba', desc: 'Propuso a alguien que acabó en el cementerio.' },
   { id: 'nigromante', tipo: 'hito', nombre: 'Nigromante', glifo: 'latido', desc: 'Reanimó con éxito a alguien del grupo.' },
   { id: 'multiplataforma', tipo: 'hito', nombre: 'Multiplataforma', glifo: 'formas', desc: 'Juega en consola y en PC.', recalcular: true },
 
@@ -366,6 +372,9 @@ export function calcular() {
       lazaro: (datos.estado.vidas ?? []).some((e) => e.usuario_id === u.id && e.tipo === 'reanimacion') ? 1 : 0,
       nigromante: (datos.estado.reanimaciones ?? []).some((r) => r.autor_id === u.id && r.difunto_id !== u.id && r.estado === 'completada') ? 1 : 0,
       'siete-vidas': historia(u.id).muertes >= 3 ? 1 : 0,
+      // Propuestas: cómo les ha ido a los que trajo.
+      'buen-padrino': ahijados(u.id).bueno ? 1 : 0,
+      'mal-padrino': ahijados(u.id).malo ? 1 : 0,
     };
     const m = new Map();
     for (const d of CATALOGO) {

@@ -23,6 +23,7 @@ import { logoColumna } from '../columnas-ui.js';
 import { entrarSeleccion } from '../seleccion.js';
 import { imagenPlataforma } from '../portadas.js';
 import { perfilDe, cabeceraEfectiva, capasCabecera } from '../perfil-personal.js';
+import { padrino } from '../propuestas.js';
 
 const PESTANAS = [
   { id: 'jugando', nombre: 'Jugando' },
@@ -160,6 +161,7 @@ function renderPerfil(el, id, alSalir) {
               ${plat ? `<span class="perfil-plat">${icono(/^PS/.test(plat) ? 'jugando' : 'monitor', { tam: 15, color: 'var(--acento)', trazo: 'var(--fondo)' })}${esc(plat)}</span>` : ''}
               ${meta ? `<span>${esc(meta)}</span>` : ''}
             </div>
+            ${padrino(u.id) ? `<a class="perfil-padrino" href="#perfil/${esc(padrino(u.id).id)}">Entró por propuesta de <strong>${esc(padrino(u.id).nombre)}</strong></a>` : ''}
           </div>
           ${u.activo === false ? `<a class="perfil-difunto" href="#cementerio">${icono(u.exorcizado ? 'sello' : 'lapida', { tam: 18, color: 'currentColor' })}<span>${u.exorcizado ? 'Exorcizado. No volverá.' : 'Descansa en el cementerio'} · <strong>Ver su lápida</strong></span></a>` : ''}
           ${mia.bio ? `<p class="perfil-bio">${esc(mia.bio)}</p>` : esMio && conPerfil ? falta('Añade una biografía', 'bio') : ''}

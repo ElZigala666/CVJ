@@ -314,3 +314,15 @@ body.seleccionando #barra { visibility: visible; }
 @media (min-width: 1200px) {
   .cem-lapidas { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+/* ---------------------------------------------------------------------------
+   Propuestas: en la barra lateral, discreto, junto al cementerio; tarjetas en rejilla
+   --------------------------------------------------------------------------- */
+.barra-propuestas { margin-top: auto; opacity: .62; }
+.barra-propuestas:hover, .barra-propuestas.activa { opacity: 1; }
+.barra-propuestas + .barra-cementerio { margin-top: 0; }
+.propuestas { max-width: 1100px; margin: 0 auto; padding-top: 32px; }
+.aviso-propuesta { margin-left: 0; margin-right: 0; }
+.prop-proponer { max-width: 420px; }
+.prop-lista { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
+.prop-filas { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }

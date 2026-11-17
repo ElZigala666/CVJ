@@ -14,6 +14,7 @@ import { botonFoto } from './foto-perfil.js';
 import { logoColumna, logoCuadrado } from './columnas-ui.js';
 import { llamarAdmin } from './admin-api.js';
 import { historia } from './cementerio.js';
+import { textoPadrino } from './propuestas.js';
 
 const FECHA = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -77,14 +78,15 @@ function mostrarCodigo(nombre, codigo) {
 }
 
 /** Formulario de nombre y color (para añadir o editar). */
-function hojaPersona({ titulo, u = null, boton, alGuardar }) {
+function hojaPersona({ titulo, u = null, nombre: nombreInicial = '', antes = '', boton, alGuardar }) {
   let color = u?.color ?? PALETA[0].hex;
   abrirHoja({
     titulo,
     html: `
       <div class="elegir-juegos">
+        ${antes}
         <label class="campo-titulo" for="grupo-nombre">Nombre</label>
-        <input id="grupo-nombre" class="psn-input" maxlength="30" autocomplete="off" value="${esc(u?.nombre ?? '')}" placeholder="Cómo se llama">
+        <input id="grupo-nombre" class="psn-input" maxlength="30" autocomplete="off" value="${esc(u?.nombre ?? nombreInicial)}" placeholder="Cómo se llama">
         <span class="campo-titulo">Color del avatar</span>
         <div class="paleta" role="radiogroup" aria-label="Color del avatar">
           ${PALETA.map((p) => `<button type="button" role="radio" class="muestra${p.hex.toUpperCase() === color.toUpperCase() ? ' activa' : ''}" data-color="${p.hex}" style="--muestra:${p.hex}" aria-label="${esc(p.nombre)}" aria-checked="${p.hex.toUpperCase() === color.toUpperCase()}"></button>`).join('')}
@@ -123,6 +125,30 @@ function hojaPersona({ titulo, u = null, boton, alGuardar }) {
   });
 }
 
+/**
+ * "Añadir persona": nombre y color, y luego su código (una vez). Desde una propuesta
+ * (Invitar), con el nombre ya puesto y la persona enlazada a ella (queda aceptada).
+ */
+export function anadirPersona({ nombre = '', propuesta = null, alCrear = null } = {}) {
+  const padrino = propuesta ? datos.usuario(propuesta.autor_id) : null;
+  hojaPersona({
+    titulo: propuesta ? `Invitar a ${propuesta.nombre}` : 'Añadir persona',
+    nombre,
+    antes: propuesta ? `<p class="ajustes-nota">Entrará por la propuesta de ${esc(padrino?.nombre ?? 'alguien')}. Pon el nombre como quieras que salga en el grupo.</p>` : '',
+    boton: 'Crear y ver su código',
+    alGuardar: async (n, color) => {
+      const r = await codigoNuevo(n, 'crear', { nombre: n, color, ...(propuesta ? { propuesta_id: propuesta.id } : {}) });
+      if (r.ok) {
+        await datos.refrescar();
+        alCrear?.(r.usuario);
+        if (r.aviso) aviso(r.aviso);
+        return { ok: true, despues: () => mostrarCodigo(n, r.codigo) };
+      }
+      return r;
+    },
+  });
+}
+
 /** Monta la sección en Ajustes (no pinta nada si no soy admin). Devuelve la función para desmontar. */
 export function montarGrupo(cont) {
   const yo = usuarioActual();
@@ -148,7 +174,7 @@ export function montarGrupo(cont) {
                   ${avatar(u, 40)}
                   <span class="grupo-persona-texto">
                     <strong>${esc(u.nombre)}${u.id === yo.id ? ' <small>(tú)</small>' : ''}</strong>
-                    <small>${inactivo ? (u.exorcizado ? 'Exorcizado · ' : 'Expulsado · ') : ''}${u.creado_en ? `Desde el ${esc(FECHA.format(new Date(u.creado_en)))}` : ''}${historia(u.id).muertes > 1 ? ` · Muertes: ${historia(u.id).muertes}` : ''}</small>
+                    <small>${inactivo ? (u.exorcizado ? 'Exorcizado · ' : 'Expulsado · ') : ''}${u.creado_en ? `Desde el ${esc(FECHA.format(new Date(u.creado_en)))}` : ''}${historia(u.id).muertes > 1 ? ` · Muertes: ${historia(u.id).muertes}` : ''}${textoPadrino(u.id) ? ` · ${esc(textoPadrino(u.id))}` : ''}</small>
                   </span>
                   ${icono('desplegable', { tam: 12, color: 'var(--texto-2)', clase: abierto ? 'girar-180' : '' })}
                 </button>
@@ -196,19 +222,7 @@ export function montarGrupo(cont) {
     const abrir = t.closest('[data-abrir]');
     if (abrir) { vista.abierto = vista.abierto === abrir.dataset.abrir ? null : abrir.dataset.abrir; vista.confirmar = null; pintar(); return; }
     if (t.closest('[data-anadir]')) {
-      hojaPersona({
-        titulo: 'Añadir persona',
-        boton: 'Crear y ver su código',
-        alGuardar: async (nombre, color) => {
-          const r = await codigoNuevo(nombre, 'crear', { nombre, color });
-          if (r.ok) {
-            await datos.refrescar();
-            vista.abierto = r.usuario?.id ?? null;
-            return { ok: true, despues: () => mostrarCodigo(nombre, r.codigo) };
-          }
-          return r;
-        },
-      });
+      anadirPersona({ alCrear: (u) => { vista.abierto = u?.id ?? null; } });
       return;
     }
     const cod = t.closest('[data-codigo]');

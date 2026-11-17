@@ -10,6 +10,7 @@ import { esc, avatar, notaConLetra, conservarScroll, aviso } from '../ui.js';
 import { volver } from '../navegacion.js';
 import { abrirHoja } from '../hoja.js';
 import { textoHoras } from '../metricas.js';
+import { padrino } from '../propuestas.js';
 
 export function render(el) {
   document.title = 'CVJ · Cementerio';
@@ -112,6 +113,7 @@ function lapida(u, h, yo) {
         <p class="lapida-aqui">Aquí yace</p>
         <a class="difunto-foto lapida-foto" href="#perfil/${esc(u.id)}" aria-label="Perfil de ${esc(u.nombre)}">${avatar(u, 84)}</a>
         <h2 class="lapida-nombre">${esc(u.nombre)}</h2>
+        ${padrino(u.id) ? `<p class="lapida-padrino">Propuesto por ${esc(cem.nombreAutor(padrino(u.id).id))}</p>` : ''}
         ${vida ? `
           <p class="lapida-fechas"><span title="Entró">* ${esc(cem.fecha(vida.desde))}</span><span class="lapida-guion" aria-hidden="true"></span><span title="Expulsado">† ${esc(cem.fecha(vida.hasta))}</span></p>
           <p class="lapida-duracion">${esc(cem.duracion(vida.desde, vida.hasta))}</p>` : ''}

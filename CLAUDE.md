@@ -16,7 +16,9 @@ español (código, comentarios, commits, interfaz).
   - `xbox`: OpenXBL por gamertag con la clave del grupo (cupo en `openxbl_uso`).
   - `steam`: inicio de sesión oficial (OpenID 2.0) + GetOwnedGames.
   - `admin`: gestionar el grupo (crear persona, código nuevo, editar) y el cementerio
-    (expulsar, exorcizar, levantar, readmitir, vetar, permitir → `admin_vida()`). Comprueba
+    (expulsar, exorcizar, levantar, readmitir, vetar, permitir → `admin_vida()`) y las
+    propuestas (aparcar, reabrir, rechazar → `admin_propuesta()`; `crear` con `propuesta_id`
+    la acepta y enlaza a la persona). Comprueba
     `es_admin` de quien llama. La app la llama con `js/admin-api.js`.
 
 ## Mapa de archivos
@@ -58,20 +60,26 @@ español (código, comentarios, commits, interfaz).
   actividad. El admin firma como "El Dictador" en el cementerio y en los vetos.
   `js/pantallas/cementerio.js` (#cementerio): lápidas (selladas si está exorcizado), velas
   y Reanimar. En escritorio, enlace discreto al pie de la barra lateral.
+- `js/propuestas.js`: propuestas de nuevos miembros (recuento y orden por apoyo, padrino,
+  `ahijados()` para las insignias, acceso "+" de "El grupo", aviso de Inicio de las que no he
+  votado, filas de la actividad). `js/pantallas/propuestas.js` (#propuestas, #propuestas/{id}):
+  proponer, votar (hoja con comentario) y, el admin, Invitar (abre `anadirPersona()` de
+  `js/ajustes-grupo.js` con el nombre puesto), Aparcar o Rechazar (con motivo).
 - `js/social.js`: reacciones y respuestas (tira bajo reseñas y entradas, menú, hilo,
   aviso "Lo nuevo en lo tuyo" y filas de actividad).
 - `js/pantallas/`: `inicio`, `buscar`, `juego`, `perfil` (+ tier list), `rankings`
   (+ comparar), `estadisticas`, `coleccion`, `saga`, `revisar`, `duplicados`, `entrada`
   (login), `escribir` (editor de columna), `lectura` (#entrada/{id}), `columna`,
   `columnas` (todas; en móvil se llega desde Inicio, en escritorio desde la barra lateral),
-  `cementerio` (desde el final de "El grupo" en Inicio).
+  `cementerio` y `propuestas` (desde el final de "El grupo" en Inicio).
 - `prueba-local.html` (solo en este equipo: excluido en `.git/info/exclude`): la app con
   un Supabase simulado en memoria, para probar en local
   (`.claude/launch.json` → `cvj-local`: `herramientas/servidor-local.py`, sin caché,
   puerto 8766; sin service worker; `localStorage['prueba.escenario'] = 'fase3'` trae
   columnas, entradas, reacciones e insignias; el cementerio (difuntos, un exorcizado con
   3 muertes, una reanimación en curso, `window.__cementerio.completar()` = la tarea
-  programada) sale en cualquier escenario menos `vacio`; `window.__fallar = true` simula sin red).
+  programada) y las propuestas (abiertas, una aparcada, Mateo entró por una, una rechazada;
+  `window.__propuestas`) salen en cualquier escenario menos `vacio`; `window.__fallar = true` simula sin red).
 - `herramientas/`: restaurar copia (`RESTAURAR.md`, `restaurar-copia.sh`), pruebas de
   PSN/Xbox/buscador, generar iconos y hash de código.
 - `cvj-diseno/`: diseño original de referencia (no se publica).
@@ -134,6 +142,15 @@ español (código, comentarios, commits, interfaz).
   `cvj-reanimar` cada 5 min: vuelve solo, con su mismo código). Altas nuevas: trigger.
   Salen en la actividad desde `vidas` (no en `actividad`). Si el autor de una columna está
   muerto, se lee como "Legado de {nombre}" y no publica; al volver, es suya otra vez.
+- Propuestas (migración 037): nadie invita; se propone, se vota y decide el admin.
+  `propuestas` (autor, nombre, `de_que`, `motivo` ≤ 300, `plataformas[]`, estado
+  abierta/aparcada/aceptada/rechazada, `motivo_rechazo`, `usuario_id` = quien entró) y
+  `propuestas_votos` (uno por persona: favor/contra + comentario ≤ 140; públicos; se pueden
+  cambiar o quitar mientras no esté decidida). `usuarios.propuesta_id` = por cuál entró
+  (de ahí "Entró por propuesta de…", "Propuesto por…" en la lápida y las insignias Buen
+  padrino / Mal padrino). Solo lectura desde la app: `proponer()` (máx. 2 abiertas por
+  persona; el que propone vota a favor solo; un rechazado no vuelve hasta 30 días),
+  `votar_propuesta()` y `admin_propuesta()`. Salen en la actividad desde `propuestas`.
 - `actividad` (feed: valoro/empezo/completo/abandono/pendiente/rejuega, `lote`,
   `celebrar`), `celebraciones_vistas`, `avisos`, `estado_servicios`, `igdb_token`,
   `openxbl_uso`.

@@ -8,7 +8,8 @@
 // código normalizado, el mismo que comprueba el login).
 //
 // Peticiones (POST, JSON) → { ok: true, ... } o { ok: false, codigo, error }:
-//   { "accion": "crear", "admin_id", "nombre", "color", "codigo_hash" }
+//   { "accion": "crear", "admin_id", "nombre", "color", "codigo_hash", "propuesta_id"? }
+//       con propuesta_id: la persona entra por esa propuesta (queda aceptada y enlazada)
 //   { "accion": "nuevo_codigo", "admin_id", "usuario_id", "codigo_hash" }
 //   { "accion": "editar", "admin_id", "usuario_id", "nombre"?, "color"? }
 //   { "accion": "activo", "admin_id", "usuario_id", "activo": true|false }   (versiones de antes)
@@ -18,6 +19,9 @@
 //   { "accion": "levantar", "admin_id", "usuario_id" }              levantar el exorcismo
 //   { "accion": "readmitir", "admin_id", "usuario_id" }             volver a la vida, sin esperar
 //   { "accion": "vetar" | "permitir", "admin_id", "reanimacion_id" } un intento de reanimación
+// Propuestas de nuevos miembros (admin_propuesta(), migración 037):
+//   { "accion": "aparcar" | "reabrir", "admin_id", "propuesta_id" }
+//   { "accion": "rechazar", "admin_id", "propuesta_id", "motivo"? }   "no pasó el casting"
 // =============================================================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -72,11 +76,26 @@ async function crear(c: Record<string, unknown>) {
   const nombre = limpiarNombre(c.nombre);
   const color = COLOR.test(String(c.color ?? "")) ? String(c.color) : "#6D28D9";
   const hash = String(c.codigo_hash ?? "").toLowerCase();
+  // Si viene de una propuesta, tiene que seguir sin decidir (antes de crear a nadie).
+  const propuesta = c.propuesta_id ? String(c.propuesta_id) : null;
+  if (propuesta) {
+    if (!UUID.test(propuesta)) throw new ErrorAdmin("parametros", "Esa propuesta no existe.", 404);
+    const { data: p } = await sb.from("propuestas").select("estado").eq("id", propuesta).maybeSingle();
+    if (!p) throw new ErrorAdmin("parametros", "Esa propuesta no existe.", 404);
+    if (p.estado !== "abierta" && p.estado !== "aparcada") throw new ErrorAdmin("decidida", "Esa propuesta ya está decidida.");
+  }
   await hashLibre(hash);
   const { data, error } = await sb.from("usuarios")
     .insert({ nombre, inicial: inicialDe(nombre), color, codigo_hash: hash, activo: true })
     .select(CAMPOS).single();
   if (error) throw new ErrorAdmin("bd", "No se ha podido crear: " + error.message, 500);
+  if (propuesta) {
+    const { data: r, error: e2 } = await sb.rpc("admin_propuesta", {
+      p_admin: c.admin_id, p_accion: "aceptar", p_propuesta: propuesta, p_motivo: null, p_usuario: data.id,
+    });
+    // La persona ya está creada: si no se puede enlazar, se dice, pero el código vale.
+    if (e2 || !r?.ok) return { ok: true, usuario: data, aviso: "Creado, pero no se ha podido enlazar con la propuesta." };
+  }
   return { ok: true, usuario: data };
 }
 
@@ -123,6 +142,17 @@ async function vida(accion: string, c: Record<string, unknown>) {
   return { ok: true };
 }
 
+/** Aparcar, reabrir o rechazar una propuesta (admin_propuesta, migración 037). */
+async function propuesta(accion: string, c: Record<string, unknown>) {
+  const id = String(c.propuesta_id ?? "");
+  if (!UUID.test(id)) throw new ErrorAdmin("parametros", "Esa propuesta no existe.", 404);
+  const motivo = typeof c.motivo === "string" ? c.motivo.slice(0, 140) : null;
+  const { data, error } = await sb.rpc("admin_propuesta", { p_admin: c.admin_id, p_accion: accion, p_propuesta: id, p_motivo: motivo, p_usuario: null });
+  if (error) throw new ErrorAdmin("bd", error.message, 500);
+  if (!data?.ok) throw new ErrorAdmin(data?.codigo ?? "parametros", data?.error ?? "No se ha podido hacer.");
+  return { ok: true };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ ok: false, codigo: "parametros", error: "Usa POST" }, 405);
@@ -138,6 +168,8 @@ Deno.serve(async (req) => {
       case "activo": return json(await vida(c.activo === false ? "expulsar" : "readmitir", c));
       case "expulsar": case "exorcizar": case "levantar": case "readmitir": case "vetar": case "permitir":
         return json(await vida(String(c.accion), c));
+      case "aparcar": case "reabrir": case "rechazar":
+        return json(await propuesta(String(c.accion), c));
       default: return json({ ok: false, codigo: "parametros", error: "Acción desconocida" }, 400);
     }
   } catch (e) {

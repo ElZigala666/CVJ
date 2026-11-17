@@ -31,6 +31,7 @@ const RUTAS = {
   columna: () => import('./pantallas/columna.js'),            // #columna/{id}: página de una columna
   columnas: () => import('./pantallas/columnas.js'),          // #columnas: todas las columnas y sus últimas entradas
   cementerio: () => import('./pantallas/cementerio.js'),      // #cementerio: los expulsados, sus lápidas y las reanimaciones
+  propuestas: () => import('./pantallas/propuestas.js'),      // #propuestas(/{id}): proponer, votar y (admin) decidir
 };
 const login = () => import('./pantallas/entrada.js');
 
@@ -62,7 +63,7 @@ const PESTANAS = [
   ['perfil', 'Perfil'],
 ];
 // Rutas que se ven a pantalla completa, sin la barra inferior (la ficha tiene la suya).
-const SIN_BARRA = new Set(['juego', 'revisar', 'duplicados', 'coleccion', 'saga', 'escribir', 'entrada', 'columna', 'columnas', 'cementerio']);
+const SIN_BARRA = new Set(['juego', 'revisar', 'duplicados', 'coleccion', 'saga', 'escribir', 'entrada', 'columna', 'columnas', 'cementerio', 'propuestas']);
 const REFRESCO_MS = 60_000;
 
 let limpiar = null;
@@ -84,7 +85,7 @@ function pintarBarra() {
     const tab = `<a class="barra-tab" href="#${ruta}" data-ruta="${ruta}">${icono(ruta, { tam: 24 })}<span>${texto}</span></a>`;
     // Columnas: solo en la barra lateral de escritorio (en el móvil, desde Inicio).
     return ruta === 'rankings' ? `${tab}<a class="barra-tab barra-solo-escritorio" href="#columnas" data-ruta="columnas">${icono('columnas', { tam: 24 })}<span>Columnas</span></a>` : tab;
-  }).join('') + `<a class="barra-tab barra-solo-escritorio barra-cementerio" href="#cementerio" data-ruta="cementerio">${icono('lapida', { tam: 20 })}<span>Cementerio</span></a>`;
+  }).join('') + `<a class="barra-tab barra-solo-escritorio barra-propuestas" href="#propuestas" data-ruta="propuestas">${icono('urna', { tam: 20 })}<span>Propuestas</span></a><a class="barra-tab barra-solo-escritorio barra-cementerio" href="#cementerio" data-ruta="cementerio">${icono('lapida', { tam: 20 })}<span>Cementerio</span></a>`;
 }
 
 // Buscador de la barra lateral (escritorio): lo que se escribe va al buscador de la app.

@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="es"><head><style>
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts — keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  </style><script>window.__resources = {"./Escena.dc.html":"blob:null/c7e2e987-aa52-4aa9-b7ff-e2bf45e7c7ad","https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js":"blob:null/e974fa83-8d20-4244-b490-a57b95cdb28a","https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js":"blob:null/2e518d69-9ceb-447e-a876-2a0aeeb5e189"};</script>
+<meta charset="utf-8">
+<title>CVJ · Perfil con cabecera nueva</title>
+<script src="blob:null/4d11c554-486f-4a2a-aab1-3ac510bc70c8"></script>
+<style>x-dc{display:none!important}</style><script src="blob:null/e974fa83-8d20-4244-b490-a57b95cdb28a"></script><script src="blob:null/2e518d69-9ceb-447e-a876-2a0aeeb5e189"></script><style data-dc-tpl="1">/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2JL7SUc.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa0ZL7SUc.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2ZL7SUc.woff2) format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7SUc.woff2) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2pL7SUc.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa25L7SUc.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("DATA_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2JL7SUc.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa0ZL7SUc.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2ZL7SUc.woff2) format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7SUc.woff2) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2pL7SUc.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa25L7SUc.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("DATA_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2JL7SUc.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa0ZL7SUc.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2ZL7SUc.woff2) format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7SUc.woff2) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2pL7SUc.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa25L7SUc.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("DATA_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2JL7SUc.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa0ZL7SUc.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2ZL7SUc.woff2) format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7SUc.woff2) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa2pL7SUc.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa25L7SUc.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("DATA_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/spacegrotesk/v22/V8mDoQDjQSkFtoMM3T6r8E7mPb54C-s0.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/spacegrotesk/v22/V8mDoQDjQSkFtoMM3T6r8E7mPb94C-s0.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("DATA_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/spacegrotesk/v22/V8mDoQDjQSkFtoMM3T6r8E7mPb54C-s0.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/spacegrotesk/v22/V8mDoQDjQSkFtoMM3T6r8E7mPb94C-s0.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("DATA_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/spacegrotesk/v22/V8mDoQDjQSkFtoMM3T6r8E7mPb54C-s0.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/spacegrotesk/v22/V8mDoQDjQSkFtoMM3T6r8E7mPb94C-s0.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("DATA_EMBEBIDA") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+</style><style data-dc-tpl="2">body{margin:0}</style><style data-dc-tpl="1">body{margin:0}</style></head>
+<body>
+<div id="dc-root"><div class="sc-host" data-sc-name="832c525a-3b27-4a55-a39c-85f8a3379d66"><div data-dc-tpl="3" style="width: 100%; height: 1180px; position: relative; overflow: hidden; background: radial-gradient(110% 70% at 100% 0%, rgb(74, 36, 112) 0%, rgb(20, 15, 31) 62%) rgb(20, 15, 31); color: rgb(244, 243, 248); font-family: Inter, system-ui, sans-serif; display: flex;">
+
+  
+
+  <main data-dc-tpl="22" style="flex: 1 1 0%; min-width: 0px; position: relative; padding-bottom: 110px;">
+    <div data-dc-tpl="23" style="position: relative; height: 280px; overflow: hidden;">
+      
+        <div data-dc-tpl="25" style="position: absolute; inset: 0px;">
+          <div class="sc-host" data-sc-name="Escena" data-dc-tpl="26"><div data-dc-tpl="2" role="img" aria-label="Arte horizontal del juego favorito" style="position: absolute; inset: 0px; overflow: hidden; background: rgb(42, 28, 48);">
+  <div data-dc-tpl="3" style="position: absolute; inset: 0px; filter: blur(0px); transform: translate(0%, 0%) scale(1); transform-origin: 50% 50%;">
+    
+      <div data-dc-tpl="5" style="position: absolute; inset: 0px; background: linear-gradient(rgb(28, 22, 48) 0%, rgb(78, 51, 88) 38%, rgb(194, 112, 74) 70%, rgb(237, 180, 110) 100%);"></div>
+      <div data-dc-tpl="6" style="position: absolute; left: 58%; top: 44%; width: 16%; aspect-ratio: 1 / 1; border-radius: 50%; background: rgb(255, 227, 166); box-shadow: rgba(255, 196, 120, 0.55) 0px 0px 90px 40px;"></div>
+      <div data-dc-tpl="7" style="position: absolute; inset: 0px; background: rgb(106, 63, 85); clip-path: polygon(0px 70%, 12% 52%, 24% 64%, 38% 44%, 52% 60%, 66% 42%, 80% 58%, 92% 48%, 100% 56%, 100% 100%, 0px 100%);"></div>
+      <div data-dc-tpl="8" style="position: absolute; inset: 0px; background: rgb(58, 35, 56); clip-path: polygon(0px 82%, 18% 66%, 30% 76%, 46% 62%, 60% 78%, 74% 60%, 88% 72%, 100% 66%, 100% 100%, 0px 100%);"></div>
+      
+        <div data-dc-tpl="10" style="position: absolute; left: 70%; top: 54%; width: 14%; height: 16%; background: rgb(26, 18, 32); clip-path: none;"></div>
+      
+        <div data-dc-tpl="10" style="position: absolute; left: 71%; top: 44%; width: 3%; height: 12%; background: rgb(26, 18, 32); clip-path: none;"></div>
+      
+        <div data-dc-tpl="10" style="position: absolute; left: 70.5%; top: 38%; width: 4%; height: 7%; background: rgb(26, 18, 32); clip-path: polygon(50% 0px, 100% 100%, 0px 100%);"></div>
+      
+        <div data-dc-tpl="10" style="position: absolute; left: 78%; top: 40%; width: 3.4%; height: 16%; background: rgb(26, 18, 32); clip-path: none;"></div>
+      
+        <div data-dc-tpl="10" style="position: absolute; left: 77.5%; top: 31%; width: 4.4%; height: 10%; background: rgb(26, 18, 32); clip-path: polygon(50% 0px, 100% 100%, 0px 100%);"></div>
+      
+        <div data-dc-tpl="10" style="position: absolute; left: 82%; top: 50%; width: 2.6%; height: 8%; background: rgb(26, 18, 32); clip-path: none;"></div>
+      
+      <div data-dc-tpl="11" style="position: absolute; inset: 0px; background: rgb(20, 13, 24); clip-path: polygon(0px 92%, 25% 84%, 50% 90%, 75% 82%, 100% 88%, 100% 100%, 0px 100%);"></div>
+    
+    
+  </div></div></div>
+        </div>
+      
+      
+      
+      <div data-dc-tpl="37" style="position: absolute; inset: 0px; background: linear-gradient(rgba(0, 0, 0, 0.28) 0%, rgba(20, 15, 31, 0) 26%, rgba(20, 15, 31, 0) 42%, rgba(20, 15, 31, 0.55) 72%, rgb(20, 15, 31) 100%);"></div>
+      
+        <a data-dc-tpl="39" href="Ficha.dc.html" style="position: absolute; left: 16px; top: 16px; height: 30px; padding: 0px 12px 0px 8px; border-radius: 15px; background: rgba(12, 10, 18, 0.55); backdrop-filter: blur(10px); color: rgb(255, 255, 255); display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; text-decoration: none;">
+          <svg data-dc-tpl="40" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="41" d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="#FFE600"></path></svg>
+          Favorito · Clair Obscur: Expedition 33
+        </a>
+      
+      <a data-dc-tpl="42" href="EditarCabecera.dc.html" aria-label="Cambiar cabecera" style="position: absolute; right: 16px; top: 12px; width: 44px; height: 44px; border-radius: 14px; background: rgba(12, 10, 18, 0.55); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center;">
+        <svg data-dc-tpl="43" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="44" d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zm2 11.5V19h12v-4.2l-3.3-3.3-4.2 4.2-2.3-2.2zM9 6.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" fill="#fff" fill-rule="evenodd"></path></svg>
+      </a>
+    </div>
+
+    <div data-dc-tpl="45" style="display: flex; gap: 56px; padding: 0px 20px; align-items: flex-start; position: relative;">
+      <div data-dc-tpl="46" style="flex: 1 1 0%; min-width: 0px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px; margin-top: -68px;">
+
+        
+          <span data-dc-tpl="48" role="img" aria-label="Foto de perfil" style="width: 112px; height: 112px; flex: 0 0 auto; border-radius: 50%; overflow: hidden; position: relative; background: rgb(64, 53, 90); box-shadow: rgb(20, 15, 31) 0px 0px 0px 5px; display: block;">
+            <span data-dc-tpl="49" style="position: absolute; left: 50%; top: 20%; width: 38%; height: 38%; border-radius: 50%; background: rgb(216, 199, 238); transform: translateX(-50%);"></span>
+            <span data-dc-tpl="50" style="position: absolute; left: 50%; top: 62%; width: 78%; height: 62%; border-radius: 50% 50% 0px 0px; background: rgb(216, 199, 238); transform: translateX(-50%);"></span>
+          </span>
+        
+        
+
+        <div data-dc-tpl="56" style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+          <h1 data-dc-tpl="57" style="margin: 0px; font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 30px; line-height: 1.05; letter-spacing: -0.02em;"><span class="sc-interp">Marcos</span></h1>
+          <div data-dc-tpl="58" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; font-size: 14px; color: rgb(171, 168, 182);">
+            
+              <span data-dc-tpl="60" style="height: 26px; padding: 0px 10px 0px 7px; border-radius: 13px; background: rgba(255, 255, 255, 0.07); color: rgb(244, 243, 248); display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700;">
+                <svg data-dc-tpl="61" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="62" d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6v2h3v2H8v-2h3v-2H5a2 2 0 0 1-2-2z" fill="#ffe600"></path></svg>
+                PC
+              </span>
+              <span data-dc-tpl="63">91 juegos valorados</span>
+            
+            
+          </div>
+        </div>
+
+        
+          <p data-dc-tpl="67" style="margin: 0px; font-size: 15px; line-height: 1.45; max-width: 340px;">RPGs largos, rejugar lo que ya sé que me gusta y opinar más de la cuenta.</p>
+          <div data-dc-tpl="68" style="display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 10px; border-radius: 14px; background: rgba(255, 255, 255, 0.07); backdrop-filter: none; text-align: left;">
+            <span data-dc-tpl="69" style="width: 10px; height: 10px; flex: 0 0 auto; border-radius: 50%; background: rgb(255, 230, 0); box-shadow: rgba(255, 230, 0, 0.25) 0px 0px 0px 4px;"></span>
+            <span data-dc-tpl="70" style="display: flex; flex-direction: column; gap: 1px;">
+              <span data-dc-tpl="71" style="font-size: 11px; font-weight: 700; color: rgb(255, 230, 0); text-transform: uppercase; letter-spacing: 0.06em;">Ahora mismo</span>
+              <span data-dc-tpl="72" style="font-size: 14px; font-weight: 600;">Rejugando Cyberpunk 2077 por 4.ª vez</span>
+            </span>
+          </div>
+        
+        
+
+        <div data-dc-tpl="79" style="display: grid; grid-template-columns: repeat(3, minmax(0px, 1fr)); gap: 8px; width: 100%; text-align: left;">
+          
+            <div data-dc-tpl="81" style="background: rgba(255, 255, 255, 0.07); backdrop-filter: none; border-radius: 16px; padding: 14px 12px; display: flex; flex-direction: column; gap: 4px;">
+              <span data-dc-tpl="82" style="display: flex; align-items: center; gap: 6px;">
+                <span data-dc-tpl="83" style="font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 26px; font-weight: 700; color: rgb(244, 243, 248);"><span class="sc-interp">56</span></span>
+                
+              </span>
+              <span data-dc-tpl="86" style="font-size: 12px; color: rgb(171, 168, 182);"><span class="sc-interp">Completados</span></span>
+            </div>
+          
+            <div data-dc-tpl="81" style="background: rgba(255, 255, 255, 0.07); backdrop-filter: none; border-radius: 16px; padding: 14px 12px; display: flex; flex-direction: column; gap: 4px;">
+              <span data-dc-tpl="82" style="display: flex; align-items: center; gap: 6px;">
+                <span data-dc-tpl="83" style="font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 26px; font-weight: 700; color: rgb(244, 243, 248);"><span class="sc-interp">6.9</span></span>
+                
+                  <span data-dc-tpl="85" style="padding: 1px 6px; border-radius: 6px; background: rgb(136, 124, 27); color: rgb(255, 255, 255); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 12px;"><span class="sc-interp">C</span></span>
+                
+              </span>
+              <span data-dc-tpl="86" style="font-size: 12px; color: rgb(171, 168, 182);"><span class="sc-interp">Nota media</span></span>
+            </div>
+          
+            <div data-dc-tpl="81" style="background: rgba(255, 255, 255, 0.07); backdrop-filter: none; border-radius: 16px; padding: 14px 12px; display: flex; flex-direction: column; gap: 4px;">
+              <span data-dc-tpl="82" style="display: flex; align-items: center; gap: 6px;">
+                <span data-dc-tpl="83" style="font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 26px; font-weight: 700; color: rgb(244, 243, 248);"><span class="sc-interp">4675</span></span>
+                
+              </span>
+              <span data-dc-tpl="86" style="font-size: 12px; color: rgb(171, 168, 182);"><span class="sc-interp">Horas jugadas</span></span>
+            </div>
+          
+        </div>
+
+        
+          <div data-dc-tpl="88" style="width: 100%; display: flex; flex-direction: column; gap: 10px; text-align: left; margin-top: 6px;">
+            <h2 data-dc-tpl="89" style="margin: 0px; font-family: &quot;Space Grotesk&quot;, sans-serif; font-size: 18px;">Mi top 3</h2>
+            <div data-dc-tpl="90" style="display: grid; grid-template-columns: repeat(3, minmax(0px, 1fr)); gap: 8px;">
+              
+                <div data-dc-tpl="92" style="aspect-ratio: 3 / 4; border-radius: 12px; background: rgb(63, 74, 58); position: relative; overflow: hidden;">
+                  <span data-dc-tpl="93" style="position: absolute; left: 8px; right: 8px; top: 9px; color: rgb(255, 255, 255); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 11px; line-height: 1.1; text-transform: uppercase;"><span class="sc-interp">The Legend of Zelda: Twilight Princess</span></span>
+                  <span data-dc-tpl="94" style="position: absolute; left: 7px; bottom: 7px; width: 24px; height: 24px; border-radius: 7px; background: rgb(255, 230, 0); color: rgb(20, 18, 24); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center;"><span class="sc-interp">1</span></span>
+                </div>
+              
+                <div data-dc-tpl="92" style="aspect-ratio: 3 / 4; border-radius: 12px; background: rgb(184, 168, 0); position: relative; overflow: hidden;">
+                  <span data-dc-tpl="93" style="position: absolute; left: 8px; right: 8px; top: 9px; color: rgb(255, 255, 255); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 11px; line-height: 1.1; text-transform: uppercase;"><span class="sc-interp">Cyberpunk 2077</span></span>
+                  <span data-dc-tpl="94" style="position: absolute; left: 7px; bottom: 7px; width: 24px; height: 24px; border-radius: 7px; background: rgb(255, 230, 0); color: rgb(20, 18, 24); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center;"><span class="sc-interp">2</span></span>
+                </div>
+              
+                <div data-dc-tpl="92" style="aspect-ratio: 3 / 4; border-radius: 12px; background: rgb(17, 17, 17); position: relative; overflow: hidden;">
+                  <span data-dc-tpl="93" style="position: absolute; left: 8px; right: 8px; top: 9px; color: rgb(255, 255, 255); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 11px; line-height: 1.1; text-transform: uppercase;"><span class="sc-interp">Undertale</span></span>
+                  <span data-dc-tpl="94" style="position: absolute; left: 7px; bottom: 7px; width: 24px; height: 24px; border-radius: 7px; background: rgb(255, 230, 0); color: rgb(20, 18, 24); font-family: &quot;Space Grotesk&quot;, sans-serif; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center;"><span class="sc-interp">3</span></span>
+                </div>
+              
+            </div>
+          </div>
+        
+        
+      </div>
+
+      
+    </div>
+
+    
+      <nav data-dc-tpl="114" style="position: absolute; left: 0px; right: 0px; bottom: 0px; height: 84px; box-sizing: border-box; padding: 6px 8px 18px; background: rgba(12, 10, 18, 0.8); backdrop-filter: blur(14px); border-top: 1px solid rgba(255, 255, 255, 0.1); display: flex; align-items: center; justify-content: space-around;">
+        
+          
+          
+            <a data-dc-tpl="121" href="Inicio.dc.html" style="width: 64px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; color: rgb(171, 168, 182); font-size: 11px; font-weight: 600;">
+              <svg data-dc-tpl="122" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="123" d="M12 2.5 21 10v11a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V10z" fill="#ABA8B6" fill-rule="evenodd"></path></svg>
+              <span data-dc-tpl="124"><span class="sc-interp">Inicio</span></span>
+            </a>
+          
+        
+          
+          
+            <a data-dc-tpl="121" href="Buscar.dc.html" style="width: 64px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; color: rgb(171, 168, 182); font-size: 11px; font-weight: 600;">
+              <svg data-dc-tpl="122" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="123" d="M10.5 2a8.5 8.5 0 0 1 6.72 13.7l4.54 4.54-2.12 2.12-4.54-4.54A8.5 8.5 0 1 1 10.5 2zm0 3.2a5.3 5.3 0 1 0 0 10.6 5.3 5.3 0 0 0 0-10.6z" fill="#ABA8B6" fill-rule="evenodd"></path></svg>
+              <span data-dc-tpl="124"><span class="sc-interp">Buscar</span></span>
+            </a>
+          
+        
+          
+            <a data-dc-tpl="117" href="Valorar.dc.html" aria-label="Valorar un juego" style="width: 56px; height: 56px; border-radius: 18px; background: rgb(255, 230, 0); display: flex; align-items: center; justify-content: center; margin-top: -16px; text-decoration: none;">
+              <svg data-dc-tpl="118" width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="119" d="M12 5v14M5 12h14" stroke="#141218" stroke-width="2.6" stroke-linecap="round" fill="none"></path></svg>
+            </a>
+          
+          
+        
+          
+          
+            <a data-dc-tpl="121" href="Rankings.dc.html" style="width: 64px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; color: rgb(171, 168, 182); font-size: 11px; font-weight: 600;">
+              <svg data-dc-tpl="122" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="123" d="M3 12.5a1 1 0 0 1 1-1h4V22H4a1 1 0 0 1-1-1zM9.5 4a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v18h-5zM16 8.5h4a1 1 0 0 1 1 1V21a1 1 0 0 1-1 1h-4z" fill="#ABA8B6" fill-rule="evenodd"></path></svg>
+              <span data-dc-tpl="124"><span class="sc-interp">Rankings</span></span>
+            </a>
+          
+        
+          
+          
+            <a data-dc-tpl="121" href="PerfilV2.dc.html" style="width: 64px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; color: rgb(255, 230, 0); font-size: 11px; font-weight: 600;">
+              <svg data-dc-tpl="122" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path data-dc-tpl="123" d="M12 2.5a5 5 0 1 1 0 10 5 5 0 0 1 0-10zM3 21c0-4.4 4-7 9-7s9 2.6 9 7v1H3z" fill="#ffe600" fill-rule="evenodd"></path></svg>
+              <span data-dc-tpl="124"><span class="sc-interp">Perfil</span></span>
+            </a>
+          
+        
+      </nav>
+    
+  </main></div></div></div>
+<script type="text/x-dc" data-dc-script="" data-props="{&quot;cabecera&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;juego&quot;,&quot;imagen&quot;,&quot;degradado&quot;,&quot;patron&quot;],&quot;default&quot;:&quot;juego&quot;},&quot;lleno&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true},&quot;escritorio&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false},&quot;fondo&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;aurora&quot;,&quot;medianoche&quot;,&quot;bosque&quot;,&quot;carbon&quot;,&quot;acento&quot;,&quot;blanco&quot;,&quot;niebla&quot;,&quot;papel&quot;],&quot;default&quot;:&quot;aurora&quot;},&quot;acento&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#FFE600&quot;,&quot;options&quot;:[&quot;#FFE600&quot;,&quot;#7C3AED&quot;,&quot;#2563EB&quot;,&quot;#E11D48&quot;]},&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:1180}}">
+class Component extends DCLogic {
+  hx(h){h=String(h||'#000').replace('#','');if(h.length===3){h=h.split('').map(function(x){return x+x;}).join('');}return [0,2,4].map(function(i){return parseInt(h.substr(i,2),16)||0;});}
+  mix(a,b,t){var A=this.hx(a),B=this.hx(b);return '#'+A.map(function(v,i){return Math.round(v+(B[i]-v)*t).toString(16).padStart(2,'0');}).join('');}
+  rgba(h,a){var c=this.hx(h);return 'rgba('+c[0]+','+c[1]+','+c[2]+','+a+')';}
+  lum(h){var c=this.hx(h).map(function(v){v/=255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4);});return 0.2126*c[0]+0.7152*c[1]+0.0722*c[2];}
+  cr(a,b){var x=Math.max(a,b),y=Math.min(a,b);return (x+0.05)/(y+0.05);}
+  hsl(h){var c=this.hx(h).map(function(v){return v/255;});var r=c[0],g=c[1],b=c[2];var mx=Math.max(r,g,b),mn=Math.min(r,g,b);var l=(mx+mn)/2,s=0,hh=0,d=mx-mn;if(d){s=l>0.5?d/(2-mx-mn):d/(mx+mn);hh=mx===r?((g-b)/d+(g<b?6:0)):mx===g?((b-r)/d+2):((r-g)/d+4);hh*=60;}return [hh,s,l];}
+  fromHsl(h,s,l){h=((h%360)+360)%360;var k=function(n){return (n+h/30)%12;};var a=s*Math.min(l,1-l);var f=function(n){return l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1)));};return '#'+[f(0),f(8),f(4)].map(function(x){return Math.round(x*255).toString(16).padStart(2,'0');}).join('');}
+  rot(h,d,l){var x=this.hsl(h);return this.fromHsl(x[0]+d,Math.max(x[1],0.45),l==null?x[2]:l);}
+  fondos(acc){return {
+    blanco:{dark:false,base:'#FFFFFF',css:'#FFFFFF'},
+    niebla:{dark:false,base:'#F1F0F6',css:'radial-gradient(120% 70% at 100% 0%, #E2DDF3 0%, #F1F0F6 60%)'},
+    papel:{dark:false,base:'#F7F3EB',css:'radial-gradient(120% 70% at 0% 0%, #EFE4CF 0%, #F7F3EB 60%)'},
+    medianoche:{dark:true,base:'#0D1020',css:'radial-gradient(120% 70% at 0% 0%, #1E2A5C 0%, #0D1020 60%)'},
+    aurora:{dark:true,base:'#140F1F',css:'radial-gradient(110% 70% at 100% 0%, #4A2470 0%, #140F1F 62%)'},
+    bosque:{dark:true,base:'#0C1613',css:'radial-gradient(120% 70% at 0% 100%, #174332 0%, #0C1613 62%)'},
+    carbon:{dark:true,base:'#121214',css:'#121214'},
+    acento:{dark:true,base:'#121016',css:'radial-gradient(110% 70% at 100% 0%, '+this.mix(acc,'#121016',0.5)+' 0%, #121016 62%)'}
+  };}
+  theme(fondo,acc){var F=this.fondos(acc)[fondo]||this.fondos(acc).aurora;var d=F.dark;var self=this;
+    var t=d?{tx:'#F4F3F8',mu:'#ABA8B6',ln:'rgba(255,255,255,.10)',ln2:'rgba(255,255,255,.22)',sf:'rgba(255,255,255,.07)',navBg:'rgba(12,10,18,.8)'}:{tx:'#16141B',mu:'#5F5C68',ln:'rgba(22,20,27,.10)',ln2:'rgba(22,20,27,.22)',sf:'rgba(22,20,27,.05)',navBg:'rgba(255,255,255,.85)'};
+    t.css=F.css;t.base=F.base;t.dark=d;t.sfb='none';t.ac=acc;t.on=this.lum(acc)>0.4?'#141218':'#FFFFFF';t.acs=this.rgba(acc,0.25);
+    var ref=this.lum(F.base);var act=acc;for(var i=0;i<=8;i++){var cand=this.mix(acc,d?'#FFFFFF':'#000000',i/10);if(this.cr(this.lum(cand),ref)>=4.5){act=cand;break;}}t.act=act;
+    var r=[0,0.25,0.42,0.56,0.68,0.78,0.86];t.tiers={};['S','A','B','C','D','E','F'].forEach(function(l,i){var bg=self.mix(acc,d?'#2A2830':'#FFFFFF',r[i]);t.tiers[l]={bg:bg,fg:self.lum(bg)>0.4?'#141218':'#FFFFFF'};});
+    return t;}
+  renderVals() {
+    var acc=this.props.acento||'#FFE600';var t=this.theme(this.props.fondo||'aurora',acc);var self=this;
+    var desk=!!this.props.escritorio;var lleno=this.props.lleno!==false;var cab=this.props.cabecera||'juego';
+    var L=desk?{desk:true,mob:false,rootH:'900px',hh:'340px',pad:'48px',leftFlex:'0 0 380px',ai:'flex-start',ta:'left',avOff:'-76px',av:'136px',nameSize:'36px',padB:'40px',creditX:'48px'}
+              :{desk:false,mob:true,rootH:'1180px',hh:'280px',pad:'20px',leftFlex:'1',ai:'center',ta:'center',avOff:'-68px',av:'112px',nameSize:'30px',padB:'110px',creditX:'16px'};
+    var base=t.base;
+    var fade='linear-gradient(180deg, rgba(0,0,0,.28) 0%, '+this.rgba(base,0)+' 26%, '+this.rgba(base,0)+' 42%, '+this.rgba(base,0.55)+' 72%, '+base+' 100%)';
+    var H={escena:cab==='juego'||cab==='imagen',grad:cab==='degradado',pat:cab==='patron',credit:cab==='juego',fade:fade,
+      tipo:cab==='imagen'?'foto':'juego',zoom:cab==='imagen'?1.25:1,px:cab==='imagen'?-6:0,py:cab==='imagen'?4:0};
+    if(cab==='degradado'){H.css='repeating-linear-gradient(135deg, rgba(255,255,255,.05) 0 1px, transparent 1px 10px), radial-gradient(70% 120% at 8% 0%, '+this.rgba(acc,0.9)+' 0%, transparent 60%), radial-gradient(60% 110% at 92% 6%, '+this.rgba(this.rot(acc,45),0.75)+' 0%, transparent 62%), radial-gradient(90% 120% at 55% 100%, '+this.rgba(this.rot(acc,-55),0.6)+' 0%, transparent 66%), '+this.rot(acc,0,t.dark?0.22:0.78);}
+    if(cab==='patron'){H.css='radial-gradient(80% 120% at 85% 0%, '+this.rgba(acc,0.55)+' 0%, transparent 65%), '+this.rot(acc,-20,t.dark?0.16:0.86);H.p1=this.rgba(acc,0.22);H.p2=this.rgba(this.rot(acc,40),0.35);}
+    var nombre=lleno?'Marcos':'Iván';
+    var stats=lleno?[{v:'56',k:'Completados',col:t.tx,hasL:false},{v:'6.9',k:'Nota media',col:t.tx,hasL:true,l:'C',tb:t.tiers.C.bg,tf:t.tiers.C.fg},{v:'4675',k:'Horas jugadas',col:t.tx,hasL:false}]
+                   :[{v:'0',k:'Completados',col:t.tx,hasL:false},{v:'—',k:'Nota media',col:t.mu,hasL:false},{v:'—',k:'Horas · sin plataforma',col:t.mu,hasL:false}];
+    var top=[{t:'The Legend of Zelda: Twilight Princess',c:'#3F4A3A',n:'1'},{t:'Cyberpunk 2077',c:'#B8A800',n:'2'},{t:'Undertale',c:'#111111',n:'3'}];
+    var I={inicio:'M12 2.5 21 10v11a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V10z',buscar:'M10.5 2a8.5 8.5 0 0 1 6.72 13.7l4.54 4.54-2.12 2.12-4.54-4.54A8.5 8.5 0 1 1 10.5 2zm0 3.2a5.3 5.3 0 1 0 0 10.6 5.3 5.3 0 0 0 0-10.6z',rankings:'M3 12.5a1 1 0 0 1 1-1h4V22H4a1 1 0 0 1-1-1zM9.5 4a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v18h-5zM16 8.5h4a1 1 0 0 1 1 1V21a1 1 0 0 1-1 1h-4z',columnas:'M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm2 4v2h5V7zm0 4v2h5v-2zm0 4v2h5v-2zm7-8v10h5V7z',perfil:'M12 2.5a5 5 0 1 1 0 10 5 5 0 0 1 0-10zM3 21c0-4.4 4-7 9-7s9 2.6 9 7v1H3z'};
+    var nav=[['inicio','Inicio','Inicio.dc.html'],['buscar','Buscar','Buscar.dc.html'],['fab'],['rankings','Rankings','Rankings.dc.html'],['perfil','Perfil','PerfilV2.dc.html']].map(function(x){if(x[0]==='fab'){return {fab:true,tab:false};}return {fab:false,tab:true,label:x[1],href:x[2],d:I[x[0]],col:x[0]==='perfil'?t.act:t.mu};});
+    var side=[['inicio','Inicio','Inicio.dc.html'],['buscar','Buscar','Buscar.dc.html'],['rankings','Rankings','Rankings.dc.html'],['columnas','Columnas','#'],['perfil','Perfil','PerfilV2.dc.html']].map(function(x){var on=x[0]==='perfil';return {label:x[1],href:x[2],d:I[x[0]],bg:on?t.acs:'transparent',fg:on?t.act:t.tx};});
+    var tabs=[['Jugando 0',0],['Completados 56',1],['Abandonados 11',0],['Pendientes 3',0]].map(function(x){return {l:x[0],bg:x[1]?t.ac:t.sf,fg:x[1]?t.on:t.tx};});
+    var hist=[['Persona 5 Royal','#B3202E','9.5','S','192 h'],['Cyberpunk 2077','#B8A800','9.5','S','151 h'],['Zelda: Breath of the Wild','#3C6E8C','9.5','S','≈38 h'],['Zelda: Twilight Princess','#3F4A3A','9.5','S','≈30 h'],['Persona 3 Reload','#1E4FA8','9.5','S','130 h'],['Undertale','#111111','9.5','S','≈13 h'],['Resident Evil 7','#8A7A5C','8.5','A','12 h'],['Elden Ring','#3B3326','8.5','A','95 h'],['Celeste','#4A3A7A','8.5','A','≈14 h'],['Hi-Fi Rush','#2F6AA8','8.5','A','10 h']].map(function(x){return {t:x[0],c:x[1],n:x[2],l:x[3],h:x[4]};});
+    return {t:t,L:L,H:H,lleno:lleno,vacio:!lleno,nombre:nombre,stats:stats,top:top,nav:nav,side:side,tabs:tabs,hist:hist,
+      faltan:['Añade una biografía','¿A qué estás jugando ahora?','Elige tu plataforma principal']};
+  }
+}
+</script>
+
+
+</body></html>

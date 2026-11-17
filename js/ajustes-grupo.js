@@ -211,7 +211,8 @@ export function montarGrupo(cont) {
                 <button type="button" class="enlace-discreto" data-mostrar-saga="${esc(sg.id)}">Volver a mostrar</button>
               </div>`).join('')}
           </details>` : ''}
-      </section>`;
+      </section>
+      ${bloqueEventos()}`;
     const nueva = escrito && cont.querySelector('[data-causa]');
     if (nueva) { nueva.value = escrito.valor; if (escrito.foco) nueva.focus(); }
   };
@@ -381,4 +382,22 @@ function hojaColumna(u) {
       pintar();
     },
   });
+}
+
+/** Eventos destacados (solo admin): la lista y "Nuevo evento" (el editor es una pantalla). */
+function bloqueEventos() {
+  const lista = [...datos.eventos()].sort((a, b) => new Date(b.inicio) - new Date(a.inicio));
+  const ahora = Date.now();
+  const estado = (e) => (ahora < new Date(e.inicio).getTime() ? 'Programado' : ahora >= new Date(e.fin).getTime() ? 'Terminado' : 'Activo');
+  return `
+    <section class="ajustes-bloque">
+      <span class="campo-titulo">Eventos</span>
+      ${lista.length ? `<div class="grupo-lista">${lista.map((e) => `
+        <a class="grupo-persona grupo-evento" href="#evento/${esc(e.id)}/editar">
+          <span class="grupo-evento-color" style="background:${esc(e.color || '#6D28D9')}"></span>
+          <span class="grupo-persona-texto"><strong>${esc(e.titulo)}</strong><small>${estado(e)}${datos.categoriasDe(e.id).length ? ` · ${datos.categoriasDe(e.id).length} categorías` : ''}</small></span>
+          ${icono('adelante', { tam: 16, color: 'var(--texto-2)' })}
+        </a>`).join('')}</div>` : '<p class="ajustes-nota">Galas y presentaciones (The Game Awards, Summer Game Fest, Directs...): salen arriba en Inicio con cuenta atrás.</p>'}
+      <a class="boton-secundario con-icono" href="#evento/nuevo">${icono('mas', { tam: 18, color: 'currentColor' })}<span>Nuevo evento</span></a>
+    </section>`;
 }

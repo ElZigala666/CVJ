@@ -93,6 +93,12 @@ const TABLAS = [
   { k: 'propuestasVotos', t: 'propuestas_votos', orden: ['propuesta_id', 'usuario_id'] },
   // Apelaciones de los expulsados (migración 038): lo público; el texto, solo el admin.
   { k: 'apelaciones', t: 'apelaciones', orden: ['creado_en', 'id'] },
+  // Eventos destacados (migración 039): galas, sus categorías, nominados y lo que elige cada uno.
+  { k: 'eventos', t: 'eventos', orden: ['inicio', 'id'] },
+  { k: 'eventosCategorias', t: 'eventos_categorias', orden: ['evento_id', 'orden', 'id'] },
+  { k: 'eventosNominados', t: 'eventos_nominados', orden: ['categoria_id', 'orden', 'id'] },
+  { k: 'eventosElecciones', t: 'eventos_elecciones', orden: ['categoria_id', 'usuario_id', 'tipo'] },
+  { k: 'eventosVotado', t: 'eventos_votado', orden: ['evento_id', 'usuario_id'] },
   { k: 'horasAjustes', t: 'horas_ajustes', orden: ['usuario_id', 'juego_id'] },
   { k: 'horasEstimadas', t: 'horas_estimadas', orden: ['usuario_id', 'juego_id'] },
   // Celebraciones de "completado" que ya he visto (solo las mías).
@@ -1063,6 +1069,96 @@ export async function apelar(hash, texto) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Eventos destacados (migración 039). La lógica (activos, porra, veredicto...) está en
+// js/eventos.js; aquí, leer y escribir.
+// ---------------------------------------------------------------------------
+export const eventos = () => estado.eventos ?? [];
+export const evento = (id) => eventos().find((e) => e.id === id) ?? null;
+export const categoriasDe = (eventoId) => (estado.eventosCategorias ?? []).filter((c) => c.evento_id === eventoId).sort((a, b) => a.orden - b.orden);
+export const categoriaEvento = (id) => (estado.eventosCategorias ?? []).find((c) => c.id === id) ?? null;
+export const nominadosDe = (categoriaId) => (estado.eventosNominados ?? []).filter((n) => n.categoria_id === categoriaId).sort((a, b) => a.orden - b.orden);
+export const nominado = (id) => (estado.eventosNominados ?? []).find((n) => n.id === id) ?? null;
+export const nominacionesDeJuego = (igdbId) => (estado.eventosNominados ?? []).filter((n) => n.juego_id != null && Number(n.juego_id) === Number(igdbId));
+export const eleccionesDe = (categoriaId) => (estado.eventosElecciones ?? []).filter((x) => x.categoria_id === categoriaId);
+export const votadoEn = (eventoId) => (estado.eventosVotado ?? []).filter((x) => x.evento_id === eventoId);
+
+/** Mi voto o mi pronóstico en una categoría (nominadoId null = quitarlo). */
+export function elegirEnEvento(usuarioId, categoriaId, tipo, nominadoId, onError) {
+  const clave = (x) => x.categoria_id === categoriaId && x.usuario_id === usuarioId && x.tipo === tipo;
+  const fila = { categoria_id: categoriaId, usuario_id: usuarioId, tipo, nominado_id: nominadoId, actualizado_en: new Date().toISOString() };
+  return escribirOptimista(
+    (s) => { s.eventosElecciones = (s.eventosElecciones ?? []).filter((x) => !clave(x)).concat(nominadoId ? [fila] : []); },
+    async (sb) => {
+      if (nominadoId) comprobar(await sb.from('eventos_elecciones').upsert(fila, { onConflict: 'categoria_id,usuario_id,tipo' }));
+      else comprobar(await sb.from('eventos_elecciones').delete().match({ categoria_id: categoriaId, usuario_id: usuarioId, tipo }));
+    },
+    onError,
+    'No se ha podido guardar (¿ha empezado ya la gala?). Se ha deshecho el cambio.',
+  );
+}
+
+/** "Ya he votado en la oficial". */
+export function marcarVotadoEvento(eventoId, usuarioId, votado, onError) {
+  const fila = { evento_id: eventoId, usuario_id: usuarioId, votado_en: new Date().toISOString() };
+  return escribirOptimista(
+    (s) => { s.eventosVotado = (s.eventosVotado ?? []).filter((x) => !(x.evento_id === eventoId && x.usuario_id === usuarioId)).concat(votado ? [fila] : []); },
+    async (sb) => {
+      if (votado) comprobar(await sb.from('eventos_votado').upsert(fila, { onConflict: 'evento_id,usuario_id' }));
+      else comprobar(await sb.from('eventos_votado').delete().match({ evento_id: eventoId, usuario_id: usuarioId }));
+    },
+    onError,
+  );
+}
+
+// Lo del admin. Tablas: eventos, eventos_categorias, eventos_nominados.
+const TABLA_EVENTOS = { eventos: 'eventos', eventosCategorias: 'eventos_categorias', eventosNominados: 'eventos_nominados' };
+/** Cambiar una fila (optimista): clave = 'eventos' | 'eventosCategorias' | 'eventosNominados'. */
+export function editarEvento(clave, id, cambios, onError) {
+  return escribirOptimista(
+    (s) => { s[clave] = (s[clave] ?? []).map((x) => (x.id === id ? { ...x, ...cambios } : x)); },
+    async (sb) => { comprobar(await sb.from(TABLA_EVENTOS[clave]).update(cambios).eq('id', id)); },
+    onError,
+  );
+}
+/** Varias categorías a la vez (incluir o quitar en bloque). */
+export function editarCategorias(cambiosPorId, onError) {
+  return escribirOptimista(
+    (s) => { s.eventosCategorias = (s.eventosCategorias ?? []).map((c) => (cambiosPorId.has(c.id) ? { ...c, ...cambiosPorId.get(c.id) } : c)); },
+    async (sb) => {
+      const r = await Promise.all([...cambiosPorId].map(([id, cambios]) => sb.from('eventos_categorias').update(cambios).eq('id', id)));
+      r.forEach(comprobar);
+    },
+    onError,
+  );
+}
+/** Crear una fila (espera al servidor y refresca). → la fila o null. */
+export async function crearEnEvento(clave, fila, onError) {
+  try {
+    const sb = await cliente();
+    const r = comprobar(await sb.from(TABLA_EVENTOS[clave]).insert(fila).select().single());
+    await refrescar();
+    return r.data;
+  } catch (e) {
+    console.warn('[datos] Evento sin crear:', e?.message || e);
+    onError?.('No se ha podido crear.');
+    return null;
+  }
+}
+/** Borrar una fila (espera al servidor y refresca). */
+export async function borrarEnEvento(clave, id, onError) {
+  try {
+    const sb = await cliente();
+    comprobar(await sb.from(TABLA_EVENTOS[clave]).delete().eq('id', id));
+    await refrescar();
+    return true;
+  } catch (e) {
+    console.warn('[datos] Evento sin borrar:', e?.message || e);
+    onError?.('No se ha podido borrar.');
+    return false;
+  }
+}
+
 export async function subirImagenColumna(ruta, blob) {
   const sb = await cliente();
   const r = await sb.storage.from('columnas').upload(ruta, blob, { contentType: blob.type, cacheControl: '31536000', upsert: false });
@@ -1175,6 +1271,8 @@ async function escribirOptimista(aplicar, guardar, onError, mensajeError = 'No s
     celebracionesVistas: estado.celebracionesVistas,
     reacciones: estado.reacciones, comentarios: estado.comentarios,
     insignias: estado.insignias, insigniasGrupo: estado.insigniasGrupo,
+    eventos: estado.eventos, eventosCategorias: estado.eventosCategorias, eventosNominados: estado.eventosNominados,
+    eventosElecciones: estado.eventosElecciones, eventosVotado: estado.eventosVotado,
   };
   escriturasEnCurso++;
   aplicar(estado);

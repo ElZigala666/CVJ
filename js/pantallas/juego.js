@@ -1,4 +1,5 @@
 // Pantallas 04 / 11 · Ficha de juego.
+import { etiquetasJuego } from '../eventos.js';
 import { icono } from '../icons.js';
 import { fichaJuego } from '../igdb.js';
 import * as datos from '../datos.js';
@@ -113,6 +114,7 @@ export function render(el, { params }) {
       ${meta ? `<span class="ficha-meta">${esc(meta)}</span>` : (pidiendo ? '<div class="sk sk-linea" style="width:55%;height:14px"></div>' : '')}
       ${textoTiempo() ? `<span class="ficha-meta ficha-tiempo">${esc(textoTiempo())}</span>` : ''}
       ${j.plataformas?.length ? `<div class="ficha-chips">${j.plataformas.map((p) => `<span class="ficha-chip">${esc(p)}</span>`).join('')}</div>` : ''}
+      ${etiquetasJuego(id)}
       ${'es_online' in j && datos.juego(id) && !esAdmin() && j.es_online ? `
         <div class="ficha-online"><span class="etiqueta-gris">Sin final (online, competitivo...)</span></div>` : ''}
       ${'es_online' in j && datos.juego(id) && esAdmin() ? `

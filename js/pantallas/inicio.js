@@ -12,6 +12,7 @@ import * as insignias from '../insignias.js';
 import * as cementerio from '../cementerio.js';
 import * as propuestas from '../propuestas.js';
 import * as apelaciones from '../apelaciones.js';
+import * as eventos from '../eventos.js';
 import { usuarioActual } from '../sesion.js';
 import { mediaGrupo, recomendacionGrupo, desviacionTipica } from '../notas.js';
 import { abrirHoja } from '../hoja.js';
@@ -62,6 +63,8 @@ export function render(el) {
     conservarScroll(el, () => { el.innerHTML = html(); });
     // "¡Completado!" de los demás: una vez, al entrar (aunque sea días después).
     import('../celebracion.js').then((m) => { if (el.isConnected) m.revisarCelebraciones(); });
+    // Quién gana la porra de un evento: una vez, al haber resultados.
+    if (datos.datosFrescos()) eventos.celebrarPorra();
   };
   el.addEventListener('click', (e) => {
     const b = e.target.closest('[data-pestana]');
@@ -86,6 +89,7 @@ export function render(el) {
     const lote = e.target.closest('[data-lote]');
     if (lote && !e.target.closest('[data-perfil]')) { e.preventDefault(); abrirLote(lote.dataset.lote); return; }
     if (cementerio.clicAviso(e)) return;
+    if (eventos.clicBanner(e, pintar)) return;
     if (apelaciones.clicApelaciones(e)) return;
     const leido = e.target.closest('[data-aviso-leido]');
     if (leido) datos.marcarAvisoLeido(leido.dataset.avisoLeido, aviso);
@@ -97,6 +101,7 @@ export function render(el) {
     const ahora = new Date();
     for (const t of el.querySelectorAll('[data-fecha]')) t.textContent = tiempoRelativo(t.dataset.fecha, ahora);
     cementerio.actualizarCuentas(el, ahora.getTime());
+    eventos.actualizarCuentas(el, ahora.getTime());
   }, 60_000);
   // Tirar hacia abajo para refrescar (la app instalada no tiene el del navegador).
   const quitarGesto = tirarParaRefrescar(() => datos.refrescar());
@@ -114,6 +119,7 @@ function html() {
   if (!hayAlgo) {
     return `
       ${cabecera(yo)}
+      ${eventos.bannerInicio()}
       ${elGrupo()}
       ${apelaciones.avisosInicio()}
     ${cementerio.avisosInicio()}
@@ -129,6 +135,7 @@ function html() {
   }
   return `
     ${cabecera(yo)}
+    ${eventos.bannerInicio()}
     ${elGrupo()}
     ${apelaciones.avisosInicio()}
     ${cementerio.avisosInicio()}
@@ -449,6 +456,8 @@ function actividad() {
     .concat(propuestas.eventosActividad().map((ev) => ({ propuesta: ev, creado_en: ev.fecha })))
     // Apelaciones de los expulsados (sin el texto, que es privado) y sus rechazos.
     .concat(apelaciones.eventosActividad().map((ev) => ({ apelacion: ev, creado_en: ev.fecha })))
+    // Eventos: quién gana la porra.
+    .concat(eventos.eventosActividad().map((ev) => ({ porra: ev, creado_en: ev.fecha })))
     .sort((a, b) => new Date(b.a?.creado_en ?? b.creado_en) - new Date(a.a?.creado_en ?? a.creado_en))
     .slice(0, MAX_ACTIVIDAD);
 
@@ -471,8 +480,9 @@ function actividad() {
     return social.tira(tipo, v.id, { visibles: 1 });
   };
   const contenido = filas.length
-    ? filas.map(({ a, u, j, columna: ce, lote, social: ev, insignia: ins, vida, propuesta, apelacion }) => {
+    ? filas.map(({ a, u, j, columna: ce, lote, social: ev, insignia: ins, vida, propuesta, apelacion, porra }) => {
       if (vida) return cementerio.filaActividad(vida, ahora);
+      if (porra) return eventos.filaActividad(porra, ahora);
       if (apelacion) return apelaciones.filaActividad(apelacion, ahora);
       if (propuesta) return propuestas.filaActividad(propuesta, ahora);
       if (ins) return insignias.filaActividad(ins, yo?.id, ahora);

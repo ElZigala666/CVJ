@@ -32,6 +32,7 @@ const RUTAS = {
   columnas: () => import('./pantallas/columnas.js'),          // #columnas: todas las columnas y sus últimas entradas
   cementerio: () => import('./pantallas/cementerio.js'),      // #cementerio: los expulsados, sus lápidas y las reanimaciones
   propuestas: () => import('./pantallas/propuestas.js'),      // #propuestas(/{id}): proponer, votar y (admin) decidir
+  evento: () => import('./pantallas/evento.js'),              // #evento/{id}: evento destacado (TGA...); #evento/{id}/editar y #evento/nuevo: el admin
 };
 const login = () => import('./pantallas/entrada.js');
 const pantallaDifunto = () => import('./pantallas/difunto.js'); // expulsado: su lápida y Apelar
@@ -64,7 +65,7 @@ const PESTANAS = [
   ['perfil', 'Perfil'],
 ];
 // Rutas que se ven a pantalla completa, sin la barra inferior (la ficha tiene la suya).
-const SIN_BARRA = new Set(['juego', 'revisar', 'duplicados', 'coleccion', 'saga', 'escribir', 'entrada', 'columna', 'columnas', 'cementerio', 'propuestas']);
+const SIN_BARRA = new Set(['juego', 'revisar', 'duplicados', 'coleccion', 'saga', 'escribir', 'entrada', 'columna', 'columnas', 'cementerio', 'propuestas', 'evento']);
 const REFRESCO_MS = 60_000;
 
 let limpiar = null;

@@ -345,3 +345,15 @@ body.seleccionando #barra { visibility: visible; }
 body:has(#vista .entrada, #vista .difunto) #barra { display: none; }
 body:has(#vista .entrada, #vista .difunto) #app { margin-left: 0; }
 body:has(#vista .entrada, #vista .difunto) #aviso { left: 50%; }
+
+/* Eventos: banner alineado con los demás avisos; la página, centrada y en dos columnas. */
+.evento-banner { margin-left: 0; margin-right: 0; min-height: 190px; padding: var(--esp-5); }
+.evento-banner-titulo { font-size: 34px; }
+.evento-banner-botones { max-width: 460px; }
+.evento { max-width: 1100px; margin: 0 auto; padding-top: 24px; }
+.evento-cab { border-radius: 24px; padding: var(--esp-5) var(--esp-6) var(--esp-6); min-height: 280px; align-content: space-between; }
+.evento-titulo { font-size: 48px; }
+.evento-oficial, .evento-veredicto, .evento-porra, .evento-leyenda { margin: 0; }
+.evento-oficial .fila-botones, .evento-oficial > .boton-principal { max-width: 460px; }
+.evento-categorias { padding: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+.evento-editar { max-width: 760px; margin: 0 auto; padding-top: 32px; }

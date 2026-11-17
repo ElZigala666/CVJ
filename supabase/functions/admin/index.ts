@@ -11,7 +11,13 @@
 //   { "accion": "crear", "admin_id", "nombre", "color", "codigo_hash" }
 //   { "accion": "nuevo_codigo", "admin_id", "usuario_id", "codigo_hash" }
 //   { "accion": "editar", "admin_id", "usuario_id", "nombre"?, "color"? }
-//   { "accion": "activo", "admin_id", "usuario_id", "activo": true|false }
+//   { "accion": "activo", "admin_id", "usuario_id", "activo": true|false }   (versiones de antes)
+// El cementerio (todo en admin_vida(), migración 036, en una sola transacción):
+//   { "accion": "expulsar", "admin_id", "usuario_id", "causa"? }
+//   { "accion": "exorcizar", "admin_id", "usuario_id", "causa"? }   expulsión permanente
+//   { "accion": "levantar", "admin_id", "usuario_id" }              levantar el exorcismo
+//   { "accion": "readmitir", "admin_id", "usuario_id" }             volver a la vida, sin esperar
+//   { "accion": "vetar" | "permitir", "admin_id", "reanimacion_id" } un intento de reanimación
 // =============================================================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -101,14 +107,20 @@ async function editar(c: Record<string, unknown>) {
   return { ok: true, usuario: data };
 }
 
-async function activo(c: Record<string, unknown>) {
-  const id = String(c.usuario_id ?? "");
-  if (!UUID.test(id)) throw new ErrorAdmin("parametros", "Ese usuario no existe.", 404);
-  if (id === String(c.admin_id)) throw new ErrorAdmin("parametros", "No puedes desactivarte a ti mismo.");
-  const { data, error } = await sb.from("usuarios").update({ activo: c.activo !== false }).eq("id", id).select(CAMPOS).maybeSingle();
+/** Expulsar, exorcizar, levantar, readmitir, vetar o permitir ya (admin_vida, migración 036). */
+async function vida(accion: string, c: Record<string, unknown>) {
+  const esIntento = accion === "vetar" || accion === "permitir";
+  const usuario = esIntento ? null : String(c.usuario_id ?? "");
+  const reanimacion = esIntento ? String(c.reanimacion_id ?? "") : null;
+  if (usuario !== null && !UUID.test(usuario)) throw new ErrorAdmin("parametros", "Ese usuario no existe.", 404);
+  if (reanimacion !== null && !UUID.test(reanimacion)) throw new ErrorAdmin("parametros", "Ese intento no existe.", 404);
+  const causa = typeof c.causa === "string" ? c.causa.slice(0, 140) : null;
+  const { data, error } = await sb.rpc("admin_vida", {
+    p_admin: c.admin_id, p_accion: accion, p_usuario: usuario, p_causa: causa, p_reanimacion: reanimacion,
+  });
   if (error) throw new ErrorAdmin("bd", error.message, 500);
-  if (!data) throw new ErrorAdmin("parametros", "Ese usuario no existe.", 404);
-  return { ok: true, usuario: data };
+  if (!data?.ok) throw new ErrorAdmin(data?.codigo ?? "parametros", data?.error ?? "No se ha podido hacer.");
+  return { ok: true };
 }
 
 Deno.serve(async (req) => {
@@ -122,7 +134,10 @@ Deno.serve(async (req) => {
       case "crear": return json(await crear(c));
       case "nuevo_codigo": return json(await nuevoCodigo(c));
       case "editar": return json(await editar(c));
-      case "activo": return json(await activo(c));
+      // Versiones de antes de la app: desactivar = expulsar sin causa; reactivar = readmitir.
+      case "activo": return json(await vida(c.activo === false ? "expulsar" : "readmitir", c));
+      case "expulsar": case "exorcizar": case "levantar": case "readmitir": case "vetar": case "permitir":
+        return json(await vida(String(c.accion), c));
       default: return json({ ok: false, codigo: "parametros", error: "Acción desconocida" }, 400);
     }
   } catch (e) {

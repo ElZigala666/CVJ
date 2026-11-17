@@ -67,6 +67,11 @@ const ICONOS = {
   // Menú de opciones (tres puntos)
   opciones: { d: 'M12 3.5a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4zm0 6.3a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4zm0 6.3a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4z' },
   // Iconos de solo trazo (en el diseño van con trazo grueso redondeado)
+  // El cementerio: lápida con cruz, vela, rayo (reanimar) y sello (exorcizado).
+  lapida: { d: 'M6 20V10a6 6 0 0 1 12 0v10zM3 20h18v2H3zM11 7.5h2v2h2.2v2H13V16h-2v-4.5H8.8v-2H11z' },
+  vela: { d: 'M12 1.8c1.7 2.1 2.7 3.6 2.7 5a2.7 2.7 0 0 1-5.4 0c0-1.4 1-2.9 2.7-5zM9 11h6v9.5H9zM5.5 20.5h13V22h-13z' },
+  rayo: { d: 'M13.5 2 4 13.5h6.5L9 22l11-12.5h-6.8z' },
+  sello: { d: 'M12 1.2 14.12 4.08 17.4 2.65 17.8 6.2 21.35 6.6 19.92 9.88 22.8 12 19.92 14.12 21.35 17.4 17.8 17.8 17.4 21.35 14.12 19.92 12 22.8 9.88 19.92 6.6 21.35 6.2 17.8 2.65 17.4 4.08 14.12 1.2 12 4.08 9.88 2.65 6.6 6.2 6.2 6.6 2.65 9.88 4.08zM12 5.6a6.4 6.4 0 1 1 0 12.8 6.4 6.4 0 0 1 0-12.8zM11 7.8h2v3.2h3.2v2H13v3.2h-2V13H7.8v-2H11z' },
   cerrar: { s: 'M6 6l12 12M18 6 6 18' },
   mas: { s: 'M12 5v14M5 12h14' },
   // Logo: hexágono con el chevron

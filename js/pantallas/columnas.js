@@ -6,7 +6,7 @@ import * as datos from '../datos.js';
 import { usuarioActual } from '../sesion.js';
 import { esc } from '../ui.js';
 import { volver } from '../navegacion.js';
-import { logoColumna, filaEntrada } from '../columnas-ui.js';
+import { logoColumna, filaEntrada, nombreColumna, esLegado } from '../columnas-ui.js';
 
 const ULTIMAS = 3;
 
@@ -36,8 +36,8 @@ export function render(el) {
               <a class="columnas-bloque-cab" href="#columna/${esc(c.id)}">
                 ${logoColumna(c, 52)}
                 <span class="columnas-bloque-texto">
-                  <strong>${esc(c.nombre)}</strong>
-                  <small>por ${esc(autor?.nombre ?? '')} · ${ents.length} ${ents.length === 1 ? 'entrada' : 'entradas'}</small>
+                  <strong>${esc(nombreColumna(c))}</strong>
+                  <small>${esLegado(c) ? 'Su autor descansa en el cementerio' : `por ${esc(autor?.nombre ?? '')}`} · ${ents.length} ${ents.length === 1 ? 'entrada' : 'entradas'}</small>
                 </span>
                 ${icono('adelante', { tam: 18, color: 'var(--texto-2)' })}
               </a>

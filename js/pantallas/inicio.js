@@ -9,6 +9,7 @@ import { tarjetaSugerenciaColeccion, clicSugerenciaColeccion } from '../coleccio
 import { logoColumna, textoLectura, filaEntrada } from '../columnas-ui.js';
 import * as social from '../social.js';
 import * as insignias from '../insignias.js';
+import * as cementerio from '../cementerio.js';
 import { usuarioActual } from '../sesion.js';
 import { mediaGrupo, recomendacionGrupo, desviacionTipica } from '../notas.js';
 import { abrirHoja } from '../hoja.js';
@@ -82,6 +83,7 @@ export function render(el) {
     if (clicSugerenciaColeccion(e, usuarioActual()?.id)) return;
     const lote = e.target.closest('[data-lote]');
     if (lote && !e.target.closest('[data-perfil]')) { e.preventDefault(); abrirLote(lote.dataset.lote); return; }
+    if (cementerio.clicAviso(e)) return;
     const leido = e.target.closest('[data-aviso-leido]');
     if (leido) datos.marcarAvisoLeido(leido.dataset.avisoLeido, aviso);
   };
@@ -91,6 +93,7 @@ export function render(el) {
   const reloj = setInterval(() => {
     const ahora = new Date();
     for (const t of el.querySelectorAll('[data-fecha]')) t.textContent = tiempoRelativo(t.dataset.fecha, ahora);
+    cementerio.actualizarCuentas(el, ahora.getTime());
   }, 60_000);
   // Tirar hacia abajo para refrescar (la app instalada no tiene el del navegador).
   const quitarGesto = tirarParaRefrescar(() => datos.refrescar());
@@ -109,6 +112,7 @@ function html() {
     return `
       ${cabecera(yo)}
       ${elGrupo()}
+      ${cementerio.avisosInicio()}
       ${avisoPsn()}
       <div class="inicio-vacio">
         <span class="vacio-icono grande">${icono('valorar', { tam: 36, color: 'var(--acento)', trazo: 'var(--acento-suave)' })}</span>
@@ -121,6 +125,7 @@ function html() {
   return `
     ${cabecera(yo)}
     ${elGrupo()}
+    ${cementerio.avisosInicio()}
     ${avisoPsn()}
     ${avisoRevisar()}
     ${avisosPersonales()}
@@ -187,6 +192,7 @@ function elGrupo() {
             ${avatar(u, 52)}
             <span>${u.id === yo?.id ? 'Tú' : esc(u.nombre)}</span>
           </a>`).join('')}
+        ${cementerio.accesoGrupo()}
       </div>
     </section>`;
 }
@@ -429,6 +435,8 @@ function actividad() {
       .slice(0, MAX_ACTIVIDAD).map((ev) => ({ social: ev, creado_en: ev.fecha })))
     // Insignias nuevas, subidas de nivel y cambios de dueño (no las del estreno).
     .concat(insignias.eventosActividad().map((ev) => ({ insignia: ev, creado_en: ev.fecha })))
+    // El cementerio: expulsiones, intentos de reanimación, vetos, vueltas y exorcismos.
+    .concat(cementerio.eventosActividad().map((ev) => ({ vida: ev, creado_en: ev.fecha })))
     .sort((a, b) => new Date(b.a?.creado_en ?? b.creado_en) - new Date(a.a?.creado_en ?? a.creado_en))
     .slice(0, MAX_ACTIVIDAD);
 
@@ -451,7 +459,8 @@ function actividad() {
     return social.tira(tipo, v.id, { visibles: 1 });
   };
   const contenido = filas.length
-    ? filas.map(({ a, u, j, columna: ce, lote, social: ev, insignia: ins }) => {
+    ? filas.map(({ a, u, j, columna: ce, lote, social: ev, insignia: ins, vida }) => {
+      if (vida) return cementerio.filaActividad(vida, ahora);
       if (ins) return insignias.filaActividad(ins, yo?.id, ahora);
       if (ev) return social.filaActividad(ev, yo?.id, ahora);
       if (ce) return filaColumna(ce, u, ahora);

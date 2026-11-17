@@ -48,7 +48,7 @@ export async function entrar(codigo) {
   if (resp.error) throw Object.assign(new Error(resp.error.message), { tipo: 'red' });
   if (!resp.data) throw Object.assign(new Error('Código no válido'), { tipo: 'codigo' });
   // Desactivado por el admin: no puede entrar (se dice igual que un código que no vale).
-  if (resp.data.activo === false) throw Object.assign(new Error('Código no válido'), { tipo: 'codigo' });
+  if (resp.data.activo === false) throw Object.assign(new Error('Código enterrado'), { tipo: 'difunto' }); // expulsado: está en el cementerio
   const { activo: _, ...usuario } = resp.data;
   guardar({ usuario, desde: new Date().toISOString() });
   return usuario;

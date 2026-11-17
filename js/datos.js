@@ -9,7 +9,7 @@ const CLAVE = 'cvj.datos.v1';
 const LIMITE_ACTIVIDAD = 60;
 const VENTANA_ACTIVIDAD_MS = 10 * 60 * 1000; // agrupar cambios del mismo juego en 10 min
 
-const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sugRechazadas: [], servicios: [], cuentas: [], horasExtra: [], avisos: [], coleccionesG: [], coleccionesJuegos: [], valColecciones: [], sagas: [], sagasJuegos: [], columnas: [], entradas: [], lecturas: [], horasAjustes: [], horasEstimadas: [], celebracionesVistas: [], reacciones: [], comentarios: [], insignias: [], insigniasGrupo: [], cargadoEn: null });
+const vacio = () => ({ usuarios: [], valoraciones: [], juegos: [], actividad: [], biblioteca: [], psnIgdb: [], alias: [], rechazadas: [], sugRechazadas: [], servicios: [], cuentas: [], horasExtra: [], avisos: [], coleccionesG: [], coleccionesJuegos: [], valColecciones: [], sagas: [], sagasJuegos: [], columnas: [], entradas: [], lecturas: [], horasAjustes: [], horasEstimadas: [], celebracionesVistas: [], reacciones: [], comentarios: [], insignias: [], insigniasGrupo: [], vidas: [], reanimaciones: [], velas: [], cargadoEn: null });
 
 // Versión de los datos: sube cada vez que cambian (refresco, escritura o reversión).
 // metricas.js la usa para memoizar los cálculos.
@@ -37,7 +37,7 @@ let refrescoAplazado = false;
 //  - La caché va en IndexedDB (localStorage se queda sin sitio a los 5 MB y entonces no
 //    se guardaba nada, sin avisar).
 // ---------------------------------------------------------------------------
-const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sugRechazadas, s.servicios, s.cuentas, s.horasExtra, s.avisos, s.coleccionesG, s.coleccionesJuegos, s.valColecciones, s.sagas, s.sagasJuegos, s.columnas, s.entradas, s.lecturas, s.horasAjustes, s.horasEstimadas, s.celebracionesVistas, s.reacciones, s.comentarios, s.insignias, s.insigniasGrupo]);
+const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sugRechazadas, s.servicios, s.cuentas, s.horasExtra, s.avisos, s.coleccionesG, s.coleccionesJuegos, s.valColecciones, s.sagas, s.sagasJuegos, s.columnas, s.entradas, s.lecturas, s.horasAjustes, s.horasEstimadas, s.celebracionesVistas, s.reacciones, s.comentarios, s.insignias, s.insigniasGrupo, s.vidas, s.reanimaciones, s.velas]);
 const COLUMNAS_USUARIO = 'id, nombre, inicial, color, acento, creado_en';
 const COLUMNAS_ENTRADA = 'id, columna_id, usuario_id, juego_id, coleccion_id, saga_id, titulo, subtitulo, palabras, estado, publicada_en, creado_en, actualizado_en';
 const PAGINA = 1000;
@@ -51,7 +51,8 @@ const COLUMNAS_JUEGO = 'igdb_id, nombre, slug, cover_id, anio, plataformas, desa
  */
 const TABLAS = [
   { k: 'usuarios', t: 'usuarios', orden: ['creado_en', 'id'], esencial: true,
-    sel: `${COLUMNAS_USUARIO}, foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas, estimar_horas, apariencia, perfil_datos, social_visto_en, insignias_visto_en`, alt: COLUMNAS_USUARIO },
+    sel: `${COLUMNAS_USUARIO}, foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas, estimar_horas, apariencia, perfil_datos, social_visto_en, insignias_visto_en, exorcizado`,
+    alt: `${COLUMNAS_USUARIO}, foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas, estimar_horas, apariencia, perfil_datos, social_visto_en, insignias_visto_en` },
   { k: 'valoraciones', t: 'valoraciones', orden: ['id'], esencial: true },
   // v: con arte_id (cabecera del perfil): la caché de antes se vuelve a pedir una vez.
   { k: 'juegos', t: 'juegos', orden: ['igdb_id'], esencial: true, sel: COLUMNAS_JUEGO, alt: '*', v: '2' },
@@ -83,6 +84,10 @@ const TABLAS = [
   // Insignias (migración 032): lo que ya se ha calculado y guardado (js/insignias.js).
   { k: 'insignias', t: 'insignias', orden: ['usuario_id', 'insignia'] },
   { k: 'insigniasGrupo', t: 'insignias_grupo', orden: ['insignia'] },
+  // El cementerio (migración 036): vidas y muertes, intentos de reanimación y velas.
+  { k: 'vidas', t: 'vidas', orden: ['fecha', 'id'] },
+  { k: 'reanimaciones', t: 'reanimaciones', orden: ['empieza_en', 'id'] },
+  { k: 'velas', t: 'velas', orden: ['difunto_id', 'usuario_id'] },
   { k: 'horasAjustes', t: 'horas_ajustes', orden: ['usuario_id', 'juego_id'] },
   { k: 'horasEstimadas', t: 'horas_estimadas', orden: ['usuario_id', 'juego_id'] },
   // Celebraciones de "completado" que ya he visto (solo las mías).
@@ -816,7 +821,7 @@ export const lecturasDe = (entradaId) => (estado.lecturas ?? []).filter((l) => l
 export const socialVistoEn = (usuarioId) => usuario(usuarioId)?.social_visto_en ?? null;
 
 async function escribirSocial(aplicar, guardar, onError, mensajeError = 'No se ha podido guardar. Se ha deshecho el cambio.') {
-  const copia = { reacciones: estado.reacciones, comentarios: estado.comentarios, lecturas: estado.lecturas };
+  const copia = { reacciones: estado.reacciones, comentarios: estado.comentarios, lecturas: estado.lecturas, velas: estado.velas };
   escriturasEnCurso++;
   aplicar(estado);
   avisarSocial();
@@ -960,6 +965,43 @@ export function marcarInsigniasVistas(usuarioId) {
 }
 
 /** Sube una imagen al Storage de las columnas. Devuelve su URL pública. */
+// ---------------------------------------------------------------------------
+// El cementerio (migración 036). Vidas y reanimaciones solo se escriben en el servidor
+// (pedir_reanimacion y la función admin); las velas, desde aquí.
+// ---------------------------------------------------------------------------
+export const vidasDe = (usuarioId) => (estado.vidas ?? []).filter((v) => v.usuario_id === usuarioId);
+export const reanimacionesEnCurso = () => (estado.reanimaciones ?? []).filter((r) => r.estado === 'en_curso');
+export const reanimacionEnCurso = (difuntoId) => reanimacionesEnCurso().find((r) => r.difunto_id === difuntoId) ?? null;
+export const reanimacion = (id) => (estado.reanimaciones ?? []).find((r) => r.id === id) ?? null;
+export const velasDe = (difuntoId) => (estado.velas ?? []).filter((v) => v.difunto_id === difuntoId);
+
+/** Encender (o apagar) mi vela en una lápida. */
+export function cambiarVela(usuarioId, difuntoId, encender, onError) {
+  const clave = { difunto_id: difuntoId, usuario_id: usuarioId };
+  const fila = { ...clave, encendida_en: new Date().toISOString() };
+  const antes = estado.velas ?? [];
+  return escribirSocial(
+    () => { estado.velas = [...antes.filter((v) => !(v.difunto_id === difuntoId && v.usuario_id === usuarioId)), ...(encender ? [fila] : [])]; },
+    async (sb) => {
+      if (encender) comprobar(await sb.from('velas').upsert(fila, { onConflict: 'difunto_id,usuario_id', ignoreDuplicates: true }));
+      else comprobar(await sb.from('velas').delete().match(clave));
+    },
+    onError,
+    'No se ha podido. La vela se ha quedado como estaba.',
+  );
+}
+
+/** Empezar a reanimar a alguien (12 horas de cuenta atrás). → { ok, error? } */
+export async function pedirReanimacion(autorId, difuntoId) {
+  try {
+    const r = await api('rpc/pedir_reanimacion', { p_autor: autorId, p_difunto: difuntoId });
+    if (r?.ok) await refrescar();
+    return r ?? { ok: false, error: 'No ha contestado nadie desde el más allá.' };
+  } catch {
+    return { ok: false, error: 'Sin conexión con el más allá. Prueba otra vez en un momento.' };
+  }
+}
+
 export async function subirImagenColumna(ruta, blob) {
   const sb = await cliente();
   const r = await sb.storage.from('columnas').upload(ruta, blob, { contentType: blob.type, cacheControl: '31536000', upsert: false });

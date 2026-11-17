@@ -15,8 +15,9 @@ español (código, comentarios, commits, interfaz).
   - `psn`: PlayStation no oficial (cada uno pega su NPSSO); trofeos y horas.
   - `xbox`: OpenXBL por gamertag con la clave del grupo (cupo en `openxbl_uso`).
   - `steam`: inicio de sesión oficial (OpenID 2.0) + GetOwnedGames.
-  - `admin`: gestionar el grupo (crear persona, código nuevo, editar, activar). Comprueba
-    `es_admin` de quien llama.
+  - `admin`: gestionar el grupo (crear persona, código nuevo, editar) y el cementerio
+    (expulsar, exorcizar, levantar, readmitir, vetar, permitir → `admin_vida()`). Comprueba
+    `es_admin` de quien llama. La app la llama con `js/admin-api.js`.
 
 ## Mapa de archivos
 - `index.html`: shell; aplica lo resuelto de apariencia (`localStorage` "cvj.ap") antes de pintar.
@@ -52,17 +53,25 @@ español (código, comentarios, commits, interfaz).
 - `js/columnas-ui.js`: piezas de columnas (formato del cuerpo, tarjetas).
 - `js/insignias.js`: catálogo de insignias (condiciones), medallas SVG, cálculo memorizado
   por versión de datos, guardado de cambios tras cada refresco, avisos y vitrina del perfil.
+- `js/cementerio.js`: vidas y muertes (`historia(uid)`), récords, epitafios, reanimaciones
+  (cuenta atrás, vetar/permitir), acceso de Inicio, avisos de reanimación y filas de la
+  actividad. El admin firma como "El Dictador" en el cementerio y en los vetos.
+  `js/pantallas/cementerio.js` (#cementerio): lápidas (selladas si está exorcizado), velas
+  y Reanimar. En escritorio, enlace discreto al pie de la barra lateral.
 - `js/social.js`: reacciones y respuestas (tira bajo reseñas y entradas, menú, hilo,
   aviso "Lo nuevo en lo tuyo" y filas de actividad).
 - `js/pantallas/`: `inicio`, `buscar`, `juego`, `perfil` (+ tier list), `rankings`
   (+ comparar), `estadisticas`, `coleccion`, `saga`, `revisar`, `duplicados`, `entrada`
   (login), `escribir` (editor de columna), `lectura` (#entrada/{id}), `columna`,
-  `columnas` (todas; en móvil se llega desde Inicio, en escritorio desde la barra lateral).
+  `columnas` (todas; en móvil se llega desde Inicio, en escritorio desde la barra lateral),
+  `cementerio` (desde el final de "El grupo" en Inicio).
 - `prueba-local.html` (solo en este equipo: excluido en `.git/info/exclude`): la app con
   un Supabase simulado en memoria, para probar en local
   (`.claude/launch.json` → `cvj-local`: `herramientas/servidor-local.py`, sin caché,
   puerto 8766; sin service worker; `localStorage['prueba.escenario'] = 'fase3'` trae
-  columnas, entradas, reacciones e insignias; `window.__fallar = true` simula sin red).
+  columnas, entradas, reacciones e insignias; el cementerio (difuntos, un exorcizado con
+  3 muertes, una reanimación en curso, `window.__cementerio.completar()` = la tarea
+  programada) sale en cualquier escenario menos `vacio`; `window.__fallar = true` simula sin red).
 - `herramientas/`: restaurar copia (`RESTAURAR.md`, `restaurar-copia.sh`), pruebas de
   PSN/Xbox/buscador, generar iconos y hash de código.
 - `cvj-diseno/`: diseño original de referencia (no se publica).
@@ -71,7 +80,8 @@ español (código, comentarios, commits, interfaz).
 
 ## Modelo de datos (public)
 - `usuarios`: nombre, inicial, color, acento, `codigo_hash`, `es_admin`, `activo`
-  (desactivado = no sale en listas, sus datos cuentan), `apariencia` (jsonb `{v: 2, modo
+  (false = expulsado, en el cementerio: no entra ni sale en listas, sus datos cuentan),
+  `exorcizado` (expulsión permanente: nadie lo reanima hasta que el admin lo levante), `apariencia` (jsonb `{v: 2, modo
   fijo|auto, fondo, dia, noche, imagen:{url, desenfoque, velo, texto, x, y, zoom, medida}}`;
   lo de antes se migra solo al abrir), `perfil_datos` (bio, estado, plataforma, favorito,
   vitrina, insignias, `cabecera:{tipo, arte|imagen+encuadre|intensidad}`),
@@ -114,6 +124,16 @@ español (código, comentarios, commits, interfaz).
   cliente (`js/insignias.js`). Catálogo oculto: cada uno ve solo las suyas y las vitrinas
   de los demás (nada de bloqueadas, pistas ni "X de 30"). Las de grupo tienen que depender
   de lo que hacen los demás (nada que se consiga a solas farmeando).
+- El cementerio (migración 036): `vidas` (historial por usuario: alta, expulsion,
+  reanimacion_pedida, reanimacion, veto, exorcismo, exorcismo_levantado; fecha, `autor_id`,
+  `causa` ≤ 140; se puede morir y volver varias veces), `reanimaciones` (intentos: 12 h,
+  uno en curso por difunto, el mismo autor no repite con el mismo difunto en 7 días; estado
+  en_curso/completada/vetada/anulada) y `velas` (una por persona y lápida). La app solo
+  lee `vidas` y `reanimaciones`: se escriben con `pedir_reanimacion()` (RPC, cualquiera
+  activo), `admin_vida()` (función admin) y `completar_reanimaciones()` (pg_cron
+  `cvj-reanimar` cada 5 min: vuelve solo, con su mismo código). Altas nuevas: trigger.
+  Salen en la actividad desde `vidas` (no en `actividad`). Si el autor de una columna está
+  muerto, se lee como "Legado de {nombre}" y no publica; al volver, es suya otra vez.
 - `actividad` (feed: valoro/empezo/completo/abandono/pendiente/rejuega, `lote`,
   `celebrar`), `celebraciones_vistas`, `avisos`, `estado_servicios`, `igdb_token`,
   `openxbl_uso`.
@@ -142,8 +162,9 @@ español (código, comentarios, commits, interfaz).
   ampliados se funden en el original; remakes no; tampoco si el original es prólogo/demo/
   episodio. Ante la duda, tarjeta "¿Es el mismo juego?" (fusión manual o rechazo por
   usuario). El admin puede separar versiones y elegir la portada/nombre a enseñar.
-- **Admin** (`es_admin`): gestionar grupo (vía función `admin`), columnas, colecciones,
-  sagas, sin final, separar versiones. La interfaz oculta esas acciones al resto.
+- **Admin** (`es_admin`): gestionar grupo (vía función `admin`), expulsar (con causa de la
+  muerte opcional), exorcizar, levantar exorcismos, devolver a la vida, vetar o permitir ya
+  una reanimación, columnas, colecciones, sagas, sin final, separar versiones. La interfaz oculta esas acciones al resto.
 
 ## Despliegue
 - Push a `main` → `.github/workflows/pages.yml` publica la web (sustituye `__VERSION__`

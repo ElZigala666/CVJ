@@ -1,8 +1,8 @@
 // "Gestionar grupo" en Ajustes (solo admin): lista de personas, añadir, código nuevo,
-// editar nombre y color, foto y desactivar / reactivar.
+// editar nombre y color, foto y el cementerio: expulsar (con la causa de la muerte),
+// exorcizar (expulsión permanente), levantar el exorcismo y devolver a la vida.
 // El código personal se genera aquí, se enseña UNA vez y solo se guarda su hash
 // (SHA-256 del código normalizado, igual que el login) a través de la función "admin".
-import { SUPABASE_BASE, SUPABASE_KEY } from './config.js';
 import { abrirHoja } from './hoja.js';
 import { icono } from './icons.js';
 import { esc, aviso, avatar, botonCopiar, seleccionarTexto } from './ui.js';
@@ -12,24 +12,30 @@ import { PALETA } from './acento.js';
 import { codigoAleatorio, hashCodigo } from './codigo.js';
 import { botonFoto } from './foto-perfil.js';
 import { logoColumna, logoCuadrado } from './columnas-ui.js';
+import { llamarAdmin } from './admin-api.js';
+import { historia } from './cementerio.js';
 
-const URL_ADMIN = `${SUPABASE_BASE}/functions/v1/admin`;
 const FECHA = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
 
-async function llamarAdmin(accion, extra = {}) {
-  try {
-    const r = await fetch(URL_ADMIN, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY },
-      body: JSON.stringify({ accion, admin_id: usuarioActual()?.id, ...extra }),
-    });
-    const d = await r.json().catch(() => null);
-    if (!d) return { ok: false, error: r.status === 404 ? 'La gestión del grupo aún no está activada.' : `Respuesta ${r.status}` };
-    return d;
-  } catch {
-    return { ok: false, error: 'Sin conexión. Prueba otra vez en un momento.' };
-  }
-}
+// Lo que se puede hacer con alguien en el cementerio (cada cosa, con su confirmación).
+const ACCIONES = {
+  expulsar: {
+    pregunta: (n) => `¿Expulsar a ${n}? No podrá entrar ni saldrá en las listas, pero sus valoraciones siguen contando. Irá al cementerio y cualquiera podrá intentar reanimarlo.`,
+    causa: 'Causa de la muerte', ejemplo: 'Por ejemplo: ponerle un 10 al FIFA', boton: 'Sí, expulsar', peligro: true, hecho: (n) => `${n} descansa en paz`,
+  },
+  exorcizar: {
+    pregunta: (n) => `¿Exorcizar a ${n}? Es la expulsión permanente: nadie podrá reanimarlo hasta que levantes el exorcismo.`,
+    causa: 'Motivo', ejemplo: 'Por ejemplo: reincidente', boton: 'Sí, exorcizar', peligro: true, hecho: (n) => `${n} exorcizado. No volverá.`,
+  },
+  levantar: {
+    pregunta: (n) => `¿Levantar el exorcismo de ${n}? Sigue muerto, pero se le podrá volver a intentar reanimar.`,
+    boton: 'Sí, levantarlo', hecho: (n) => `Exorcismo levantado. ${n} sigue bajo tierra.`,
+  },
+  readmitir: {
+    pregunta: (n) => `¿Devolver a ${n} a la vida ahora? Podrá volver a entrar con su código.`,
+    boton: 'Sí, que vuelva', hecho: (n) => `${n} ha vuelto de entre los muertos`,
+  },
+};
 
 /** Código nuevo que no tenga nadie del grupo (se reintenta si coincidiera). */
 async function codigoNuevo(paraQuien, accion, extra) {
@@ -125,6 +131,9 @@ export function montarGrupo(cont) {
   const pintar = () => {
     const soy = datos.usuario(yo?.id);
     if (!soy?.es_admin) { cont.innerHTML = ''; return; }
+    // Lo que estaba escribiendo (la causa de la muerte) no se pierde si llegan datos nuevos.
+    const causa = cont.querySelector('[data-causa]');
+    const escrito = causa ? { valor: causa.value, foco: document.activeElement === causa } : null;
     const lista = [...datos.estado.usuarios].sort((a, b) => (a.activo === false) - (b.activo === false) || new Date(a.creado_en) - new Date(b.creado_en));
     cont.innerHTML = `
       <section class="ajustes-bloque">
@@ -139,7 +148,7 @@ export function montarGrupo(cont) {
                   ${avatar(u, 40)}
                   <span class="grupo-persona-texto">
                     <strong>${esc(u.nombre)}${u.id === yo.id ? ' <small>(tú)</small>' : ''}</strong>
-                    <small>${inactivo ? 'Desactivado · ' : ''}${u.creado_en ? `Desde el ${esc(FECHA.format(new Date(u.creado_en)))}` : ''}</small>
+                    <small>${inactivo ? (u.exorcizado ? 'Exorcizado · ' : 'Expulsado · ') : ''}${u.creado_en ? `Desde el ${esc(FECHA.format(new Date(u.creado_en)))}` : ''}${historia(u.id).muertes > 1 ? ` · Muertes: ${historia(u.id).muertes}` : ''}</small>
                   </span>
                   ${icono('desplegable', { tam: 12, color: 'var(--texto-2)', clase: abierto ? 'girar-180' : '' })}
                 </button>
@@ -151,14 +160,13 @@ export function montarGrupo(cont) {
                     ${Array.isArray(datos.estado.columnas) ? (datos.columnaDe(u.id)
                       ? `<button type="button" class="boton-secundario neutro boton-pequeno con-icono" data-columna="${esc(u.id)}">${logoColumna(datos.columnaDe(u.id), 20)}<span>Columna: ${esc(datos.columnaDe(u.id).nombre)}</span></button>`
                       : `<button type="button" class="boton-secundario neutro boton-pequeno" data-columna="${esc(u.id)}">Hacer columnista</button>`) : ''}
-                    ${u.id === yo.id ? '' : vista.confirmar === u.id ? `
-                      <div class="psn-confirmar" role="group" aria-label="Confirmar">
-                        <p>${inactivo ? `¿Reactivar a ${esc(u.nombre)}? Podrá volver a entrar con su código.` : `¿Desactivar a ${esc(u.nombre)}? No podrá entrar ni saldrá en las listas, pero sus valoraciones siguen contando. Se puede reactivar.`}</p>
-                        <div class="psn-confirmar-botones">
-                          <button type="button" class="boton-secundario neutro" data-no>Cancelar</button>
-                          <button type="button" class="boton-secundario${inactivo ? '' : ' peligro'}" data-activo="${esc(u.id)}">${inactivo ? 'Sí, reactivar' : 'Sí, desactivar'}</button>
-                        </div>
-                      </div>` : `<button type="button" class="enlace-discreto${inactivo ? '' : ' peligro-texto'}" data-pedir="${esc(u.id)}">${inactivo ? 'Reactivar' : 'Desactivar'}</button>`}
+                    ${u.id === yo.id ? '' : vista.confirmar?.id === u.id ? confirmar(u, vista.confirmar.accion) : `
+                      <div class="grupo-cementerio">
+                        ${!inactivo ? `<button type="button" class="enlace-discreto peligro-texto" data-pedir="expulsar" data-u="${esc(u.id)}">Expulsar</button>` : ''}
+                        ${inactivo && !u.exorcizado ? `<button type="button" class="enlace-discreto" data-pedir="readmitir" data-u="${esc(u.id)}">Devolver a la vida</button>` : ''}
+                        ${u.exorcizado ? `<button type="button" class="enlace-discreto" data-pedir="levantar" data-u="${esc(u.id)}">Levantar el exorcismo</button>`
+                          : `<button type="button" class="enlace-discreto peligro-texto" data-pedir="exorcizar" data-u="${esc(u.id)}">Exorcizar</button>`}
+                      </div>`}
                   </div>` : ''}
               </div>`;
           }).join('')}
@@ -175,6 +183,8 @@ export function montarGrupo(cont) {
               </div>`).join('')}
           </details>` : ''}
       </section>`;
+    const nueva = escrito && cont.querySelector('[data-causa]');
+    if (nueva) { nueva.value = escrito.valor; if (escrito.foco) nueva.focus(); }
   };
 
   cont.addEventListener('click', async (e) => {
@@ -227,17 +237,23 @@ export function montarGrupo(cont) {
       return;
     }
     const pedir = t.closest('[data-pedir]');
-    if (pedir) { vista.confirmar = pedir.dataset.pedir; pintar(); return; }
+    if (pedir) {
+      vista.confirmar = { id: pedir.dataset.u, accion: pedir.dataset.pedir };
+      pintar();
+      cont.querySelector('[data-causa]')?.focus();
+      return;
+    }
     if (t.closest('[data-no]')) { vista.confirmar = null; pintar(); return; }
-    const act = t.closest('[data-activo]');
-    if (act) {
-      const u = datos.usuario(act.dataset.activo);
-      const activar = u.activo === false;
-      act.disabled = true;
-      const r = await llamarAdmin('activo', { usuario_id: u.id, activo: activar });
+    const hacer = t.closest('[data-hacer]');
+    if (hacer && vista.confirmar) {
+      const { id, accion } = vista.confirmar;
+      const u = datos.usuario(id);
+      const causa = cont.querySelector('[data-causa]')?.value.trim() || null;
+      hacer.disabled = true;
+      const r = await llamarAdmin(accion, { usuario_id: id, ...(causa ? { causa } : {}) });
       vista.confirmar = null;
-      if (r.ok) { await datos.refrescar(); aviso(activar ? `${u.nombre} reactivado` : `${u.nombre} desactivado`); }
-      else aviso(r.error ?? 'No se ha podido cambiar');
+      if (r.ok) { await datos.refrescar(); aviso(ACCIONES[accion].hecho(u.nombre)); }
+      else aviso(r.error ?? 'No se ha podido');
       pintar();
     }
   });
@@ -245,6 +261,22 @@ export function montarGrupo(cont) {
   const desuscribir = datos.suscribir(pintar);
   pintar();
   return desuscribir;
+}
+
+/** Confirmación de expulsar, exorcizar, levantar o devolver a la vida (con la causa, si la lleva). */
+function confirmar(u, accion) {
+  const a = ACCIONES[accion];
+  return `
+    <div class="psn-confirmar" role="group" aria-label="Confirmar">
+      <p>${esc(a.pregunta(u.nombre))}</p>
+      ${a.causa ? `
+        <label class="campo-titulo" for="grupo-causa">${esc(a.causa)} <span class="campo-opcional">(opcional)</span></label>
+        <input id="grupo-causa" class="psn-input" data-causa maxlength="140" autocomplete="off" placeholder="${esc(a.ejemplo)}">` : ''}
+      <div class="psn-confirmar-botones">
+        <button type="button" class="boton-secundario neutro" data-no>Cancelar</button>
+        <button type="button" class="boton-secundario${a.peligro ? ' peligro' : ''}" data-hacer>${esc(a.boton)}</button>
+      </div>
+    </div>`;
 }
 
 /**

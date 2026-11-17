@@ -123,7 +123,7 @@ a, button, label[for], summary, [role="button"], .chip, .pestana { cursor: point
   .cabecera { padding-left: 0; padding-right: 0; }
 
   /* ---------------- Inicio: principal + actividad al lado ---------------- */
-  .el-grupo, .aviso-revisar, .aviso-psn, .aviso-personal, .col-nuevo, .bienvenida, .inicio-sugerencias { margin-left: 0; margin-right: 0; }
+  .el-grupo, .aviso-revisar, .aviso-reanimar, .aviso-psn, .aviso-personal, .col-nuevo, .bienvenida, .inicio-sugerencias { margin-left: 0; margin-right: 0; }
   .inicio {
     display: grid; grid-template-columns: minmax(0, 1fr) 380px; column-gap: 40px; row-gap: 32px; align-items: start;
   }
@@ -298,4 +298,19 @@ body.seleccionando #barra { visibility: visible; }
 }
 @media (min-width: 1600px) {
   .perfil { grid-template-columns: 380px minmax(0, 1fr); column-gap: 64px; }
+}
+
+/* ---------------------------------------------------------------------------
+   El cementerio: discreto al pie de la barra lateral; lápidas en rejilla
+   --------------------------------------------------------------------------- */
+.barra-cementerio { margin-top: auto; opacity: .62; }
+.barra-cementerio:hover, .barra-cementerio.activa { opacity: 1; }
+.cementerio { max-width: 1100px; margin: 0 auto; padding-top: 32px; }
+.cem-records { max-width: 640px; }
+.cem-lapidas { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 30px 24px; align-items: start; }
+.aviso-reanimar.destacado { flex-direction: row; align-items: center; }
+.aviso-reanimar.destacado .aviso-reanimar-cab { flex: 1; }
+.aviso-reanimar-botones .enlace-discreto { margin-left: 4px; }
+@media (min-width: 1200px) {
+  .cem-lapidas { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }

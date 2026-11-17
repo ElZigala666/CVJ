@@ -6,7 +6,7 @@ import * as datos from '../datos.js';
 import { usuarioActual } from '../sesion.js';
 import { esc, portada } from '../ui.js';
 import { volver } from '../navegacion.js';
-import { textoLectura, logoColumna } from '../columnas-ui.js';
+import { textoLectura, logoColumna, nombreColumna, esLegado } from '../columnas-ui.js';
 import { temaDe } from './lectura.js';
 import { cuentasHtml } from '../social.js';
 
@@ -24,11 +24,12 @@ export function render(el, { params }) {
       return;
     }
     const autor = datos.usuario(col.usuario_id);
-    const mia = col.usuario_id === yo?.id;
+    const legado = esLegado(col);
+    const mia = col.usuario_id === yo?.id && !legado; // un difunto no publica
     const ents = datos.entradasPublicadas(col.id);
     const borradores = mia ? datos.borradoresDe(yo.id).filter((e) => e.columna_id === col.id) : [];
     const [primera, ...resto] = ents;
-    document.title = `CVJ · ${col.nombre}`;
+    document.title = `CVJ · ${nombreColumna(col)}`;
     const tarjeta = (e, grande = false) => {
       const t = temaDe(e);
       return `
@@ -48,7 +49,8 @@ export function render(el, { params }) {
         <header class="columna-portada">
           <button type="button" class="boton-cuadrado columna-volver" data-accion="atras" aria-label="Volver">${icono('atras', { tam: 20, color: 'var(--texto)' })}</button>
           ${logoColumna(col, 96)}
-          <h1 class="columna-nombre">${esc(col.nombre)}</h1>
+          <h1 class="columna-nombre">${esc(nombreColumna(col))}</h1>
+          ${legado ? `<p class="columna-legado">Antes «${esc(col.nombre)}». Su autor descansa en el <a href="#cementerio">cementerio</a> y ya no publicará nada más.</p>` : ''}
           <p class="columna-autor">por <a href="#perfil/${esc(col.usuario_id)}">${esc(autor?.nombre ?? '')}</a> · ${ents.length} ${ents.length === 1 ? 'entrada' : 'entradas'}</p>
           ${mia ? '<a class="boton-principal enlace" href="#escribir/nueva">Escribir una entrada</a>' : ''}
         </header>

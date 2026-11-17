@@ -150,7 +150,7 @@ function renderPerfil(el, id, alSalir) {
         </header>
         <div class="perfil-lado">
         <div class="perfil-datos">
-          <div class="perfil-foto">
+          <div class="perfil-foto${u.activo === false ? ' difunto-foto' : ''}">
             ${avatar(u, 112)}
             ${esMio && 'foto_url' in u && !u.foto_url ? `<button type="button" class="perfil-foto-mas" data-foto="${esc(u.id)}" aria-label="Poner foto">${icono('mas', { tam: 18, color: '#FFFFFF' })}</button>` : ''}
           </div>
@@ -161,6 +161,7 @@ function renderPerfil(el, id, alSalir) {
               ${meta ? `<span>${esc(meta)}</span>` : ''}
             </div>
           </div>
+          ${u.activo === false ? `<a class="perfil-difunto" href="#cementerio">${icono(u.exorcizado ? 'sello' : 'lapida', { tam: 18, color: 'currentColor' })}<span>${u.exorcizado ? 'Exorcizado. No volverá.' : 'Descansa en el cementerio'} · <strong>Ver su lápida</strong></span></a>` : ''}
           ${mia.bio ? `<p class="perfil-bio">${esc(mia.bio)}</p>` : esMio && conPerfil ? falta('Añade una biografía', 'bio') : ''}
           ${mia.estado ? `
             <div class="perfil-ahora">

@@ -10,7 +10,7 @@ import { esc, portada, avatar, avatarPerfil, nombrePerfil } from '../ui.js';
 import { abrirHoja } from '../hoja.js';
 import * as social from '../social.js';
 import { volver } from '../navegacion.js';
-import { markdown, textoLectura, logoColumna, minutosLectura } from '../columnas-ui.js';
+import { markdown, textoLectura, logoColumna, minutosLectura, nombreColumna, esLegado } from '../columnas-ui.js';
 
 const FECHA = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
 const FECHA_HORA = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -84,13 +84,13 @@ export function render(el, { params }) {
     const autor = datos.usuario(e.usuario_id);
     const tema = temaDe(e);
     const mia = e.usuario_id === yo?.id;
-    document.title = `CVJ · ${e.titulo || col.nombre}`;
+    document.title = `CVJ · ${e.titulo || nombreColumna(col)}`;
     el.innerHTML = `
       <div class="lectura-progreso" aria-hidden="true"><span data-ref="progreso"></span></div>
       <section class="lectura" style="${col.color ? `--col:${esc(col.color)}` : ''}">
         <header class="lectura-barra">
           <button type="button" class="boton-cuadrado" data-accion="atras" aria-label="Volver">${icono('atras', { tam: 20, color: 'var(--texto)' })}</button>
-          <a class="lectura-cabecera-col" href="#columna/${esc(col.id)}">${logoColumna(col, 32)}<span>${esc(col.nombre)}</span></a>
+          <a class="lectura-cabecera-col" href="#columna/${esc(col.id)}">${logoColumna(col, 32)}<span>${esc(nombreColumna(col))}</span></a>
           ${mia ? `<a class="boton-secundario boton-pequeno" href="#escribir/${esc(e.id)}">Editar</a>` : '<span></span>'}
         </header>
         <article class="lectura-articulo">
@@ -116,7 +116,7 @@ export function render(el, { params }) {
           ${cuerpo != null ? `
             <footer class="lectura-fin">
               ${logoColumna(col, 44)}
-              <div><strong>${esc(col.nombre)}</strong><span>por ${esc(autor?.nombre ?? '')}</span></div>
+              <div><strong>${esc(nombreColumna(col))}</strong><span>${esLegado(col) ? `Su autor descansa en el <a href="#cementerio">cementerio</a>` : `por ${esc(autor?.nombre ?? '')}`}</span></div>
               <a class="boton-secundario boton-pequeno" href="#columna/${esc(col.id)}">Más de la columna</a>
             </footer>` : ''}
         </article>

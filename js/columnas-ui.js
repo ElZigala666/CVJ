@@ -27,6 +27,17 @@ export function logoColumna(c, tam = 48) {
   return `<span class="col-logo col-logo-letras" style="--tam:${tam}px;--col:${esc(color)}" aria-hidden="true"><span>${esc(iniciales(c.nombre))}</span></span>`;
 }
 
+/**
+ * Nombre que se enseña de una columna: si su autor está en el cementerio, "Legado de
+ * {nombre}" (se sigue leyendo, pero ya no publica). Al reanimarlo vuelve a ser la suya.
+ */
+export function nombreColumna(c) {
+  if (!c) return '';
+  const autor = datos.usuario(c.usuario_id);
+  return autor?.activo === false ? `Legado de ${autor.nombre}` : c.nombre;
+}
+export const esLegado = (c) => datos.usuario(c?.usuario_id)?.activo === false;
+
 export const palabras = (texto) => (String(texto ?? '').match(/[\p{L}\p{N}]+/gu) ?? []).length;
 /** Minutos de lectura (unas 220 palabras por minuto; al menos 1). */
 export const minutosLectura = (n) => Math.max(1, Math.round((Number(n) || 0) / 220));
@@ -193,7 +204,7 @@ export function bloqueColumnas(tema) {
           <a class="col-tarjeta" href="#entrada/${esc(e.id)}" style="${c?.color ? `--col:${esc(c.color)}` : ''}">
             ${logoColumna(c, 44)}
             <span class="col-tarjeta-texto">
-              <small>${esc(c?.nombre ?? '')} ha escrito sobre este juego</small>
+              <small>${esc(nombreColumna(c))} ${esLegado(c) ? 'habla' : 'ha escrito'} sobre este juego</small>
               <strong>${esc(e.titulo || 'Sin título')}</strong>
               <small>${esc(textoLectura(e.palabras))}</small>
             </span>
@@ -212,7 +223,7 @@ export function filaEntrada(e, yoId) {
     <a class="col-ultima${sinLeer ? ' sin-leer' : ''}" href="#entrada/${esc(e.id)}" style="${c?.color ? `--col:${esc(c.color)}` : ''}">
       ${logoColumna(c, 44)}
       <span class="col-ultima-texto">
-        <small class="col-ultima-col">${esc(c?.nombre ?? '')}</small>
+        <small class="col-ultima-col">${esc(nombreColumna(c))}</small>
         <strong>${esc(e.titulo || 'Sin título')}</strong>
         <small>${esc(autor?.nombre ?? '')} · ${esc(textoLectura(e.palabras))}${sinLeer ? ' · <span class="col-sin-leer">Sin leer</span>' : ''}</small>
       </span>

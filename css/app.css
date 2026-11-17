@@ -2583,3 +2583,204 @@ body.apariencia-abierta > #app, body.apariencia-abierta > #barra { visibility: h
 .texto-seleccionable, .grupo-resena, .perfil-resena-texto, .lectura-articulo, .social-respuesta p, .social-original p {
   -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; cursor: text;
 }
+
+/* ---------------------------------------------------------------------------
+   El cementerio (js/pantallas/cementerio.js, js/cementerio.js)
+   Las lápidas son piedra: sus colores no dependen del fondo elegido.
+   --------------------------------------------------------------------------- */
+:root {
+  --piedra-1: #D6D2DA; --piedra-2: #ACA7B3; --piedra-texto: #25222B; --piedra-texto-2: #514C58; --piedra-borde: rgba(37, 34, 43, .16);
+  --piedra-base-1: #9B96A2; --piedra-base-2: #7D7885;
+  --sellada-1: #423D48; --sellada-2: #221F27; --sellada-texto: #ECE9EF; --sellada-texto-2: #B4AEBB;
+  --lacre: #A4262C; --llama: #F4B23E;
+}
+.difunto-foto .avatar { filter: grayscale(1) contrast(1.06) brightness(.96); }
+.difunto-foto { display: inline-flex; }
+
+/* Acceso desde "El grupo" (Inicio) */
+.cementerio-acceso {
+  width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+  background: linear-gradient(160deg, var(--piedra-1), var(--piedra-2)); color: var(--piedra-texto-2);
+  box-shadow: inset 0 0 0 1px var(--piedra-borde);
+}
+.el-grupo-cementerio { width: auto; min-width: 60px; color: var(--texto-2); }
+.el-grupo-cementerio span:last-child { max-width: none; }
+
+/* Avisos de reanimación en Inicio */
+.aviso-reanimar {
+  margin: 12px 20px 0; padding: 12px 14px; border-radius: 14px;
+  display: flex; align-items: center; gap: 10px; text-decoration: none;
+  background: var(--superficie); color: var(--texto); font-size: 14px; line-height: 1.35;
+}
+.aviso-reanimar > span:nth-child(2) { flex: 1; }
+.aviso-reanimar-icono {
+  flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--acento); color: var(--sobre-acento); animation: latir 1.6s ease-in-out infinite;
+}
+.aviso-reanimar.destacado {
+  flex-direction: column; align-items: stretch; gap: 12px; padding: 14px;
+  background: var(--acento-suave); box-shadow: inset 0 0 0 1.5px var(--acento);
+}
+.aviso-reanimar-cab { display: flex; gap: 10px; align-items: flex-start; }
+.aviso-reanimar-cab > span:last-child { display: grid; gap: 3px; }
+.aviso-reanimar-cab small { font-size: 13px; color: var(--texto-2); }
+.aviso-reanimar-cab b { color: var(--texto); }
+.aviso-reanimar-botones { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.aviso-reanimar-botones .enlace-discreto { margin-left: auto; }
+@keyframes latir { 0%, 100% { transform: scale(1); } 12% { transform: scale(1.14); } 24% { transform: scale(1); } 36% { transform: scale(1.08); } 48% { transform: scale(1); } }
+
+/* Actividad */
+.actividad-cementerio-icono {
+  flex: 0 0 auto; width: 44px; height: 44px; border-radius: 10px; display: grid; place-items: center; align-self: flex-start;
+  background: linear-gradient(160deg, var(--piedra-1), var(--piedra-2)); color: var(--piedra-texto-2);
+}
+.actividad-cementerio-icono.vivo { background: var(--acento-suave); color: var(--acento); }
+.actividad-cementerio-icono.sellado { background: linear-gradient(160deg, var(--sellada-1), var(--sellada-2)); color: var(--lacre); }
+.actividad-cementerio-extra { font-size: 13px; line-height: 1.4; color: var(--texto-2); overflow-wrap: anywhere; }
+
+/* Perfil de un difunto */
+.perfil-difunto {
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; text-decoration: none;
+  background: linear-gradient(160deg, var(--piedra-1), var(--piedra-2)); color: var(--piedra-texto); font-size: 13.5px;
+}
+
+/* La pantalla */
+.cementerio { display: grid; gap: 20px; padding: calc(env(safe-area-inset-top, 0px) + 14px) 0 44px; }
+.cementerio-cab { display: flex; align-items: flex-start; gap: 14px; padding: 0 16px; }
+.cementerio-titulo { margin: 2px 0 0; font: 800 34px/1.05 var(--fuente-lectura); letter-spacing: -.015em; }
+.cementerio-sub { margin: 6px 0 0; font: italic 400 16px/1.35 var(--fuente-lectura); color: var(--texto-2); }
+.cementerio-cuenta { margin: 6px 0 0; font-size: 12.5px; font-weight: 600; color: var(--texto-2); letter-spacing: .02em; }
+
+.cem-records { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; padding: 0 16px; }
+.cem-record {
+  display: grid; gap: 2px; align-content: start; min-width: 0; padding: 10px 10px 11px; border-radius: 14px;
+  background: var(--superficie); color: var(--texto); text-decoration: none;
+}
+.cem-record-etq { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--texto-2); }
+.cem-record strong { font: 700 15px var(--fuente-titulos); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cem-record-valor { font-size: 12.5px; color: var(--texto-2); }
+
+.cem-lapidas { display: grid; gap: 26px; padding: 0 16px; }
+.lapida { display: flex; flex-direction: column; align-items: stretch; }
+.lapida-piedra {
+  position: relative; display: flex; flex-direction: column; align-items: center; text-align: center;
+  margin: 0 8px; padding: 30px 20px 22px; color: var(--piedra-texto);
+  border-radius: 150px 150px 10px 10px / 118px 118px 10px 10px;
+  background:
+    radial-gradient(120% 70% at 30% 0%, rgba(255, 255, 255, .45), transparent 60%),
+    repeating-radial-gradient(circle at 70% 40%, rgba(0, 0, 0, .018) 0 2px, transparent 2px 5px),
+    linear-gradient(170deg, var(--piedra-1), var(--piedra-2));
+  box-shadow: inset 0 0 0 1px var(--piedra-borde), inset 0 -18px 30px -18px rgba(0, 0, 0, .25), 0 14px 26px -18px rgba(0, 0, 0, .55);
+}
+.lapida-cruz { color: var(--piedra-texto-2); opacity: .55; }
+.lapida-aqui { margin: 6px 0 12px; font: 600 11.5px var(--fuente-texto); letter-spacing: .28em; text-transform: uppercase; color: var(--piedra-texto-2); }
+.lapida-foto { border-radius: 50%; box-shadow: 0 0 0 4px rgba(255, 255, 255, .35), 0 0 0 5px var(--piedra-borde); text-decoration: none; }
+.lapida-foto .avatar { font-size: 32px; }
+.lapida-nombre { margin: 12px 0 0; font: 800 30px/1.1 var(--fuente-lectura); letter-spacing: -.01em; overflow-wrap: anywhere; }
+.lapida-fechas { display: flex; align-items: center; gap: 10px; margin: 8px 0 0; font: 600 13.5px var(--fuente-lectura); color: var(--piedra-texto-2); }
+.lapida-guion { width: 18px; height: 1px; background: currentColor; opacity: .6; }
+.lapida-duracion { margin: 6px 0 0; font: 700 14px var(--fuente-titulos); }
+.lapida-epitafio { margin: 12px 0 0; max-width: 30ch; font: italic 400 16px/1.35 var(--fuente-lectura); color: var(--piedra-texto); }
+.lapida-muertes {
+  margin: 10px 0 0; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  background: rgba(37, 34, 43, .1); color: var(--piedra-texto);
+}
+.lapida-datos { width: 100%; margin: 16px 0 0; padding: 14px 0 0; border-top: 1px solid var(--piedra-borde); display: grid; gap: 12px; text-align: left; }
+.lapida-datos > div { display: grid; gap: 3px; }
+.lapida-datos dt { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--piedra-texto-2); }
+.lapida-datos dd { margin: 0; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.lapida-nada { color: var(--piedra-texto-2); font-style: italic; }
+.lapida-palabras { display: grid; gap: 3px; color: inherit; text-decoration: none; font: italic 400 15px/1.4 var(--fuente-lectura); }
+.lapida-palabras small { font: 600 12px var(--fuente-texto); font-style: normal; color: var(--piedra-texto-2); }
+.lapida-vidas { width: 100%; margin-top: 12px; text-align: left; font-size: 13px; }
+.lapida-vidas summary { cursor: pointer; font-weight: 700; color: var(--piedra-texto-2); }
+.lapida-vidas ol { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.lapida-vidas li { display: grid; gap: 1px; padding: 6px 10px; border-radius: 8px; background: rgba(255, 255, 255, .25); }
+.lapida-vidas li span:last-child { color: var(--piedra-texto-2); }
+
+/* La base: velas y reanimar */
+.lapida-base {
+  position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px; border-radius: 10px;
+  background: linear-gradient(180deg, var(--piedra-base-1), var(--piedra-base-2));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), 0 10px 20px -14px rgba(0, 0, 0, .6);
+}
+.lapida-vela, .lapida-reanimar {
+  white-space: nowrap; display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border: 0; border-radius: 999px;
+  font: 600 13.5px var(--fuente-texto); cursor: pointer;
+}
+.lapida-vela { flex: 1; justify-content: center; background: rgba(255, 255, 255, .78); color: var(--piedra-texto); }
+.lapida-vela .vela-llama { display: inline-flex; color: var(--piedra-texto-2); }
+.lapida-vela.encendida { background: #2A2530; color: #F7EBD3; }
+.lapida-vela.encendida .vela-llama { color: var(--llama); filter: drop-shadow(0 0 6px rgba(244, 178, 62, .75)); animation: titilar 2.4s ease-in-out infinite; transform-origin: 50% 90%; }
+.lapida-velas-n { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; display: inline-grid; place-items: center; font-size: 12px; background: rgba(37, 34, 43, .12); }
+.lapida-vela.encendida .lapida-velas-n { background: rgba(244, 178, 62, .22); color: var(--llama); }
+.lapida-reanimar { flex: 1; justify-content: center; background: var(--acento); color: var(--sobre-acento); }
+.lapida-reanimar:active, .lapida-vela:active { transform: scale(.97); }
+.lapida-espera { flex: 1; text-align: center; font-size: 12.5px; font-weight: 600; color: #FFFFFF; opacity: .92; }
+@keyframes titilar { 0%, 100% { transform: scale(1) rotate(0); } 30% { transform: scale(1.06, .96) rotate(-2deg); } 60% { transform: scale(.96, 1.05) rotate(2deg); } }
+
+/* Reanimación en curso */
+.lapida-reanimando {
+  width: 100%; margin-top: 16px; padding: 12px; border-radius: 12px; display: grid; gap: 8px;
+  background: rgba(255, 255, 255, .45); box-shadow: inset 0 0 0 1px var(--piedra-borde); font-size: 13.5px;
+}
+.lapida-reanimando p { margin: 0; }
+.lapida-reanimando b, .aviso-reanimar b, [data-queda-h] { white-space: nowrap; }
+.lapida-reanimando .ecg { width: 100%; height: 26px; overflow: visible; }
+.lapida-reanimando .ecg path {
+  fill: none; stroke: var(--acento); stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round;
+  stroke-dasharray: 34 66; animation: ecg 2.4s linear infinite;
+}
+@keyframes ecg { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+.lapida-progreso { height: 6px; border-radius: 999px; background: rgba(37, 34, 43, .14); overflow: hidden; }
+.lapida-progreso i { display: block; height: 100%; width: var(--p, 0%); border-radius: inherit; background: var(--acento); transition: width .6s var(--curva); }
+.lapida-nota { font-size: 12px; color: var(--piedra-texto-2); }
+.lapida-veto { display: flex; gap: 8px; }
+.lapida-veto > * { flex: 1; }
+.lapida.reanimando .lapida-foto { animation: latir 1.6s ease-in-out infinite; }
+
+/* Exorcizados: piedra oscura, sellada con lacre */
+.lapida.sellada .lapida-piedra {
+  color: var(--sellada-texto);
+  background:
+    repeating-linear-gradient(135deg, transparent 0 34px, rgba(0, 0, 0, .22) 34px 40px, transparent 40px 74px),
+    radial-gradient(120% 70% at 30% 0%, rgba(255, 255, 255, .12), transparent 60%),
+    linear-gradient(170deg, var(--sellada-1), var(--sellada-2));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08), 0 14px 26px -18px rgba(0, 0, 0, .7);
+}
+.lapida.sellada :is(.lapida-aqui, .lapida-fechas, .lapida-datos dt, .lapida-nada, .lapida-palabras small, .lapida-vidas summary, .lapida-vidas li span:last-child) { color: var(--sellada-texto-2); }
+.lapida.sellada .lapida-epitafio { color: var(--sellada-texto); }
+.lapida.sellada .lapida-datos { border-top-color: rgba(255, 255, 255, .12); }
+.lapida.sellada .lapida-muertes { background: rgba(255, 255, 255, .1); color: var(--sellada-texto); }
+.lapida.sellada .lapida-foto { box-shadow: 0 0 0 4px rgba(255, 255, 255, .08), 0 0 0 5px rgba(0, 0, 0, .4); }
+.lapida.sellada .lapida-foto .avatar { filter: grayscale(1) brightness(.7) contrast(1.1); }
+.lapida-sello {
+  position: absolute; top: 96px; right: 18%; z-index: 2; color: var(--lacre); transform: rotate(-14deg);
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, .5));
+}
+.lapida-exorcizado {
+  margin: 14px 0 0; padding: 8px 12px; border: 1.5px solid var(--lacre); border-radius: 8px; transform: rotate(-1.5deg);
+  font: 700 12px/1.35 var(--fuente-texto); letter-spacing: .04em; text-transform: uppercase; color: #F0B9BB;
+}
+.lapida.sellada .lapida-base { background: linear-gradient(180deg, #2E2A33, #1C1A20); }
+.lapida.sellada .lapida-vela:not(.encendida) { background: rgba(255, 255, 255, .12); color: var(--sellada-texto); }
+.lapida.sellada .lapida-vela .lapida-velas-n { background: rgba(255, 255, 255, .12); }
+
+.cem-vacio { display: grid; justify-items: center; gap: 10px; padding: 40px 24px; text-align: center; color: var(--texto-2); }
+.cem-vacio-icono { color: var(--texto-2); opacity: .6; }
+.cem-vacio p { margin: 0; font: italic 400 17px var(--fuente-lectura); }
+.cem-vacio strong { font-style: normal; color: var(--texto); }
+.cem-pie { margin: 0; padding: 0 24px; text-align: center; font: italic 400 14px/1.4 var(--fuente-lectura); color: var(--texto-2); }
+.cem-confirmar p { margin: 0; font-size: 14.5px; line-height: 1.45; }
+.cem-confirmar-icono {
+  width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; justify-self: center; align-self: center;
+  background: var(--acento); color: var(--sobre-acento); animation: latir 1.6s ease-in-out infinite;
+}
+.grupo-cementerio { display: flex; flex-wrap: wrap; gap: 6px 16px; flex-basis: 100%; }
+.columna-legado { margin: 4px 0 0; max-width: 34ch; font: italic 400 14.5px/1.4 var(--fuente-lectura); color: var(--texto-2); text-align: center; }
+.columna-legado a, .lectura-fin a { color: inherit; }
+@media (prefers-reduced-motion: reduce) {
+  .aviso-reanimar-icono, .lapida-vela.encendida .vela-llama, .lapida-reanimando .ecg path, .lapida.reanimando .lapida-foto, .cem-confirmar-icono { animation: none; }
+  .lapida-reanimando .ecg path { stroke-dasharray: none; }
+}

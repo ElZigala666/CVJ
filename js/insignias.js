@@ -14,6 +14,7 @@ import { usuarioActual } from './sesion.js';
 import { esc, avatar, avatarPerfil, nombrePerfil, tiempoRelativo, aviso } from './ui.js';
 import { abrirHoja } from './hoja.js';
 import { icono } from './icons.js';
+import { historia } from './cementerio.js';
 
 export const NIVELES = ['', 'bronce', 'plata', 'oro'];
 const NOMBRE_NIVEL = ['', 'Bronce', 'Plata', 'Oro'];
@@ -67,7 +68,14 @@ const GLIFOS = {
   caracol: 'M14 4a7 7 0 1 1 0 14H3.5a1.5 1.5 0 0 1 0-3H7.3A7 7 0 0 1 14 4zm0 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM3 8.5h1.6l1.4 3.5H4.4z',
   megafono: 'M3 9h4l9-5v16l-9-5H3zM18 8.5a4 4 0 0 1 0 7v-2.2a1.8 1.8 0 0 0 0-2.6zM7 15.5h3l1 5H8z',
   onda: 'M12 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7.1 7.1l1.4 1.4a5 5 0 0 0 0 7l-1.4 1.4a7 7 0 0 1 0-9.8zM16.9 7.1a7 7 0 0 1 0 9.8l-1.4-1.4a5 5 0 0 0 0-7zM4.2 4.2l1.4 1.4a9 9 0 0 0 0 12.8l-1.4 1.4a11 11 0 0 1 0-15.6zM19.8 4.2a11 11 0 0 1 0 15.6l-1.4-1.4a9 9 0 0 0 0-12.8z',
+  // El cementerio: lápida con un rayo (Lázaro) y un gato (Siete vidas).
+  resucitado: 'M6 20V10a6 6 0 0 1 12 0v10zM3 20h18v2H3zM13.4 6.2 9 12.6h3l-1.4 5.2 4.4-6.6h-3z',
+  gato: 'M4 2.5 8.5 7h7L20 2.5V13a8 8 0 0 1-16 0zM7.8 10.8h2.6v2.6H7.8zM13.6 10.8h2.6v2.6h-2.6z',
   calavera: 'M12 2a9 9 0 0 1 9 9c0 3-1.4 4.8-3 6v3.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 20.5V17c-1.6-1.2-3-3-3-6a9 9 0 0 1 9-9zM8.5 9.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM15.5 9.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z',
+};
+// Dibujos de trazo (sin relleno): el latido del desfibrilador.
+const TRAZOS = {
+  latido: 'M2 12.5h4.5l2.5-7 4.2 13 2.6-6H22',
 };
 
 // ---------------------------------------------------------------------------
@@ -107,6 +115,8 @@ export const CATALOGO = [
   { id: 'da-que-hablar', tipo: 'hito', nombre: 'Da que hablar', glifo: 'charla', umbrales: [5, 20, 50], que: 'respuestas de otros a tus reseñas y entradas' },
   { id: 'tinta-fresca', tipo: 'hito', nombre: 'Tinta fresca', glifo: 'plumin', umbrales: [1, 5, 15], que: 'entradas publicadas en tu columna', que1: 'entrada publicada en tu columna' },
   { id: 'lectura-obligada', tipo: 'hito', nombre: 'Lectura obligada', glifo: 'libro', desc: 'Una entrada de su columna la ha leído todo el grupo.', pista: 'Que todo el grupo lea una entrada de tu columna.' },
+  { id: 'lazaro', tipo: 'hito', nombre: 'Lázaro', glifo: 'resucitado', desc: 'Volvió de entre los muertos.' },
+  { id: 'nigromante', tipo: 'hito', nombre: 'Nigromante', glifo: 'latido', desc: 'Reanimó con éxito a alguien del grupo.' },
   { id: 'multiplataforma', tipo: 'hito', nombre: 'Multiplataforma', glifo: 'formas', desc: 'Juega en consola y en PC.', recalcular: true },
 
   // --- Secretas --------------------------------------------------------------------
@@ -116,6 +126,7 @@ export const CATALOGO = [
   { id: 'buho', tipo: 'secreta', nombre: 'Búho', glifo: 'luna', desc: 'Valoró un juego entre las 3 y las 6 de la madrugada.' },
   { id: 'sindrome-de-diogenes', tipo: 'secreta', nombre: 'Síndrome de Diógenes', glifo: 'cajas', desc: '25 juegos o más en pendientes a la vez.' },
   { id: 'profeta', tipo: 'secreta', nombre: 'Profeta', glifo: 'bola', desc: 'Valoró antes que nadie un juego que luego valoró todo el grupo.' },
+  { id: 'siete-vidas', tipo: 'secreta', nombre: 'Siete vidas', glifo: 'gato', desc: 'Expulsado tres veces. Y aquí sigue, o eso parece.' },
   { id: 'sin-piedad', tipo: 'secreta', nombre: 'Sin piedad', glifo: 'calavera', desc: 'Puso una nota por debajo de 2.' },
 ];
 const POR_ID = new Map(CATALOGO.map((d) => [d.id, d]));
@@ -181,7 +192,9 @@ export function medalla(d, { nivel = 1, tam = 48, bloqueada = false } = {}) {
       ${bloqueada ? '' : `<path d="${FORMAS[forma]}" fill="url(#ins-brillo)"/>`}
       ${secretaOculta
         ? `<text x="24" y="31" text-anchor="middle" font-family="var(--fuente-titulos)" font-weight="700" font-size="20" fill="${glifo}" opacity=".7">?</text>`
-        : `<g transform="translate(13 13) scale(.9167)" opacity="${bloqueada ? '.45' : '1'}"><path d="${GLIFOS[d.glifo] ?? ''}" fill="${glifo}" fill-rule="evenodd"/></g>`}
+        : `<g transform="translate(13 13) scale(.9167)" opacity="${bloqueada ? '.45' : '1'}">${TRAZOS[d.glifo]
+          ? `<path d="${TRAZOS[d.glifo]}" fill="none" stroke="${glifo}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>`
+          : `<path d="${GLIFOS[d.glifo] ?? ''}" fill="${glifo}" fill-rule="evenodd"/>`}</g>`}
     </svg>`;
 }
 
@@ -349,6 +362,10 @@ export function calcular() {
       'sindrome-de-diogenes': mias.filter((x) => x.estado === 'pendiente').length >= 25 ? 1 : 0,
       profeta: primero.get(u.id).profeta > 0 ? 1 : 0,
       'sin-piedad': notas.some((x) => Number(x.nota) < 2) ? 1 : 0,
+      // El cementerio: ha vuelto, ha traído a alguien de vuelta, ha muerto tres veces.
+      lazaro: (datos.estado.vidas ?? []).some((e) => e.usuario_id === u.id && e.tipo === 'reanimacion') ? 1 : 0,
+      nigromante: (datos.estado.reanimaciones ?? []).some((r) => r.autor_id === u.id && r.difunto_id !== u.id && r.estado === 'completada') ? 1 : 0,
+      'siete-vidas': historia(u.id).muertes >= 3 ? 1 : 0,
     };
     const m = new Map();
     for (const d of CATALOGO) {

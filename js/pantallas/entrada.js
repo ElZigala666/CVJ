@@ -63,7 +63,9 @@ export function render(el, { alEntrar }) {
       input.classList.add('con-error');
       error.textContent = err.tipo === 'codigo'
         ? 'Ese código no existe. Revisa que esté bien escrito.'
-        : 'No se ha podido comprobar el código. Revisa la conexión y prueba otra vez.';
+        : err.tipo === 'difunto'
+          ? 'Ese código descansa en el cementerio. Para volver, alguien del grupo tendrá que reanimarte.'
+          : 'No se ha podido comprobar el código. Revisa la conexión y prueba otra vez.';
       input.focus();
     }
   });

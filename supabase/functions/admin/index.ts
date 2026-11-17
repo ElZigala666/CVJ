@@ -22,6 +22,11 @@
 // Propuestas de nuevos miembros (admin_propuesta(), migración 037):
 //   { "accion": "aparcar" | "reabrir", "admin_id", "propuesta_id" }
 //   { "accion": "rechazar", "admin_id", "propuesta_id", "motivo"? }   "no pasó el casting"
+// Apelaciones de los expulsados (admin_apelacion(), migración 038). El texto es privado:
+// solo sale de aquí (y al propio difunto, con su código).
+//   { "accion": "apelaciones", "admin_id" }  → { apelaciones: [{ ...apelacion, texto, respuesta }] }
+//   { "accion": "apelacion_aceptar", "admin_id", "apelacion_id" }
+//   { "accion": "apelacion_rechazar", "admin_id", "apelacion_id", "respuesta"? }
 // =============================================================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -153,6 +158,32 @@ async function propuesta(accion: string, c: Record<string, unknown>) {
   return { ok: true };
 }
 
+/** Todas las apelaciones con su texto y la respuesta (solo para el admin). */
+async function apelaciones() {
+  const { data, error } = await sb.from("apelaciones")
+    .select("id, usuario_id, estado, exorcizado, creado_en, resuelta_en, resuelta_por, apelaciones_textos(texto, respuesta)")
+    .order("creado_en", { ascending: false });
+  if (error) throw new ErrorAdmin("bd", error.message, 500);
+  return {
+    ok: true,
+    apelaciones: (data ?? []).map(({ apelaciones_textos: t, ...a }) => {
+      const x = Array.isArray(t) ? t[0] : t;
+      return { ...a, texto: x?.texto ?? "", respuesta: x?.respuesta ?? null };
+    }),
+  };
+}
+
+/** Aceptar o rechazar una apelación. */
+async function apelacion(accion: string, c: Record<string, unknown>) {
+  const id = String(c.apelacion_id ?? "");
+  if (!UUID.test(id)) throw new ErrorAdmin("parametros", "Esa apelación no existe.", 404);
+  const respuesta = typeof c.respuesta === "string" ? c.respuesta.slice(0, 300) : null;
+  const { data, error } = await sb.rpc("admin_apelacion", { p_admin: c.admin_id, p_accion: accion, p_apelacion: id, p_respuesta: respuesta });
+  if (error) throw new ErrorAdmin("bd", error.message, 500);
+  if (!data?.ok) throw new ErrorAdmin(data?.codigo ?? "parametros", data?.error ?? "No se ha podido hacer.");
+  return { ok: true };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ ok: false, codigo: "parametros", error: "Usa POST" }, 405);
@@ -170,6 +201,9 @@ Deno.serve(async (req) => {
         return json(await vida(String(c.accion), c));
       case "aparcar": case "reabrir": case "rechazar":
         return json(await propuesta(String(c.accion), c));
+      case "apelaciones": return json(await apelaciones());
+      case "apelacion_aceptar": return json(await apelacion("aceptar", c));
+      case "apelacion_rechazar": return json(await apelacion("rechazar", c));
       default: return json({ ok: false, codigo: "parametros", error: "Acción desconocida" }, 400);
     }
   } catch (e) {

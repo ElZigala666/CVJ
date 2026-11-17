@@ -71,6 +71,13 @@ español (código, comentarios, commits, interfaz).
   Aceptar/Rechazar, sección de Gestionar grupo, "Ha apelado N veces", filas de actividad).
   `js/pantallas/difunto.js`: lo que ve un expulsado en vez del login (su lápida y Apelar);
   `sesion.js` guarda `cvj.difunto` ({id, hash}) y, si lo aceptan, entra solo con ese hash.
+- `js/eventos.js`: eventos destacados (galas: TGA, Summer Game Fest, Directs...): activos,
+  banner de Inicio (cuenta atrás; se cierra por persona en localStorage hasta que sube
+  `aviso_version`), categorías incluidas, voto/pronóstico, resúmenes del grupo, veredicto de
+  CVJ, porra, etiqueta de la ficha ("Nominado · TGA 2026 · …"), actividad y celebración.
+  `js/pantallas/evento.js` (#evento/{id}: página, chuleta con MIS VOTOS, "Ya he votado") y
+  `js/pantallas/evento-editar.js` (#evento/{id}/editar, #evento/nuevo: solo admin; se llega
+  desde Ajustes → Eventos).
 - `js/social.js`: reacciones y respuestas (tira bajo reseñas y entradas, menú, hilo,
   aviso "Lo nuevo en lo tuyo" y filas de actividad).
 - `js/pantallas/`: `inicio`, `buscar`, `juego`, `perfil` (+ tier list), `rankings`
@@ -85,7 +92,8 @@ español (código, comentarios, commits, interfaz).
   columnas, entradas, reacciones e insignias; el cementerio (difuntos, un exorcizado con
   3 muertes, una reanimación en curso, `window.__cementerio.completar()` = la tarea
   programada), las apelaciones (`window.__apelaciones`; `localStorage['prueba.difunto'] =
-  'u-gonzalo'` abre la app como ese expulsado; códigos GONZA2, NACHO2, RUBEN2) y las propuestas (abiertas, una aparcada, Mateo entró por una, una rechazada;
+  'u-gonzalo'` abre la app como ese expulsado; códigos GONZA2, NACHO2, RUBEN2), los eventos
+  (`prueba-eventos.json`, también excluido: copia del evento real con sus juegos) y las propuestas (abiertas, una aparcada, Mateo entró por una, una rechazada;
   `window.__propuestas`) salen en cualquier escenario menos `vacio`; `window.__fallar = true` simula sin red).
 - `herramientas/`: restaurar copia (`RESTAURAR.md`, `restaurar-copia.sh`), pruebas de
   PSN/Xbox/buscador, generar iconos y hash de código.
@@ -165,6 +173,16 @@ español (código, comentarios, commits, interfaz).
   pendiente a la vez, 7 días tras un rechazo, exorcizados una cada 30 días. Aceptar
   (`admin_apelacion()`) = vidas `reanimacion` con `apelacion_id` (y `exorcismo_levantado` si
   estaba sellado), mismo código. Si vuelve por otro camino, la pendiente se cierra sola.
+- Eventos (migración 039): `eventos` (título, siglas, texto, imagen subida o arte de
+  `juego_imagen_id`, color, inicio/fin, `fecha_clave` = la gala, `votacion_fin`, enlace,
+  `aviso_version`, `resultados_en`), `eventos_categorias` (orden de la web oficial, tipo
+  juegos|texto, `incluida`, `principal`, `peso` en la porra, `ganador_id`),
+  `eventos_nominados` (con `juego_id` de IGDB), `eventos_elecciones` (por persona y categoría:
+  `voto` = a quién quiero que gane, lo que voto en la oficial; `pronostico` = quién creo que
+  ganará, lo único que puntúa; bloqueadas desde `fecha_clave` por trigger) y `eventos_votado`.
+  Escritura con la clave pública. Las categorías no incluidas no se ven ni puntúan, pero lo
+  elegido se guarda. Los pronósticos ajenos solo se ven tras hacer el tuyo (en el cliente).
+  The Game Awards no tiene API: se vota en su web; CVJ solo ayuda (chuleta).
 - `actividad` (feed: valoro/empezo/completo/abandono/pendiente/rejuega, `lote`,
   `celebrar`), `celebraciones_vistas`, `avisos`, `estado_servicios`, `igdb_token`,
   `openxbl_uso`.

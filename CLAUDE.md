@@ -203,6 +203,11 @@ español (código, comentarios, commits, interfaz).
 - Texto no seleccionable salvo reseñas, entradas de columnas y respuestas (`SELECCIONABLE`
   en `js/ui.js`): ahí la pulsación larga selecciona; no entra en selección múltiple ni menús.
 - Cambios pequeños de aspecto: sin pruebas. Lo importante se prueba con datos reales.
+- Botones y espaciado: sistema común en `css/tokens.css` (`--esp-1..6` = 4/8/12/16/24/32,
+  `--boton-alto` 48 y `--boton-alto-peq` 36 como mínimo, `--boton-radio`). Principal,
+  secundario (`.neutro`, `.peligro`) y de texto (`.enlace-discreto`); `.boton-pequeno` el
+  tamaño pequeño (en móvil el área táctil llega a 44 px). Botones juntos en fila: dentro de
+  `.fila-botones` (mismo ancho y separación). No poner alturas ni radios sueltos por pantalla.
 - Móvil primero (390 px de ancho). La versión de escritorio va en `css/escritorio.css`
   y no puede cambiar nada del móvil.
 - Commits en español, descriptivos (qué cambia para el usuario). Migración en un commit

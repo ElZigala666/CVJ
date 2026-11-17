@@ -52,6 +52,22 @@
   --r-fab: 18px;    /* botón central Valorar */
   --r-pill: 999px;
 
+  /* Espaciado: márgenes y separaciones de hojas, modales, tarjetas y ajustes */
+  --esp-1: 4px;
+  --esp-2: 8px;
+  --esp-3: 12px;
+  --esp-4: 16px;
+  --esp-5: 24px;
+  --esp-6: 32px;
+
+  /* Botones (principal, secundario y de texto): dos alturas, un radio */
+  --boton-alto: 48px;       /* normal */
+  --boton-alto-peq: 36px;   /* pequeño (en móvil, el área táctil llega a 44 px) */
+  --boton-radio: 14px;
+  --boton-pad: 8px 20px;      /* el alto lo marca min-height: si el texto no cabe, crece */
+  --boton-pad-peq: 6px 14px;
+  --toque: 44px;            /* área táctil mínima en móvil */
+
   /* Tipografía */
   --fuente-titulos: "Space Grotesk", system-ui, sans-serif;
   --fuente-texto: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;

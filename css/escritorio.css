@@ -66,8 +66,8 @@ a, button, label[for], summary, [role="button"], .chip, .pestana { cursor: point
 }
 .capa-hoja.visible .hoja { transform: translate(-50%, -50%); opacity: 1; }
 .hoja-asa { display: none; }
-.hoja-arrastre { padding-top: 20px; cursor: default; }
-.hoja-cuerpo { padding-bottom: 24px; }
+.hoja-arrastre { padding: var(--esp-5) var(--esp-5) 0; cursor: default; }
+.hoja-cuerpo { padding: var(--esp-5); }
 .capa-hoja { left: var(--ancho-lateral); }
 /* La hoja de Valorar se arrastraba con el dedo: en escritorio, quieta. */
 .hoja.arrastrando { transform: translate(-50%, -50%) !important; }
@@ -236,6 +236,10 @@ a, button, label[for], summary, [role="button"], .chip, .pestana { cursor: point
   .lectura-cuerpo figure { margin-left: -60px; margin-right: -60px; }
   .editor-cuerpo { font-size: 21px; } /* como .lectura-cuerpo */
   .revisar { max-width: 980px; margin: 0 auto; }
+  /* Revisa tu biblioteca: tarjetas en dos columnas y botones sin estirarse a lo ancho. */
+  .revisar-lista { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--esp-3); align-items: start; }
+  .revisar-acciones > :is(.boton-principal, .boton-secundario) { max-width: 220px; }
+  .revisar-todas .boton-principal { max-width: 420px; align-self: flex-start; }
 }
 
 /* Entre 1024 y 1279: una columna de datos menos en los rankings */
@@ -310,6 +314,7 @@ body.seleccionando #barra { visibility: visible; }
 .cem-lapidas { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 30px 24px; align-items: start; }
 .aviso-reanimar.destacado { flex-direction: row; align-items: center; }
 .aviso-reanimar.destacado .aviso-reanimar-cab { flex: 1; }
+.aviso-reanimar.destacado .aviso-reanimar-botones { grid-template-columns: 120px 120px auto; }
 .aviso-reanimar-botones .enlace-discreto { margin-left: 4px; }
 @media (min-width: 1200px) {
   .cem-lapidas { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -326,3 +331,9 @@ body.seleccionando #barra { visibility: visible; }
 .prop-proponer { max-width: 420px; }
 .prop-lista { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
 .prop-filas { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+
+/* ---------------------------------------------------------------------------
+   Botones en escritorio: la acción principal de una pantalla no pasa de 480 px
+   (en hojas y modales ya la limita su ancho máximo).
+   --------------------------------------------------------------------------- */
+.pantalla .boton-principal:not(.boton-pequeno) { max-width: 480px; }

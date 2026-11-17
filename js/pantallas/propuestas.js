@@ -164,7 +164,7 @@ function tarjeta(p, r, yo, vivo) {
           <div class="prop-decidir-botones">
             <button type="button" class="boton-principal boton-pequeno" data-invitar="${esc(p.id)}">Invitar</button>
             ${p.estado === 'aparcada'
-              ? `<button type="button" class="boton-secundario neutro boton-pequeno" data-reabrir="${esc(p.id)}">Volver a votación</button>`
+              ? `<button type="button" class="boton-secundario neutro boton-pequeno" data-reabrir="${esc(p.id)}">Reabrir</button>`
               : `<button type="button" class="boton-secundario neutro boton-pequeno" data-aparcar="${esc(p.id)}">Aparcar</button>`}
             <button type="button" class="boton-secundario boton-pequeno peligro" data-rechazar="${esc(p.id)}">Rechazar</button>
           </div>

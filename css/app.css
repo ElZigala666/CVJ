@@ -134,22 +134,25 @@ body.sin-barra #aviso { bottom: calc(24px + env(safe-area-inset-bottom)); }
 /* ---------------------------------------------------------------------------
    Botones
    --------------------------------------------------------------------------- */
-.boton-principal {
-  height: 56px; width: 100%;
-  border: 0; border-radius: var(--r-xl);
-  background: var(--acento); color: var(--sobre-acento);
-  font-weight: 700; font-size: 16px;
-  transition: background-color var(--t-rapida) linear, color var(--t-rapida) linear;
+/* Sistema común (variables en tokens.css):
+   · principal: el acento, la acción de la pantalla u hoja (a todo el ancho de su hueco);
+   · secundario: acento suave; .neutro (gris con borde) y .peligro (rojo) como variantes;
+   · de texto (.enlace-discreto): acciones menores, subrayadas.
+   Dos alturas: normal (--boton-alto) y .boton-pequeno (--boton-alto-peq), un mismo radio.
+   Los que van juntos en una fila, en .fila-botones: mismo ancho y misma separación. */
+.boton-principal, .boton-secundario {
+  height: auto; min-height: var(--boton-alto); min-width: 0; padding: var(--boton-pad);
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--esp-2);
+  border: 0; border-radius: var(--boton-radio);
+  font-weight: 700; font-size: 15px; line-height: 1.1; text-decoration: none; text-align: center;
+  overflow: hidden;
+  transition: background-color var(--t-rapida) linear, color var(--t-rapida) linear, opacity var(--t-rapida) linear;
 }
+.boton-principal { width: 100%; background: var(--acento); color: var(--sobre-acento); }
 .boton-principal:disabled { background: var(--superficie-2); color: var(--texto-2); cursor: default; }
-
-.boton-secundario {
-  height: 44px; padding: 0 18px;
-  display: inline-flex; align-items: center; justify-content: center;
-  border: 0; border-radius: 12px;
-  background: var(--acento-suave); color: var(--acento-texto);
-  font-weight: 700; font-size: 14px; text-decoration: none;
-}
+.boton-secundario { background: var(--acento-suave); color: var(--acento-texto); }
+.boton-secundario:disabled { opacity: .55; cursor: default; }
+.boton-principal > svg, .boton-secundario > svg { flex: 0 0 auto; }
 
 .boton-redondo {
   width: 40px; height: 40px; border: 0; border-radius: 50%;
@@ -368,15 +371,31 @@ body.sin-barra #aviso { bottom: calc(24px + env(safe-area-inset-bottom)); }
   font-size: 24px; font-weight: 600; line-height: 1;
 }
 .boton-cuadrado.grande { width: 48px; height: 48px; }
-.boton-principal.con-icono, .boton-principal.enlace {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none;
-}
-.boton-secundario.neutro { background: var(--superficie); color: var(--texto); }
-.boton-secundario.peligro { background: var(--peligro); color: #FFFFFF; }
+/* Neutro: gris con borde (se distingue también sobre tarjetas). */
+.boton-secundario.neutro { background: var(--superficie-2); color: var(--texto); box-shadow: inset 0 0 0 1px var(--borde-fuerte); }
+.boton-secundario.peligro, .boton-principal.peligro { background: var(--peligro); color: #FFFFFF; box-shadow: none; }
+/* De texto (terciario) */
 .enlace-discreto {
-  border: 0; background: none; padding: 4px 0;
+  display: inline-flex; align-items: center; min-height: 32px; padding: 0 2px;
+  border: 0; background: none;
   color: var(--texto-2); font-size: 13px; font-weight: 600;
   text-decoration: underline; text-underline-offset: 3px;
+}
+/* Pequeño: misma forma, menos alto */
+.boton-principal.boton-pequeno, .boton-secundario.boton-pequeno, .boton-pequeno {
+  height: auto; min-height: var(--boton-alto-peq); padding: var(--boton-pad-peq); font-size: 13px; border-radius: var(--boton-radio);
+}
+/* Botones en fila: todos del mismo ancho y con la misma separación. */
+.fila-botones, .psn-confirmar-botones, .codigo-botones, .prop-decidir-botones {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--esp-2); align-items: stretch;
+}
+:is(.fila-botones, .psn-confirmar-botones, .codigo-botones, .prop-decidir-botones, .tarjeta-fusion-botones) > :is(.boton-principal, .boton-secundario) { width: 100%; }
+/* En móvil, nada pulsable por debajo de 44 px de alto (sin cambiar cómo se ve). */
+@media (pointer: coarse) {
+  .boton-pequeno, .enlace-discreto, .social-boton, .social-resumen { position: relative; }
+  .boton-pequeno::before, .enlace-discreto::before, .social-boton::before, .social-resumen::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 50%; height: var(--toque); transform: translateY(-50%);
+  }
 }
 
 .avatar-ins { position: relative; width: var(--tam); height: var(--tam); flex: 0 0 auto; display: inline-block; }
@@ -500,11 +519,11 @@ body.hoja-abierta { overflow: hidden; }
   background: var(--fondo); border-top: 1px solid var(--borde);
   display: flex; gap: 10px;
 }
-.ficha-barra .boton-principal { flex: 1; height: 54px; }
+.ficha-barra .boton-principal { flex: 1; }
 .boton-pendiente {
   --fondo-btn: var(--acento-suave);
-  width: 54px; height: 54px; flex: 0 0 auto;
-  border: 0; border-radius: var(--r-xl);
+  width: var(--boton-alto); height: var(--boton-alto); flex: 0 0 auto;
+  border: 0; border-radius: var(--boton-radio);
   background: var(--acento-suave); color: var(--acento-texto);
   display: flex; align-items: center; justify-content: center;
   transition: background-color var(--t-rapida) linear, color var(--t-rapida) linear;
@@ -540,8 +559,8 @@ body.hoja-abierta { overflow: hidden; }
 .hoja-titulo { display: block; font-family: var(--fuente-titulos); font-size: 18px; font-weight: 700; line-height: 1.15; }
 .hoja-cuerpo {
   overflow-y: auto; overscroll-behavior: contain;
-  padding: 18px 20px calc(24px + env(safe-area-inset-bottom));
-  display: flex; flex-direction: column; gap: 18px;
+  padding: var(--esp-4) 20px calc(var(--esp-5) + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: var(--esp-4);
 }
 .hoja [hidden] { display: none !important; }
 
@@ -726,7 +745,6 @@ button.boton-mas { border: 0; padding: 0; }
 .tarjeta-instalar-texto { display: flex; flex-direction: column; gap: 2px; }
 .tarjeta-instalar-texto strong { font-size: 15px; }
 .tarjeta-instalar-texto span { font-size: 13px; color: var(--texto-2); line-height: 1.4; }
-.tarjeta-instalar .boton-principal { height: 48px; font-size: 15px; }
 .pasos-instalar { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
 .pasos-instalar li { display: flex; align-items: center; gap: 12px; font-size: 14px; line-height: 1.4; }
 .pasos-instalar svg { flex: 0 0 auto; }
@@ -1073,7 +1091,6 @@ body.sin-barra #aviso-version { bottom: calc(96px + env(safe-area-inset-bottom))
 }
 .etiqueta-psn.sobre-portada { position: absolute; top: 6px; right: 6px; z-index: 3; background: rgba(0, 0, 0, 0.6); color: #FFFFFF; }
 .etiqueta-acento { padding: 5px 10px; border-radius: 8px; background: var(--acento-suave); color: var(--acento-texto); font-size: 12px; font-weight: 700; }
-.boton-pequeno { height: 34px; padding: 0 14px; font-size: 13px; }
 
 /* Portadas de PSN (títulos sin emparejar) */
 .portada-psn img { object-fit: cover; }
@@ -1117,12 +1134,9 @@ body.sin-barra #aviso-version { bottom: calc(96px + env(safe-area-inset-bottom))
 .psn-conectado-texto { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .psn-conectado-texto strong { font-size: 15px; overflow: hidden; text-overflow: ellipsis; }
 .psn-conectado-texto span { font-size: 12px; color: var(--texto-2); }
-.ajustes-psn .boton-principal { height: 48px; font-size: 15px; }
 .psn-desconectar { align-self: flex-start; }
 .psn-confirmar { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 14px; background: color-mix(in srgb, var(--peligro) 10%, var(--fondo)); }
 .psn-confirmar p { margin: 0; font-size: 13px; line-height: 1.45; color: var(--texto); }
-.psn-confirmar-botones { display: flex; gap: 8px; }
-.psn-confirmar-botones > * { flex: 1; }
 .enlace-discreto.peligro { color: var(--peligro); }
 
 .psn-pasos { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
@@ -1136,7 +1150,7 @@ body.sin-barra #aviso-version { bottom: calc(96px + env(safe-area-inset-bottom))
 .psn-paso-cuerpo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .psn-paso-cuerpo > strong, .psn-paso-cuerpo label strong { font-size: 15px; }
 .psn-paso-cuerpo > span { font-size: 13px; color: var(--texto-2); line-height: 1.4; }
-.psn-boton-paso { gap: 8px; margin-top: 4px; height: 46px; width: 100%; }
+.psn-boton-paso { gap: 8px; margin-top: 4px; width: 100%; }
 .psn-paso.hecho .psn-boton-paso { background: var(--superficie-2); color: var(--texto); }
 .psn-nota-iphone { font-weight: 600; }
 .psn-ayuda-boton { align-self: flex-start; }
@@ -1247,7 +1261,7 @@ body.sin-barra #aviso-version { bottom: calc(96px + env(safe-area-inset-bottom))
 .bib-ocultos li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px 8px 14px; border-radius: 12px; background: var(--superficie); font-size: 14px; }
 .bib-ocultos li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu-bib { display: flex; flex-direction: column; gap: 12px; }
-.menu-bib .boton-secundario { height: 48px; width: 100%; }
+.menu-bib .boton-secundario { width: 100%; }
 
 /* Valorar: juegos online (3 estados) y horas jugadas */
 .estados.estados-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -1295,7 +1309,10 @@ body.sin-barra #aviso-version { bottom: calc(96px + env(safe-area-inset-bottom))
 .tarjeta-fusion-texto { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .tarjeta-fusion-texto strong { font-size: 14px; line-height: 1.3; }
 .tarjeta-fusion-texto > span { font-size: 12px; color: var(--texto-2); line-height: 1.4; }
-.tarjeta-fusion-botones { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.tarjeta-fusion-botones {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--esp-2); margin-top: var(--esp-1);
+}
+.tarjeta-fusion-botones > .enlace-discreto { grid-column: 1 / -1; justify-self: start; }
 
 /* Hoja de fusionar */
 .fusion { display: flex; flex-direction: column; gap: 12px; }
@@ -1328,7 +1345,8 @@ body.sin-barra #aviso-version { bottom: calc(96px + env(safe-area-inset-bottom))
 .revisar-nombre strong { font-size: 14px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .revisar-nombre small { font-size: 12px; color: var(--texto-2); line-height: 1.35; }
 .revisar-acciones { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.revisar-acciones .enlace-discreto { margin-left: auto; }
+.revisar-acciones .enlace-discreto { margin-left: auto; padding-left: var(--esp-2); }
+.revisar-acciones > :is(.boton-principal, .boton-secundario) { flex: 1 1 0; }
 .etiqueta-confianza { flex: 0 0 auto; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 700; }
 .etiqueta-confianza.seguro { background: var(--acento-suave); color: var(--acento-texto); }
 .etiqueta-confianza.revisar { background: color-mix(in srgb, var(--peligro) 14%, var(--fondo)); color: var(--peligro); }
@@ -1342,7 +1360,6 @@ body.sin-barra #aviso-version { bottom: calc(96px + env(safe-area-inset-bottom))
   display: flex; gap: 10px;
 }
 .barra-accion > * { flex: 1; height: 50px; }
-.barra-accion .boton-principal { font-size: 15px; }
 .barra-accion.barra-flotante { bottom: calc(var(--alto-barra) + env(safe-area-inset-bottom)); }
 
 /* Colecciones y sagas agrupadas: bloque plegable a lo ancho de la rejilla */
@@ -1400,7 +1417,6 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 .plataforma-cab-texto { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .plataforma-cab-texto strong { font-size: 16px; }
 .plataforma-cab-texto span { font-size: 12px; color: var(--texto-2); }
-.tarjeta-plataforma .boton-principal { height: 48px; font-size: 15px; }
 .bibliotecas-varias { display: flex; flex-direction: column; gap: 14px; }
 .bibliotecas-varias .bibliotecas-cab .boton-pequeno, .bibliotecas-varias .bibliotecas-cab .etiqueta-acento, .bibliotecas-varias .bibliotecas-cab .etiqueta-gris { margin-left: auto; flex: 0 0 auto; }
 .conectar-xbox { min-height: 70vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; text-align: center; }
@@ -1414,8 +1430,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 
 /* Revisa tu biblioteca: "Sí, es este" y confirmar todas */
 .revisar-todas { display: flex; flex-direction: column; gap: 6px; }
-.revisar-todas .boton-principal { height: 50px; font-size: 15px; }
-.revisar-si { width: auto; height: 42px; padding: 0 18px; font-size: 14px; flex: 1 1 auto; }
+.revisar-si { width: auto; height: auto; min-height: var(--boton-alto-peq); padding: var(--boton-pad-peq); font-size: 13px; }
 .revisar-relleno { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
 .barra-accion-nota { font-size: 13px; color: var(--texto-2); display: flex; align-items: center; justify-content: center; text-align: center; }
 
@@ -1535,14 +1550,17 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 }
 .grupo-persona-texto { display: grid; gap: 2px; flex: 1; min-width: 0; }
 .grupo-persona-texto small { font-size: 12px; color: var(--texto-2); font-weight: 400; }
-.grupo-persona-acciones { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 12px 12px; align-items: center; }
-.grupo-persona-acciones .psn-confirmar { flex-basis: 100%; }
+.grupo-persona-acciones {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--esp-2);
+  padding: var(--esp-1) var(--esp-3) var(--esp-3); align-items: stretch;
+}
+.grupo-persona-acciones > .boton-secundario { width: 100%; min-height: var(--boton-alto); padding: var(--esp-2) var(--esp-3); font-size: 13.5px; }
+.grupo-persona-acciones > :is(.psn-confirmar, .grupo-cementerio, .grupo-confirmar) { grid-column: 1 / -1; }
 .codigo-nuevo { display: grid; gap: 14px; text-align: center; }
 .codigo-grande { margin: 4px 0 0; font: 800 44px var(--fuente-titulos); letter-spacing: .18em; color: var(--texto); user-select: all; -webkit-user-select: all; -webkit-touch-callout: default; }
 .codigo-aviso { margin: 0; }
-.codigo-botones { display: flex; gap: 10px; justify-content: center; }
-.codigo-botones > * { flex: 1; max-width: 180px; }
-.codigo-botones .boton-secundario { height: 56px; border-radius: var(--r-xl); font-size: 16px; }
+/* Copiar y Compartir: mismo ancho, misma altura (fila-botones), sin estirarse de más. */
+.codigo-botones { width: 100%; max-width: 400px; justify-self: center; }
 
 /* Botón Copiar (helper botonCopiar de js/ui.js): secundario pero claramente pulsable,
    con borde de acento; al copiar enseña "Copiado" con un check un par de segundos. */
@@ -1859,8 +1877,8 @@ body.seleccionando #barra { visibility: hidden; }
 /* Hojas de la selección */
 .sel-confirmar { display: flex; flex-direction: column; gap: 14px; }
 .sel-confirmar p { margin: 0; font-size: 15px; line-height: 1.45; color: var(--texto); }
-.sel-confirmar-botones { display: flex; gap: 10px; }
-.sel-confirmar-botones > * { flex: 1; height: 50px; }
+.sel-confirmar-botones { display: flex; gap: var(--esp-2); }
+.sel-confirmar-botones > * { flex: 1; min-height: var(--boton-alto); }
 .sel-plataformas { display: flex; flex-direction: column; gap: 10px; }
 .sel-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .menu-seccion { margin: 14px 0 2px; padding: 0 6px; }
@@ -1868,7 +1886,7 @@ body.seleccionando #barra { visibility: hidden; }
 
 /* Valorar uno a uno: Saltar y Guardar */
 .valorar-serie { display: flex; gap: 10px; }
-.valorar-serie > .boton-secundario { flex: 0 0 34%; height: 56px; border-radius: var(--r-xl); }
+.valorar-serie > .boton-secundario { flex: 0 0 34%; }
 .valorar-serie > .boton-principal { flex: 1; }
 
 /* Actividad agrupada ("Marcos completó 5 juegos") */
@@ -1927,7 +1945,7 @@ body.seleccionando #barra { visibility: hidden; }
 .horas-estimar summary { display: inline-block; cursor: pointer; font-size: 13px; list-style: none; }
 .horas-estimar summary::-webkit-details-marker { display: none; }
 .horas-estimar-opciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.horas-estimar-opciones .boton-principal { width: auto; height: 38px; padding: 0 14px; font-size: 13px; border-radius: 12px; }
+.horas-estimar-opciones .boton-principal { width: auto; height: auto; min-height: var(--boton-alto-peq); padding: var(--boton-pad-peq); font-size: 13px; }
 .horas-estimar .ajustes-nota { margin: 8px 0 0; }
 
 /* Sin identificar: la portada limpia y, debajo, la propuesta o "¿Qué juego es?" */
@@ -2103,7 +2121,7 @@ body.seleccionando #barra { visibility: hidden; }
 .oculto-accesible { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .grupo-social { margin-left: 52px; }
 .social { display: grid; gap: 8px; min-width: 0; }
-.social-fila { display: flex; align-items: center; gap: 2px; min-height: 30px; } /* una sola línea: los textos se acortan */
+.social-fila { display: flex; align-items: center; gap: var(--esp-1); min-height: 30px; } /* una sola línea: los textos se acortan */
 .social-hueco { flex: 1; }
 .social-resumen {
   display: inline-flex; flex: none; align-items: center; gap: 6px; height: 28px; padding: 0 10px 0 8px; border: 0; border-radius: 999px;
@@ -2177,7 +2195,7 @@ body.seleccionando #barra { visibility: hidden; }
   background: var(--superficie); color: var(--texto); font: 16px/1.3 var(--fuente-texto); outline: none;
 }
 .social-escribir textarea:focus { border-color: var(--acento); }
-.social-escribir .boton-principal { flex: none; width: auto; height: 42px; }
+.social-escribir .boton-principal { flex: none; width: auto; min-height: var(--boton-alto-peq); }
 
 /* Aviso de Inicio: lo nuevo en lo mío */
 .social-novedades {
@@ -2625,8 +2643,8 @@ body.apariencia-abierta > #app, body.apariencia-abierta > #barra { visibility: h
 .aviso-reanimar-cab > span:last-child { display: grid; gap: 3px; }
 .aviso-reanimar-cab small { font-size: 13px; color: var(--texto-2); }
 .aviso-reanimar-cab b { color: var(--texto); }
-.aviso-reanimar-botones { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.aviso-reanimar-botones .enlace-discreto { margin-left: auto; }
+.aviso-reanimar-botones { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: center; gap: var(--esp-2); }
+.aviso-reanimar-botones .enlace-discreto { margin-left: var(--esp-2); }
 @keyframes latir { 0%, 100% { transform: scale(1); } 12% { transform: scale(1.14); } 24% { transform: scale(1); } 36% { transform: scale(1.08); } 48% { transform: scale(1); } }
 
 /* Actividad */
@@ -2736,8 +2754,7 @@ body.apariencia-abierta > #app, body.apariencia-abierta > #barra { visibility: h
 .lapida-progreso { height: 6px; border-radius: 999px; background: rgba(37, 34, 43, .14); overflow: hidden; }
 .lapida-progreso i { display: block; height: 100%; width: var(--p, 0%); border-radius: inherit; background: var(--acento); transition: width .6s var(--curva); }
 .lapida-nota { font-size: 12px; color: var(--piedra-texto-2); }
-.lapida-veto { display: flex; gap: 8px; }
-.lapida-veto > * { flex: 1; }
+.lapida-veto { display: grid; grid-template-columns: 1fr 1fr; gap: var(--esp-2); }
 .lapida.reanimando .lapida-foto { animation: latir 1.6s ease-in-out infinite; }
 
 /* Exorcizados: piedra oscura, sellada con lacre */
@@ -2777,7 +2794,7 @@ body.apariencia-abierta > #app, body.apariencia-abierta > #barra { visibility: h
   width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; justify-self: center; align-self: center;
   background: var(--acento); color: var(--sobre-acento); animation: latir 1.6s ease-in-out infinite;
 }
-.grupo-cementerio { display: flex; flex-wrap: wrap; gap: 6px 16px; flex-basis: 100%; }
+.grupo-cementerio { display: flex; flex-wrap: wrap; gap: var(--esp-2) var(--esp-5); margin-top: var(--esp-1); padding-top: var(--esp-2); border-top: 1px solid var(--borde); }
 .columna-legado { margin: 4px 0 0; max-width: 34ch; font: italic 400 14.5px/1.4 var(--fuente-lectura); color: var(--texto-2); text-align: center; }
 .columna-legado a, .lectura-fin a { color: inherit; }
 @media (prefers-reduced-motion: reduce) {
@@ -2906,8 +2923,6 @@ body.apariencia-abierta > #app, body.apariencia-abierta > #barra { visibility: h
 
 .prop-decidir { display: grid; gap: 8px; padding-top: 12px; border-top: 1px dashed var(--borde-fuerte); }
 .prop-decidir-etq { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--texto-2); }
-.prop-decidir-botones { display: flex; flex-wrap: wrap; gap: 8px; }
-.prop-decidir-botones .boton-principal { width: auto; }
 
 .prop-filas { display: grid; gap: 6px; padding: 0 16px; }
 .prop-fila { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 14px; background: var(--superficie); color: var(--texto); text-decoration: none; }

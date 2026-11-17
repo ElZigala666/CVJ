@@ -19,7 +19,10 @@ export const NIVELES = ['', 'bronce', 'plata', 'oro'];
 const NOMBRE_NIVEL = ['', 'Bronce', 'Plata', 'Oro'];
 export const MAX_DESTACADAS = 4;
 const MIN_NOTAS_MEDIA = 15;     // para las de nota media
-const MIN_JUEGOS_COMUNES = 10;  // para polémico y oráculo
+const MIN_JUEGOS_COMUNES = 10;  // para polémico, oráculo, almas gemelas y némesis
+// Desde cuándo cuentan las fechas de las valoraciones: antes se importó todo de golpe.
+const ESTRENO = new Date('2026-11-12T00:00:00Z').getTime();
+const DIA = 86400000;
 const ANIO = new Date().getFullYear();
 
 // ---------------------------------------------------------------------------
@@ -55,6 +58,11 @@ const GLIFOS = {
   luna: 'M14.5 2.5a9.5 9.5 0 1 0 7 15.6A8 8 0 0 1 14.5 2.5z',
   cajas: 'M3 13h8v8H3zM13 13h8v8h-8zM8 3.5h8v8H8z',
   bola: 'M12 2.5a8 8 0 0 1 5.6 13.7H6.4A8 8 0 0 1 12 2.5zM9 5.8l.8 1.7 1.7.8-1.7.8-.8 1.7-.8-1.7-1.7-.8 1.7-.8zM5 17.5h14l1.5 4.5h-17z',
+  corazones: 'M9 21 2.5 14.5A4.2 4.2 0 0 1 9 9.3a4.2 4.2 0 0 1 6.5 5.2zM16.6 13.3l-1.3-1.3c1-1.9.8-4.2-.6-5.9A3.3 3.3 0 0 1 21.8 9z',
+  espadas: 'M3 3h3l9 9-1.5 1.5L4.5 4.5zM21 3h-3l-9 9 1.5 1.5 9-9zM6.5 15.5l2 2-3 3-2-2zM17.5 15.5l-2 2 3 3 2-2z',
+  caracol: 'M14 4a7 7 0 1 1 0 14H3.5a1.5 1.5 0 0 1 0-3H7.3A7 7 0 0 1 14 4zm0 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM3 8.5h1.6l1.4 3.5H4.4z',
+  megafono: 'M3 9h4l9-5v16l-9-5H3zM18 8.5a4 4 0 0 1 0 7v-2.2a1.8 1.8 0 0 0 0-2.6zM7 15.5h3l1 5H8z',
+  onda: 'M12 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7.1 7.1l1.4 1.4a5 5 0 0 0 0 7l-1.4 1.4a7 7 0 0 1 0-9.8zM16.9 7.1a7 7 0 0 1 0 9.8l-1.4-1.4a5 5 0 0 0 0-7zM4.2 4.2l1.4 1.4a9 9 0 0 0 0 12.8l-1.4 1.4a11 11 0 0 1 0-15.6zM19.8 4.2a11 11 0 0 1 0 15.6l-1.4-1.4a9 9 0 0 0 0-12.8z',
   calavera: 'M12 2a9 9 0 0 1 9 9c0 3-1.4 4.8-3 6v3.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 20.5V17c-1.6-1.2-3-3-3-6a9 9 0 0 1 9-9zM8.5 9.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM15.5 9.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z',
 };
 
@@ -67,21 +75,24 @@ const GLIFOS = {
  * pista: lo que se ve bloqueada. Las de grupo: mejor = 'max' | 'min' y min (valor mínimo).
  */
 export const CATALOGO = [
-  // --- De grupo: van cambiando de dueño ---------------------------------------
-  { id: 'mayor-viciado', tipo: 'grupo', nombre: 'Mayor viciado', glifo: 'mando', desc: 'Más horas jugadas que nadie del grupo.', pista: 'Ten más horas jugadas que nadie.', unidad: 'h', mejor: 'max', min: 1 },
-  { id: 'critico-implacable', tipo: 'grupo', nombre: 'Crítico implacable', glifo: 'bajada', desc: 'La nota media más baja del grupo.', pista: `La nota media más baja del grupo (con ${MIN_NOTAS_MEDIA} notas o más).`, unidad: 'media', mejor: 'min', comparativa: true },
-  { id: 'ojos-de-cordero', tipo: 'grupo', nombre: 'Ojos de cordero', glifo: 'corazon', desc: 'La nota media más alta del grupo: todo le parece bien.', pista: `La nota media más alta del grupo (con ${MIN_NOTAS_MEDIA} notas o más).`, unidad: 'media', mejor: 'max', comparativa: true },
-  { id: 'llanero-solitario', tipo: 'grupo', nombre: 'Llanero solitario', glifo: 'estrella', desc: 'Más juegos que nadie más del grupo ha jugado.', pista: 'Juega a más juegos que nadie más del grupo ha tocado.', unidad: 'juegos', mejor: 'max', min: 5 },
-  { id: 'el-polemico', tipo: 'grupo', nombre: 'El polémico', glifo: 'rayo', desc: 'Sus notas son las que más se alejan de las del resto.', pista: `Que tus notas sean las que más se alejan de las del resto (${MIN_JUEGOS_COMUNES} juegos en común).`, unidad: 'puntos', mejor: 'max', comparativa: true },
-  { id: 'el-oraculo', tipo: 'grupo', nombre: 'El oráculo', glifo: 'ojo', desc: 'Sus notas son las que más se parecen a las del resto.', pista: `Que tus notas sean las que más se parecen a las del resto (${MIN_JUEGOS_COMUNES} juegos en común).`, unidad: 'puntos', mejor: 'min', comparativa: true },
-  { id: 'la-apisonadora', tipo: 'grupo', nombre: 'La apisonadora', glifo: 'pila', desc: 'Más juegos completados que nadie del grupo.', pista: 'Completa más juegos que nadie.', unidad: 'juegos', mejor: 'max', min: 10 },
-  { id: 'pluma-de-oro', tipo: 'grupo', nombre: 'Pluma de oro', glifo: 'pluma', desc: 'Sus reseñas son las que más «Buena reseña» y «Muy de acuerdo» reciben.', pista: 'Que tus reseñas reciban más «Buena reseña» y «Muy de acuerdo» que las de nadie.', unidad: 'reacciones', mejor: 'max', min: 3 },
+  // --- De grupo: van cambiando de dueño y dependen de lo que hacen los demás --------
+  { id: 'mayor-viciado', tipo: 'grupo', nombre: 'Mayor viciado', glifo: 'mando', desc: 'Más horas jugadas que nadie del grupo (sincronizadas de las plataformas).', unidad: 'h', mejor: 'max', min: 1 },
+  { id: 'critico-implacable', tipo: 'grupo', nombre: 'Crítico implacable', glifo: 'bajada', desc: 'La nota media más baja del grupo en los juegos que también ha puntuado alguien más.', unidad: 'media', mejor: 'min', comparativa: true },
+  { id: 'ojos-de-cordero', tipo: 'grupo', nombre: 'Ojos de cordero', glifo: 'corazon', desc: 'La nota media más alta del grupo en los juegos que también ha puntuado alguien más: todo le parece bien.', unidad: 'media', mejor: 'max', comparativa: true },
+  { id: 'el-polemico', tipo: 'grupo', nombre: 'El polémico', glifo: 'rayo', desc: 'Sus notas son las que más se alejan de las del resto.', unidad: 'puntos', mejor: 'max', comparativa: true },
+  { id: 'el-oraculo', tipo: 'grupo', nombre: 'El oráculo', glifo: 'ojo', desc: 'Sus notas son las que más se parecen a las del resto.', unidad: 'puntos', mejor: 'min', comparativa: true },
+  { id: 'pluma-de-oro', tipo: 'grupo', nombre: 'Pluma de oro', glifo: 'pluma', desc: 'Sus reseñas son las que más «Buena reseña» y «Muy de acuerdo» reciben.', unidad: 'reacciones', mejor: 'max', min: 3 },
+  { id: 'almas-gemelas', tipo: 'grupo', pareja: true, nombre: 'Almas gemelas', glifo: 'corazones', desc: 'La pareja del grupo que más se parece al poner notas.', unidad: 'puntos', mejor: 'min' },
+  { id: 'nemesis', tipo: 'grupo', pareja: true, nombre: 'Némesis', glifo: 'espadas', desc: 'La pareja del grupo que menos se parece al poner notas.', unidad: 'puntos', mejor: 'max' },
+  { id: 'el-ultimo-mono', tipo: 'grupo', nombre: 'El último mono', glifo: 'caracol', desc: 'Siempre llega tarde: el último en jugar a juegos que ya habían jugado al menos otros tres.', unidad: 'juegos', mejor: 'max', min: 2 },
+  { id: 'influencer', tipo: 'grupo', nombre: 'Influencer', glifo: 'onda', desc: 'Juega algo y, en menos de un mes, otros del grupo se ponen con ello.', unidad: 'juegos', mejor: 'max', min: 2 },
+  { id: 'la-voz-del-pueblo', tipo: 'grupo', nombre: 'La voz del pueblo', glifo: 'megafono', desc: 'Quien más reacciones ha recibido en el último mes.', unidad: 'reacciones', mejor: 'max', min: 5 },
 
   // --- Hitos personales ------------------------------------------------------------
   { id: 'hasta-los-creditos', tipo: 'hito', nombre: 'Hasta los créditos', glifo: 'creditos', umbrales: [10, 50, 100], que: 'juegos completados' },
   { id: 'monotematico', tipo: 'hito', nombre: 'Monotemático', glifo: 'reloj', umbrales: [100, 300, 1000], que: 'horas en un solo juego' },
   { id: 'toda-una-vida', tipo: 'hito', nombre: 'Toda una vida', glifo: 'arena', umbrales: [500, 2000, 5000], que: 'horas jugadas en total' },
-  { id: 'cazatrofeos', tipo: 'hito', nombre: 'Cazatrofeos', glifo: 'trofeo', umbrales: [1, 5, 20], que: 'platinos o juegos al 100 % de logros', que1: 'platino o juego al 100 % de logros' },
+  { id: 'cazatrofeos', tipo: 'hito', nombre: 'Cazatrofeos', glifo: 'trofeo', umbrales: [1, 5, 20], que: 'platinos conseguidos en PlayStation', que1: 'platino conseguido en PlayStation', recalcular: true },
   { id: 'opinologo', tipo: 'hito', nombre: 'Opinólogo', glifo: 'bocadillo', umbrales: [25, 75, 150], que: 'reseñas escritas' },
   { id: 'gatillo-facil', tipo: 'hito', nombre: 'Gatillo fácil', glifo: 'salida', umbrales: [10, 25, 50], que: 'juegos abandonados' },
   { id: 'otra-vuelta', tipo: 'hito', nombre: 'Otra vuelta', glifo: 'vuelta', umbrales: [1, 3, 10], que: 'juegos rejugados', que1: 'juego rejugado' },
@@ -92,7 +103,7 @@ export const CATALOGO = [
   { id: 'da-que-hablar', tipo: 'hito', nombre: 'Da que hablar', glifo: 'charla', umbrales: [5, 20, 50], que: 'respuestas de otros a tus reseñas y entradas' },
   { id: 'tinta-fresca', tipo: 'hito', nombre: 'Tinta fresca', glifo: 'plumin', umbrales: [1, 5, 15], que: 'entradas publicadas en tu columna', que1: 'entrada publicada en tu columna' },
   { id: 'lectura-obligada', tipo: 'hito', nombre: 'Lectura obligada', glifo: 'libro', desc: 'Una entrada de su columna la ha leído todo el grupo.', pista: 'Que todo el grupo lea una entrada de tu columna.' },
-  { id: 'multiplataforma', tipo: 'hito', nombre: 'Multiplataforma', glifo: 'formas', desc: 'Horas jugadas en PlayStation, Xbox y Steam.', pista: 'Juega en PlayStation, Xbox y Steam.' },
+  { id: 'multiplataforma', tipo: 'hito', nombre: 'Multiplataforma', glifo: 'formas', desc: 'Juega en consola y en PC.', recalcular: true },
 
   // --- Secretas --------------------------------------------------------------------
   { id: 'me-rindo', tipo: 'secreta', nombre: 'Me rindo', glifo: 'bandera', desc: 'Abandonó un juego después de más de 50 horas.' },
@@ -117,6 +128,7 @@ function pista(d, nivel) {
   if (d.umbrales) return nivel >= 3 ? descripcion(d, 3) : `${NOMBRE_NIVEL[nivel + 1]}: ${cantidad(d, d.umbrales[nivel])}`;
   return d.pista ?? d.desc;
 }
+const CONSOLA = /^(PS|Xbox|Switch|Wii|Nintendo|3DS|DS|Game ?Boy|GameCube|N64|SNES|NES|Mega ?Drive|Dreamcast|Saturn)/i;
 const nivelDe = (umbrales, valor) => (umbrales ? umbrales.filter((u) => valor >= u).length : (valor ? 1 : 0));
 
 // ---------------------------------------------------------------------------
@@ -201,11 +213,13 @@ export function calcular() {
   for (const x of datos.estado.valoraciones ?? []) autorDe.set(`valoracion:${x.id}`, x.usuario_id);
   for (const x of datos.estado.valColecciones ?? []) autorDe.set(`valoracion_coleccion:${x.id}`, x.usuario_id);
   for (const x of datos.estado.entradas ?? []) autorDe.set(`entrada:${x.id}`, x.usuario_id);
-  const recibidas = new Map(usuarios.map((u) => [u.id, { wtf: 0, buenas: 0, respuestas: 0 }]));
+  const recibidas = new Map(usuarios.map((u) => [u.id, { wtf: 0, buenas: 0, respuestas: 0, mes: 0, mesDe: new Set() }]));
+  const haceUnMes = Date.now() - 30 * DIA;
   for (const r of datos.estado.reacciones ?? []) {
     const a = autorDe.get(`${r.objetivo}:${r.objetivo_id}`);
     if (!a || a === r.usuario_id || !recibidas.has(a)) continue;
     if (r.tipo === 'wtf') recibidas.get(a).wtf += 1;
+    if (new Date(r.creado_en).getTime() >= haceUnMes) { recibidas.get(a).mes += 1; recibidas.get(a).mesDe.add(r.usuario_id); }
     if (r.objetivo !== 'entrada' && (r.tipo === 'buena' || r.tipo === 'acuerdo')) recibidas.get(a).buenas += 1;
   }
   for (const c of datos.estado.comentarios ?? []) {
@@ -248,15 +262,26 @@ export function calcular() {
     for (const [id, h] of t.juegos) reales.set(id, Math.max(0, h - metricas.estimadasDe(u.id, id)));
     const maxJuego = Math.max(0, ...reales.values());
     const realDe = (id) => reales.get(Number(id)) ?? 0;
-    // Biblioteca: al 100 % y fuentes con horas.
-    const cien = new Set();
-    const fuentes = new Set();
+    // Biblioteca: platinos de PlayStation y dónde juega (consola y PC).
+    const platinos = new Set();
+    let consola = false;
+    let pc = false;
+    let horasSinc = 0;
     for (const f of datos.estado.biblioteca ?? []) {
       if (f.usuario_id !== u.id || f.oculto) continue;
-      if (Number(f.horas) > 0) fuentes.add(f.fuente ?? 'psn');
+      const fuente = f.fuente ?? 'psn';
+      if (fuente === 'steam' || fuente === 'epic' || (fuente === 'xbox' && (f.plataforma === 'PC' || f.detectado))) pc = true;
+      else consola = true;
       const id = datos.igdbDeBiblioteca(f);
-      if (id != null && (Number(f.progreso_trofeos) >= 100 || Number(f.trofeos?.platinum) > 0)) cien.add(datos.canonico(id));
+      if (fuente === 'psn' && id != null && Number(f.trofeos?.platinum) > 0) platinos.add(datos.canonico(id));
     }
+    for (const x of mias) {
+      for (const pl of datos.plataformasDe(x)) {
+        if (pl === 'PC') pc = true;
+        else if (CONSOLA.test(pl)) consola = true;
+      }
+    }
+    for (const x of metricas.biblioteca(u.id).juegos ?? []) horasSinc += Number(x.horasSinc) || 0;
     // Sagas completadas: todos sus juegos ya salidos (3 o más) completados.
     let sagas = 0;
     for (const sg of datos.sagas()) {
@@ -279,13 +304,29 @@ export function calcular() {
     const otrosActivos = activos.filter((x) => x.id !== u.id);
     const leidaPorTodos = publicadas.some((e) => otrosActivos.length >= 2 && otrosActivos.every((x) => lectoresDe.get(e.id)?.has(x.id)));
     const rec = recibidas.get(u.id);
-    const solo = jugadas.filter((x) => !(porJuego.get(Number(x.juego_id)) ?? []).some((y) => y.usuario_id !== u.id && jugada(y))).length;
+    // Notas en juegos que también ha puntuado alguien más (las medias no se inflan a solas).
+    const compartidas = notas.filter((x) => (porJuego.get(Number(x.juego_id)) ?? []).some((y) => y.usuario_id !== u.id && conNota(y)));
+    // El último mono: el último en jugar a un juego que ya habían jugado al menos otros tres.
+    const ultimo = jugadas.filter((x) => {
+      const otros = (porJuego.get(Number(x.juego_id)) ?? []).filter((y) => y.usuario_id !== u.id && jugada(y) && datos.usuario(y.usuario_id)?.activo !== false);
+      const t0 = new Date(x.creado_en).getTime();
+      return otros.length >= 3 && otros.every((y) => new Date(y.creado_en).getTime() < t0);
+    }).length;
+    // Influencer: lo juega y, en 30 días, otro del grupo se pone con ello (desde el estreno).
+    const influye = jugadas.filter((x) => {
+      const t0 = new Date(x.creado_en).getTime();
+      return (porJuego.get(Number(x.juego_id)) ?? []).some((y) => {
+        if (y.usuario_id === u.id || !jugada(y)) return false;
+        const t = new Date(y.creado_en).getTime();
+        return t >= ESTRENO && t > t0 + 3600000 && t <= t0 + 30 * DIA;
+      });
+    }).length;
 
     const valores = {
       'hasta-los-creditos': completadas.length,
       monotematico: Math.floor(maxJuego),
       'toda-una-vida': Math.floor(totalReal),
-      cazatrofeos: cien.size,
+      cazatrofeos: platinos.size,
       opinologo: mias.filter((x) => x.resena?.trim()).length,
       'gatillo-facil': mias.filter((x) => x.estado === 'abandonado').length,
       'otra-vuelta': mias.filter((x) => Number(x.vueltas) > 1 || x.rejugando).length,
@@ -296,7 +337,7 @@ export function calcular() {
       'da-que-hablar': rec.respuestas,
       'tinta-fresca': publicadas.length,
       'lectura-obligada': leidaPorTodos ? 1 : 0,
-      multiplataforma: ['psn', 'xbox', 'steam'].every((f) => fuentes.has(f)) ? 1 : 0,
+      multiplataforma: consola && pc ? 1 : 0,
       'me-rindo': mias.some((x) => x.estado === 'abandonado' && realDe(x.juego_id) > 50) ? 1 : 0,
       'sindrome-de-estocolmo': notas.some((x) => Number(x.nota) < 5 && realDe(x.juego_id) > 100) ? 1 : 0,
       herejia: herejia ? 1 : 0,
@@ -315,21 +356,22 @@ export function calcular() {
 
     if (u.activo === false) continue; // las de grupo, solo entre los activos
     const g = (id, valor, ok = true) => { if (ok && valor != null) grupoValores.get(id).set(u.id, valor); };
-    g('mayor-viciado', Math.round(totalReal));
-    g('critico-implacable', Math.round(media(notas.map((x) => Number(x.nota))) * 100) / 100, notas.length >= MIN_NOTAS_MEDIA);
-    g('ojos-de-cordero', Math.round(media(notas.map((x) => Number(x.nota))) * 100) / 100, notas.length >= MIN_NOTAS_MEDIA);
-    g('llanero-solitario', solo);
+    g('mayor-viciado', Math.round(horasSinc));
+    g('critico-implacable', Math.round(media(compartidas.map((x) => Number(x.nota))) * 100) / 100, compartidas.length >= MIN_NOTAS_MEDIA);
+    g('ojos-de-cordero', Math.round(media(compartidas.map((x) => Number(x.nota))) * 100) / 100, compartidas.length >= MIN_NOTAS_MEDIA);
     g('el-polemico', Math.round(media(difs) * 100) / 100, difs.length >= MIN_JUEGOS_COMUNES);
     g('el-oraculo', Math.round(media(difs) * 100) / 100, difs.length >= MIN_JUEGOS_COMUNES);
-    g('la-apisonadora', completadas.length);
     g('pluma-de-oro', rec.buenas);
+    g('el-ultimo-mono', ultimo);
+    g('influencer', influye);
+    if (rec.mesDe.size >= 2) g('la-voz-del-pueblo', rec.mes);
   }
 
   // Dueño de cada una de grupo: el primero, sin empates (si hay empate arriba, la conserva
   // quien ya la tenía; si no la tenía ninguno de los empatados, se queda sin dueño).
   const guardadas = new Map((datos.estado.insigniasGrupo ?? []).map((x) => [x.insignia, x]));
   const grupo = new Map();
-  for (const d of CATALOGO.filter((x) => x.tipo === 'grupo')) {
+  for (const d of CATALOGO.filter((x) => x.tipo === 'grupo' && !x.pareja)) {
     const vs = [...grupoValores.get(d.id)].filter(([, x]) => d.min == null || (d.mejor === 'max' ? x >= d.min : true));
     let uid = null;
     let valor = null;
@@ -341,7 +383,29 @@ export function calcular() {
       uid = top.length === 1 ? top[0] : (top.includes(actual) ? actual : null);
       valor = mejor;
     }
-    grupo.set(d.id, { uid, valor, valores: new Map(vs) });
+    grupo.set(d.id, { uid, uid2: null, valor, valores: new Map(vs) });
+  }
+  // Parejas: la diferencia media de notas en los juegos que tienen en común (como en Comparar).
+  const parejas = [];
+  for (let a = 0; a < activos.length; a++) {
+    for (let b = a + 1; b < activos.length; b++) {
+      const [x, y] = [activos[a].id, activos[b].id].sort();
+      const c = metricas.comparar(x, y);
+      if (c.comunes >= MIN_JUEGOS_COMUNES && c.diferenciaExacta != null) parejas.push({ x, y, dif: Math.round(c.diferenciaExacta * 1000) / 1000 });
+    }
+  }
+  for (const d of CATALOGO.filter((z) => z.pareja)) {
+    let par = null;
+    let valor = null;
+    if (parejas.length >= 2) {
+      valor = d.mejor === 'max' ? Math.max(...parejas.map((z) => z.dif)) : Math.min(...parejas.map((z) => z.dif));
+      const top = parejas.filter((z) => z.dif === valor);
+      const g = guardadas.get(d.id);
+      par = top.length === 1 ? top[0] : top.find((z) => z.x === g?.usuario_id && z.y === g?.otro_id) ?? null;
+    }
+    const valores = new Map();
+    for (const z of parejas) { valores.set(`${z.x}:${z.y}`, z.dif); }
+    grupo.set(d.id, { uid: par?.x ?? null, uid2: par?.y ?? null, valor, valores });
   }
   memo = { version: v, r: { personal, grupo } };
   return memo.r;
@@ -355,12 +419,16 @@ export function deUsuario(uid) {
   return CATALOGO.map((d) => {
     if (d.tipo === 'grupo') {
       const g = c.grupo.get(d.id);
-      const tiene = g?.uid === uid;
-      return { d, uid, nivel: tiene ? 1 : 0, valor: g?.valores.get(uid) ?? null, desde: tiene ? grupoG.get(d.id)?.desde ?? null : null, lider: g?.uid ?? null, valorLider: g?.valor ?? null };
+      const tiene = g?.uid === uid || (!!g?.uid2 && g.uid2 === uid);
+      const pareja = d.pareja && tiene ? (g.uid === uid ? g.uid2 : g.uid) : null;
+      const valor = d.pareja ? (tiene ? g.valor : null) : g?.valores.get(uid) ?? null;
+      return { d, uid, nivel: tiene ? 1 : 0, valor, pareja, desde: tiene ? grupoG.get(d.id)?.desde ?? null : null };
     }
     const x = c.personal.get(uid)?.get(d.id) ?? { nivel: 0, valor: 0 };
     const gu = guardadas.get(d.id);
-    return { d, nivel: Math.max(x.nivel, gu?.nivel ?? 0), valor: x.valor, desde: gu?.conseguida_en ?? null };
+    // Las que se recalcularon con reglas nuevas mandan como salen ahora (pueden bajar).
+    const nivel = d.recalcular ? x.nivel : Math.max(x.nivel, gu?.nivel ?? 0);
+    return { d, nivel, valor: x.valor, desde: gu?.conseguida_en ?? null };
   });
 }
 
@@ -377,23 +445,26 @@ export async function sincronizar() {
     const guardadas = new Map((datos.estado.insignias ?? []).map((x) => [`${x.usuario_id}:${x.insignia}`, x]));
     const yaTenia = new Set((datos.estado.insignias ?? []).map((x) => x.usuario_id));
     const personales = [];
+    const bajar = [];
     for (const [uid, m] of c.personal) {
       for (const [id, { nivel }] of m) {
-        if (!nivel) continue;
         const g = guardadas.get(`${uid}:${id}`);
+        // Reglas cambiadas (Cazatrofeos, Multiplataforma): baja o se va, sin avisos.
+        if (g && g.nivel > nivel && definicion(id)?.recalcular) { bajar.push({ usuario_id: uid, insignia: id, nivel }); continue; }
+        if (!nivel) continue;
         // La primera vez de cada persona, todo es "inicial" (lo que ya tenía de antes).
         if (!g || g.nivel < nivel) personales.push({ usuario_id: uid, insignia: id, nivel, inicial: estreno || !yaTenia.has(uid) });
       }
     }
     const gg = new Map((datos.estado.insigniasGrupo ?? []).map((x) => [x.insignia, x]));
     const grupo = [];
-    for (const [id, { uid, valor }] of c.grupo) {
+    for (const [id, { uid, uid2, valor }] of c.grupo) {
       const g = gg.get(id);
-      if ((g?.usuario_id ?? null) === uid) continue;
+      if ((g?.usuario_id ?? null) === uid && (g?.otro_id ?? null) === (uid2 ?? null)) continue;
       if (!g && !uid) continue;
-      grupo.push({ insignia: id, usuario_id: uid, anterior_id: g?.usuario_id ?? null, valor, inicial: estreno || !g });
+      grupo.push({ insignia: id, usuario_id: uid, otro_id: uid2 ?? null, anterior_id: g?.usuario_id ?? null, otro_anterior_id: g?.otro_id ?? null, valor, inicial: estreno || !g });
     }
-    await datos.guardarInsignias({ personales, grupo });
+    await datos.guardarInsignias({ personales, grupo, bajar });
   } catch (e) {
     console.warn('[insignias]', e?.message || e);
   } finally {
@@ -415,26 +486,27 @@ export function avisosPendientes(uid) {
     const d = definicion(x.insignia);
     if (d && x.usuario_id === uid && nuevo(x.conseguida_en)) lista.push({ tipo: 'gana', d, nivel: x.nivel, fecha: x.conseguida_en, inicial: x.inicial });
   }
+  const esMia = (x) => x.usuario_id === uid || x.otro_id === uid;
   for (const x of datos.estado.insigniasGrupo ?? []) {
     const d = definicion(x.insignia);
     if (!d || !nuevo(x.desde)) continue;
-    if (x.usuario_id === uid) lista.push({ tipo: 'gana', d, nivel: 1, fecha: x.desde, inicial: x.inicial, quitada: x.anterior_id });
-    else if (x.anterior_id === uid) lista.push({ tipo: 'pierde', d, fecha: x.desde, quien: x.usuario_id });
+    if (esMia(x)) lista.push({ tipo: 'gana', d, nivel: 1, fecha: x.desde, inicial: x.inicial, quitada: d.pareja ? null : x.anterior_id, pareja: d.pareja ? (x.usuario_id === uid ? x.otro_id : x.usuario_id) : null });
+    else if (x.anterior_id === uid || x.otro_anterior_id === uid) lista.push({ tipo: 'pierde', d, fecha: x.desde, quien: x.usuario_id, quien2: x.otro_id });
   }
   // Las de grupo que tenía la última vez (en este móvil): si ahora no son mías y la fila ya
   // no lo dice (ha cambiado de manos dos veces), también es una pérdida.
   for (const id of leerMias(uid)) {
     const g = (datos.estado.insigniasGrupo ?? []).find((x) => x.insignia === id);
     const d = definicion(id);
-    if (!d || !g || g.usuario_id === uid || lista.some((x) => x.d.id === id)) continue;
-    lista.push({ tipo: 'pierde', d, fecha: g.desde, quien: g.usuario_id });
+    if (!d || !g || esMia(g) || lista.some((x) => x.d.id === id)) continue;
+    lista.push({ tipo: 'pierde', d, fecha: g.desde, quien: g.usuario_id, quien2: g.otro_id });
   }
   return lista.sort((a, b) => (a.tipo === b.tipo ? 0 : a.tipo === 'gana' ? -1 : 1) || new Date(a.fecha) - new Date(b.fecha));
 }
 const claveMias = (uid) => `cvj.insignias.grupo.${uid}`;
 function leerMias(uid) { try { return JSON.parse(localStorage.getItem(claveMias(uid)) || '[]'); } catch { return []; } }
 function guardarMias(uid) {
-  const mias = (datos.estado.insigniasGrupo ?? []).filter((x) => x.usuario_id === uid).map((x) => x.insignia);
+  const mias = (datos.estado.insigniasGrupo ?? []).filter((x) => x.usuario_id === uid || x.otro_id === uid).map((x) => x.insignia);
   try { localStorage.setItem(claveMias(uid), JSON.stringify(mias)); } catch { /* nada */ }
 }
 
@@ -470,7 +542,7 @@ function mostrarAvisos(lista) {
   for (const x of lista.filter((y) => !(iniciales.length > 2 && y.inicial && y.tipo === 'gana'))) {
     if (x.tipo === 'gana') {
       const ante = x.d.tipo === 'grupo'
-        ? (x.quitada && datos.usuario(x.quitada) ? `Se la has quitado a ${esc(datos.usuario(x.quitada).nombre)}` : 'Ahora es tuya')
+        ? (x.pareja ? `Con ${esc(datos.usuario(x.pareja)?.nombre ?? '')}` : x.quitada && datos.usuario(x.quitada) ? `Se la has quitado a ${esc(datos.usuario(x.quitada).nombre)}` : 'Ahora es tuya')
         : x.d.tipo === 'secreta' ? 'Insignia secreta' : x.nivel > 1 ? `Sube a ${NOMBRE_NIVEL[x.nivel].toLowerCase()}` : 'Nueva insignia';
       pasos.push(`
         <div class="ins-aviso-medalla nivel-${NIVELES[x.nivel] || 'unico'}"><span class="ins-aviso-halo" aria-hidden="true"></span>${medalla(x.d, { nivel: x.nivel, tam: 150 })}</div>
@@ -485,8 +557,8 @@ function mostrarAvisos(lista) {
         <div class="ins-aviso-medalla perdida">${medalla(x.d, { tam: 130, bloqueada: true })}${quien ? `<span class="ins-aviso-ladron">${avatar(quien, 52)}</span>` : ''}</div>
         <div class="ins-aviso-texto">
           <span class="ins-aviso-ante">Insignia perdida</span>
-          <strong class="ins-aviso-nombre">${quien ? `${esc(quien.nombre)} te ha quitado «${esc(x.d.nombre)}»` : `Ya no tienes «${esc(x.d.nombre)}»`}</strong>
-          <span class="ins-aviso-desc">${esc(x.d.desc)}</span>
+          <strong class="ins-aviso-nombre">${x.d.pareja ? `Ya no sois «${esc(x.d.nombre)}»` : quien ? `${esc(quien.nombre)} te ha quitado «${esc(x.d.nombre)}»` : `Ya no tienes «${esc(x.d.nombre)}»`}</strong>
+          <span class="ins-aviso-desc">${x.d.pareja && quien ? `Ahora lo son ${esc(quien.nombre)} y ${esc(datos.usuario(x.quien2)?.nombre ?? '')}.` : esc(x.d.desc)}</span>
         </div>`);
     }
   }
@@ -551,17 +623,22 @@ function destacadas(u, lista) {
   return [...deGrupo, ...resto, ...todas.filter((x) => x.d.tipo === 'grupo').slice(2)].slice(0, MAX_DESTACADAS);
 }
 
-/** El hueco de insignias del perfil (vitrina + "Ver todas"). */
+/**
+ * El hueco de insignias del perfil. Catálogo oculto: cada uno solo ve las suyas y las que
+ * los demás tienen en su vitrina; nada de bloqueadas, pistas, "???" ni "X de 30".
+ */
 export function vitrinaHtml(u, esMio) {
-  if (!u || !Array.isArray(datos.estado.insignias)) return '<div class="perfil-insignias" data-ref="insignias" hidden></div>';
+  const vacio = '<div class="perfil-insignias" data-ref="insignias" hidden></div>';
+  if (!u || !Array.isArray(datos.estado.insignias)) return vacio;
   const lista = deUsuario(u.id);
   const total = conseguidas(lista).length;
   const top = destacadas(u, lista);
+  if (!esMio && !top.length) return vacio;
   return `
     <section class="perfil-insignias" data-ref="insignias">
       <div class="seccion-cab">
         <h2 class="seccion-titulo">Insignias</h2>
-        <button type="button" class="enlace-discreto" data-accion="insignias">${total ? `Ver todas · ${total} de ${CATALOGO.length}` : 'Ver cuáles hay'}</button>
+        ${top.length ? `<button type="button" class="enlace-discreto" data-accion="insignias">${esMio ? `Ver todas · ${total}` : 'Ver todas'}</button>` : ''}
       </div>
       ${top.length ? `
         <button type="button" class="ins-vitrina" data-accion="insignias" aria-label="Ver las insignias">
@@ -572,7 +649,7 @@ export function vitrinaHtml(u, esMio) {
               ${x.d.umbrales ? `<span class="ins-nivel ${NIVELES[x.nivel]}">${NOMBRE_NIVEL[x.nivel]}</span>` : x.d.tipo === 'grupo' ? '<span class="ins-nivel grupo">Ahora</span>' : ''}
             </span>`).join('')}
         </button>`
-        : `<p class="ins-vacia">${esMio ? 'Todavía ninguna. Valora, completa y reseña: van llegando solas.' : 'Todavía ninguna.'}</p>`}
+        : '<p class="ins-vacia">Todavía ninguna. Van llegando solas.</p>'}
     </section>`;
 }
 
@@ -586,35 +663,30 @@ function textoValor(d, v) {
   return `${n} ${d.unidad}`;
 }
 
+/** Una insignia conseguida (las bloqueadas no se enseñan nunca). */
 function itemColeccion(x, esMio, elegidas, editando) {
   const d = x.d;
-  const tiene = x.nivel > 0;
-  const oculta = !tiene && d.tipo === 'secreta';
-  let detalle;
-  if (oculta) detalle = 'Secreta: se descubre al conseguirla.';
-  else if (d.tipo === 'grupo') {
-    const lider = datos.usuario(x.lider);
-    detalle = tiene
-      ? `${esc(d.desc)}<span class="ins-falta">${esMio ? 'Llevas' : 'Lleva'} ${esc(textoValor(d, x.valor))}</span>`
-      : `${esc(d.pista)}${lider ? `<span class="ins-falta">La tiene ${esc(lider.nombre)} (${esc(textoValor(d, x.valorLider))})${x.valor != null ? ` · ${esMio ? 'tú' : esc(datos.usuario(x.uid)?.nombre ?? '')}: ${esc(textoValor(d, x.valor))}` : ''}</span>` : ''}`;
-  } else if (tiene) detalle = esc(descripcion(d, x.nivel)) + (d.umbrales && x.nivel < 3 ? ` <span class="ins-falta">${esc(pista(d, x.nivel))}</span>` : '');
-  else detalle = esc(pista(d, 0));
-  const progreso = d.umbrales && x.nivel < 3 && !oculta ? Math.min(1, x.valor / d.umbrales[x.nivel]) : null;
+  let detalle = esc(d.umbrales ? descripcion(d, x.nivel) : d.desc);
+  if (d.pareja && x.pareja) detalle += `<span class="ins-falta">Con ${esc(datos.usuario(x.pareja)?.nombre ?? '')} · ${esc(textoValor(d, x.valor))}</span>`;
+  else if (d.tipo === 'grupo' && x.valor != null) detalle += `<span class="ins-falta">${esMio ? 'Llevas' : 'Lleva'} ${esc(textoValor(d, x.valor))}</span>`;
+  // Hacia el nivel siguiente, solo en las que ya tiene.
+  const progreso = esMio && d.umbrales && x.nivel < 3 ? Math.min(1, x.valor / d.umbrales[x.nivel]) : null;
+  if (progreso != null) detalle += ` <span class="ins-falta">${esc(pista(d, x.nivel))}</span>`;
   const marcada = editando && elegidas.includes(d.id);
   return `
-    <${editando && tiene ? 'button type="button"' : 'div'} class="ins-item${tiene ? '' : ' bloqueada'}${marcada ? ' elegida' : ''}" ${editando && tiene ? `data-elegir="${esc(d.id)}" aria-pressed="${marcada}"` : ''}>
-      ${medalla(d, { nivel: Math.max(1, x.nivel), tam: 52, bloqueada: !tiene })}
+    <${editando ? 'button type="button"' : 'div'} class="ins-item${marcada ? ' elegida' : ''}" ${editando ? `data-elegir="${esc(d.id)}" aria-pressed="${marcada}"` : ''}>
+      ${medalla(d, { nivel: Math.max(1, x.nivel), tam: 52 })}
       <span class="ins-item-texto">
-        <strong>${oculta ? '???' : esc(d.nombre)}${tiene && d.umbrales ? ` <span class="ins-nivel ${NIVELES[x.nivel]}">${NOMBRE_NIVEL[x.nivel]}</span>` : ''}</strong>
+        <strong>${esc(d.nombre)}${d.umbrales ? ` <span class="ins-nivel ${NIVELES[x.nivel]}">${NOMBRE_NIVEL[x.nivel]}</span>` : ''}</strong>
         <small>${detalle}</small>
         ${progreso != null ? `<span class="ins-barra" aria-label="${x.valor} de ${d.umbrales[x.nivel]}"><i style="width:${Math.round(progreso * 100)}%"></i></span><small class="ins-cuenta">${Math.floor(x.valor).toLocaleString('es-ES')} / ${d.umbrales[x.nivel].toLocaleString('es-ES')}</small>` : ''}
-        ${tiene && x.desde ? `<small class="ins-fecha">${d.tipo === 'grupo' ? 'La tiene desde' : 'Conseguida'}: ${tiempoRelativo(x.desde).toLowerCase()}</small>` : ''}
+        ${x.desde ? `<small class="ins-fecha">${d.tipo === 'grupo' ? 'Desde' : 'Conseguida'}: ${tiempoRelativo(x.desde).toLowerCase()}</small>` : ''}
       </span>
-      ${editando && tiene ? `<span class="ins-marca" aria-hidden="true">${icono(marcada ? 'completado' : 'valorar', { tam: 22, color: marcada ? 'var(--acento)' : 'var(--borde)', trazo: 'var(--fondo)' })}</span>` : ''}
-    </${editando && tiene ? 'button' : 'div'}>`;
+      ${editando ? `<span class="ins-marca" aria-hidden="true">${icono(marcada ? 'completado' : 'valorar', { tam: 22, color: marcada ? 'var(--acento)' : 'var(--borde)', trazo: 'var(--fondo)' })}</span>` : ''}
+    </${editando ? 'button' : 'div'}>`;
 }
 
-/** La colección completa de alguien (hoja). En la mía, elegir las destacadas. */
+/** Mis insignias (todas las conseguidas; elegir destacadas) o la vitrina de otro. */
 export function abrirColeccion(uid) {
   const u = datos.usuario(uid);
   const yo = usuarioActual();
@@ -623,36 +695,40 @@ export function abrirColeccion(uid) {
   let editando = false;
   let elegidas = destacadas(u, deUsuario(uid)).map((x) => x.d.id);
   const pintar = (cuerpo) => {
-    const lista = deUsuario(uid);
+    const lista = conseguidas(deUsuario(uid));
+    if (!esMio) {
+      cuerpo.innerHTML = `<div class="ins-lista">${destacadas(u, deUsuario(uid)).map((x) => itemColeccion(x, false, [], false)).join('')}</div>`;
+      return;
+    }
     const grupos = [
-      ['grupo', 'De grupo', 'Solo las tiene quien va primero ahora mismo. Se pueden perder.'],
+      ['grupo', 'De grupo', 'Dependen del resto del grupo y se pueden perder.'],
       ['hito', 'Hitos', 'Para siempre. Las que tienen niveles suben de bronce a plata y a oro.'],
-      ['secreta', 'Secretas', 'No se sabe qué son hasta conseguirlas.'],
+      ['secreta', 'Secretas', 'Las que nadie sabe cómo se consiguen.'],
     ];
     cuerpo.innerHTML = `
-      ${esMio ? `
-        <div class="ins-editar">
-          <span>${editando ? `Elige hasta ${MAX_DESTACADAS} para lucir en tu perfil.` : 'Las destacadas salen arriba en tu perfil.'}</span>
-          <button type="button" class="boton-secundario boton-pequeno" data-ins-editar>${editando ? 'Listo' : 'Elegir destacadas'}</button>
-        </div>` : ''}
+      <div class="ins-editar">
+        <span>${editando ? `Elige hasta ${MAX_DESTACADAS} para lucir en tu perfil.` : 'Las destacadas salen arriba en tu perfil y son las que ven los demás.'}</span>
+        <button type="button" class="boton-secundario boton-pequeno" data-ins-editar>${editando ? 'Listo' : 'Elegir destacadas'}</button>
+      </div>
       ${grupos.map(([tipo, titulo, sub]) => {
-        const xs = lista.filter((x) => x.d.tipo === tipo).sort((a, b) => (b.nivel > 0) - (a.nivel > 0));
-        if (editando && !xs.some((x) => x.nivel > 0)) return '';
+        const xs = lista.filter((x) => x.d.tipo === tipo);
+        if (!xs.length) return '';
         return `
           <section class="ins-grupo">
-            <div class="ins-grupo-cab"><h3>${titulo}</h3><span>${xs.filter((x) => x.nivel > 0).length} / ${xs.length}</span></div>
+            <div class="ins-grupo-cab"><h3>${titulo}</h3><span>${xs.length}</span></div>
             <p class="ins-grupo-sub">${sub}</p>
-            <div class="ins-lista">${xs.filter((x) => !editando || x.nivel > 0).map((x) => itemColeccion(x, esMio, elegidas, editando)).join('')}</div>
+            <div class="ins-lista">${xs.map((x) => itemColeccion(x, true, elegidas, editando)).join('')}</div>
           </section>`;
-      }).join('')}`;
+      }).join('') || '<p class="ins-vacia">Todavía ninguna. Van llegando solas.</p>'}`;
   };
   abrirHoja({
-    titulo: esMio ? 'Mis insignias' : `Insignias de ${u.nombre}`,
-    antetitulo: `${conseguidas(deUsuario(uid)).length} de ${CATALOGO.length}`,
+    titulo: esMio ? 'Mis insignias' : `Vitrina de ${u.nombre}`,
+    antetitulo: esMio ? `${conseguidas(deUsuario(uid)).length} conseguidas` : '',
     html: '',
     alMontar: (cuerpo) => {
       pintar(cuerpo);
       cuerpo.addEventListener('click', async (e) => {
+        if (!esMio) return;
         if (e.target.closest('[data-ins-editar]')) {
           if (editando) {
             const perfil = { ...(datos.usuario(uid)?.perfil_datos ?? {}), insignias: elegidas };
@@ -687,7 +763,7 @@ export function eventosActividad() {
   for (const x of datos.estado.insigniasGrupo ?? []) {
     const d = definicion(x.insignia);
     if (!d || x.inicial || !x.usuario_id || !datos.usuario(x.usuario_id)) continue;
-    lista.push({ insignia: true, d, nivel: 1, quien: x.usuario_id, anterior: x.anterior_id, fecha: x.desde, creado_en: x.desde });
+    lista.push({ insignia: true, d, nivel: 1, quien: x.usuario_id, quien2: x.otro_id, anterior: d.pareja ? null : x.anterior_id, fecha: x.desde, creado_en: x.desde });
   }
   return lista;
 }
@@ -696,7 +772,10 @@ export function filaActividad(ev, yoId, ahora = new Date()) {
   const u = datos.usuario(ev.quien);
   const ant = ev.anterior ? datos.usuario(ev.anterior) : null;
   const nombre = `<strong>«${esc(ev.d.nombre)}»</strong>${ev.d.umbrales ? ` de ${NOMBRE_NIVEL[ev.nivel].toLowerCase()}` : ''}`;
-  const frase = ev.d.tipo === 'grupo'
+  const otro = ev.quien2 ? datos.usuario(ev.quien2) : null;
+  const frase = ev.d.pareja
+    ? (ev.quien2 === yoId ? `y tú sois ahora ${nombre}` : `y ${esc(otro?.nombre ?? '')} son ahora ${nombre}`)
+    : ev.d.tipo === 'grupo'
     ? (ant ? (ev.anterior === yoId ? `te ha quitado ${nombre}` : `le ha quitado ${nombre} a ${esc(ant.nombre)}`) : `se ha hecho con ${nombre}`)
     : `ha conseguido ${ev.d.tipo === 'secreta' ? 'la insignia secreta ' : ''}${nombre}`;
   return `

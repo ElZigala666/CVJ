@@ -7,6 +7,15 @@ import * as datos from './datos.js';
 export { portada, urlPortada, colorBloque, colorFondo, precargar, mejorCargada } from './portadas.js';
 
 /** Escapa texto para meterlo en HTML. */
+/**
+ * Textos que SÍ se pueden seleccionar y copiar (en el resto de la app no): reseñas,
+ * entradas de las columnas y respuestas. Ahí la pulsación larga selecciona el texto: no
+ * entra en la selección múltiple, no abre menús ni cuenta como deslizar.
+ */
+export const SELECCIONABLE = '.texto-seleccionable, .grupo-resena, .perfil-resena-texto, .lectura-articulo, .social-respuesta p, .social-original p';
+/** ¿Hay texto seleccionado ahora mismo? (un toque al soltar no debe navegar) */
+export const haySeleccion = () => !!window.getSelection?.()?.toString().trim();
+
 export function esc(v) {
   return String(v ?? '').replace(/[&<>"']/g, (c) => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]

@@ -2,7 +2,7 @@
 import { icono } from './icons.js';
 import { usuarioActual, salir, refrescarUsuario } from './sesion.js';
 import * as datos from './datos.js';
-import { aplicarAcento } from './ui.js';
+import { aplicarAcento, SELECCIONABLE } from './ui.js';
 import { iniciarInstalacion } from './instalar.js';
 import { iniciarApariencia, aplicarApariencia, olvidarApariencia, aparienciaActual } from './apariencia.js';
 import { anotarNavegacion, corregirRuta } from './navegacion.js';
@@ -285,7 +285,7 @@ window.addEventListener('hashchange', navegar);
 // campos de texto. Las pulsaciones largas propias (menú de la biblioteca) siguen: escuchan
 // el mismo evento antes de que llegue aquí.
 document.addEventListener('contextmenu', (e) => {
-  if (!e.target.closest?.('input, textarea, select, [contenteditable="true"]')) e.preventDefault();
+  if (!e.target.closest?.(`input, textarea, select, [contenteditable="true"], ${SELECCIONABLE}`)) e.preventDefault();
 });
 // "Poner / cambiar foto" (Ajustes, o el perfil de otro si soy admin).
 document.addEventListener('click', (e) => {

@@ -328,6 +328,7 @@ export function comparar(idA, idB) {
       comunes: l.length,
       afinidad: Math.max(0, Math.round(100 - diferenciaMedia * 20)),
       diferenciaMedia: Math.round(diferenciaMedia * 10) / 10,
+      diferenciaExacta: diferenciaMedia,
       recCoinciden: opinan.filter((x) => x.a.recomendado === x.b.recomendado).length,
       recTotal: opinan.length,
       discrepan: [...l].sort((x, y) => y.dif - x.dif || (nota(y.a) + nota(y.b)) - (nota(x.a) + nota(x.b))).slice(0, 5),

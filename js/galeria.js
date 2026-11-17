@@ -8,6 +8,7 @@ import * as datos from './datos.js';
 import { reemplazarRuta } from './navegacion.js';
 import { precargar } from './portadas.js';
 import { esc } from './ui.js';
+import { SELECCIONABLE } from './ui.js';
 
 let lista = null;       // [igdbId] de la lista desde la que se abrió la primera ficha
 let direccion = null;   // 'siguiente' | 'anterior': de dónde entra la ficha nueva
@@ -46,7 +47,7 @@ export function posicion(id) {
 /** ¿Este toque empieza dentro de algo que ya se desliza en horizontal? */
 function enDeslizableHorizontal(el, raiz) {
   for (let x = el; x && x !== raiz; x = x.parentElement) {
-    if (x.matches?.('input, textarea, select, [data-scroll], .carrusel, .chips')) return true;
+    if (x.matches?.(`input, textarea, select, [data-scroll], .carrusel, .chips, ${SELECCIONABLE}`)) return true;
     if (x.scrollWidth > x.clientWidth + 2) {
       const ox = getComputedStyle(x).overflowX;
       if (ox === 'auto' || ox === 'scroll') return true;

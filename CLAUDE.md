@@ -103,10 +103,14 @@ español (código, comentarios, commits, interfaz).
   entrada + `objetivo_id`. Se borran solos con su reseña o entrada (trigger).
   `usuarios.social_visto_en`: hasta cuándo vio cada uno lo nuevo de lo suyo.
   Todo lo social va en `js/social.js` y se repinta en su sitio (`datos.suscribirSocial`).
-- `insignias` (personales: usuario, insignia, nivel 1-3, nunca bajan) e `insignias_grupo`
-  (una fila por insignia: dueño actual, anterior, desde). `inicial` = calculada al
-  estrenar (no sale en la actividad). `usuarios.insignias_visto_en` para los avisos; la
-  vitrina elegida va en `perfil_datos.insignias`. Las condiciones viven en el cliente.
+- `insignias` (personales: usuario, insignia, nivel 1-3; no bajan salvo las marcadas
+  `recalcular` al cambiar su regla, sin avisos) e `insignias_grupo` (una fila por insignia:
+  dueño actual, anterior, desde; las de pareja con `otro_id`/`otro_anterior_id`). `inicial`
+  = calculada al estrenar (no sale en la actividad). `usuarios.insignias_visto_en` para los
+  avisos; la vitrina elegida va en `perfil_datos.insignias`. Las condiciones viven en el
+  cliente (`js/insignias.js`). Catálogo oculto: cada uno ve solo las suyas y las vitrinas
+  de los demás (nada de bloqueadas, pistas ni "X de 30"). Las de grupo tienen que depender
+  de lo que hacen los demás (nada que se consiga a solas farmeando).
 - `actividad` (feed: valoro/empezo/completo/abandono/pendiente/rejuega, `lote`,
   `celebrar`), `celebraciones_vistas`, `avisos`, `estado_servicios`, `igdb_token`,
   `openxbl_uso`.
@@ -155,6 +159,8 @@ español (código, comentarios, commits, interfaz).
 - Despliegas y migras tú (commit + push a main). En "LO QUE TIENES QUE HACER TÚ" solo lo
   imprescindible que no se pueda hacer desde aquí.
 - Sin emojis en la interfaz; iconos propios rellenos (`js/icons.js`).
+- Texto no seleccionable salvo reseñas, entradas de columnas y respuestas (`SELECCIONABLE`
+  en `js/ui.js`): ahí la pulsación larga selecciona; no entra en selección múltiple ni menús.
 - Cambios pequeños de aspecto: sin pruebas. Lo importante se prueba con datos reales.
 - Móvil primero (390 px de ancho). La versión de escritorio va en `css/escritorio.css`
   y no puede cambiar nada del móvil.

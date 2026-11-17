@@ -10,7 +10,7 @@
 import * as datos from './datos.js';
 import { icono } from './icons.js';
 import { usuarioActual } from './sesion.js';
-import { esc, avatar, avatarPerfil, nombrePerfil, tiempoRelativo, aviso, portada } from './ui.js';
+import { esc, avatar, avatarPerfil, nombrePerfil, tiempoRelativo, aviso, portada, SELECCIONABLE, haySeleccion } from './ui.js';
 import { abrirHoja, cerrarHoja } from './hoja.js';
 import { formatearNota, notaALetra } from './notas.js';
 
@@ -335,6 +335,7 @@ document.addEventListener('click', (e) => {
   }
   const t = e.target.closest('[data-social]');
   if (!t) return;
+  if (haySeleccion() && e.target.closest(SELECCIONABLE)) return; // seleccionando texto: no abrir nada
   const [tipo, id] = t.dataset.social.split(':');
   if (e.target.closest('[data-social-reaccionar]')) { e.preventDefault(); abrirMenu(e.target.closest('[data-social-reaccionar]'), tipo, id); return; }
   if (e.target.closest('[data-social-quien]')) { e.preventDefault(); abrirQuien(tipo, id); return; }

@@ -6,6 +6,7 @@
 // No se activa si el gesto empieza en algo que se desliza en horizontal (carruseles, filas de
 // chips, controles deslizantes), en un campo de texto, con una hoja abierta o seleccionando
 // juegos. En las fichas no hay conflicto: allí el gesto es de galeria.js y esto no actúa.
+import { SELECCIONABLE, haySeleccion } from './ui.js';
 const PRINCIPALES = ['inicio', 'buscar', 'rankings', 'perfil'];
 const MIN_PX = 64;
 const MAX_MS = 650;
@@ -15,7 +16,7 @@ let ini = null;
 
 /** ¿Empieza sobre algo que ya usa el deslizamiento horizontal? */
 function ocupado(el, raiz) {
-  if (el.closest?.('input, textarea, select, [contenteditable="true"], [data-sin-deslizar]')) return true;
+  if (el.closest?.(`input, textarea, select, [contenteditable="true"], [data-sin-deslizar], ${SELECCIONABLE}`) || haySeleccion()) return true;
   for (let x = el; x && x !== raiz && x.nodeType === 1; x = x.parentElement) {
     if (x.scrollWidth > x.clientWidth + 8) {
       const o = getComputedStyle(x).overflowX;

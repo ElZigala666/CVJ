@@ -7,7 +7,7 @@
 // Abajo: las acciones más usadas y "Más". Atrás (botón o gesto) y Escape salen.
 // Una pantalla puede poner sus propias acciones con configurarSeleccion() (Revisar).
 import { icono } from './icons.js';
-import { esc, aviso, avisoDeshacer, portada, ESTADOS } from './ui.js';
+import { esc, aviso, avisoDeshacer, portada, ESTADOS, SELECCIONABLE } from './ui.js';
 import { abrirHoja } from './hoja.js';
 import * as datos from './datos.js';
 import * as metricas from './metricas.js';
@@ -118,6 +118,7 @@ export function iniciarSeleccion(contenedor) {
     ultimoPuntero = e.pointerType;
     const item = e.target.closest?.('[data-sel]');
     if (!item || !vista.contains(item) || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    if (e.target.closest?.(SELECCIONABLE)) return; // sobre el texto: seleccionarlo, no la tarjeta
     largaHecha = false;
     const x0 = e.clientX, y0 = e.clientY;
     clearTimeout(largo?.t);
@@ -143,7 +144,7 @@ export function iniciarSeleccion(contenedor) {
   // Al tocar y mantener, el navegador abre su menú (y algunas pantallas el suyo): aquí no.
   window.addEventListener('contextmenu', (e) => {
     const item = e.target.closest?.('[data-sel]');
-    if (!item || !vista.contains(item)) return;
+    if (!item || !vista.contains(item) || e.target.closest?.(SELECCIONABLE)) return;
     if (ultimoPuntero !== 'mouse' || activo) { e.preventDefault(); e.stopPropagation(); }
   }, true);
 

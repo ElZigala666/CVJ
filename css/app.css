@@ -2570,3 +2570,8 @@ body.apariencia-abierta > #app, body.apariencia-abierta > #barra { visibility: h
 .cabed-botones { display: flex; gap: 8px; flex-wrap: wrap; }
 .ajustes-apariencia-fila .enlace-fila-texto { display: grid; gap: 1px; }
 .ajustes-apariencia-fila .enlace-fila-texto small { font-size: 12px; font-weight: 400; color: var(--texto-2); }
+
+/* Textos que se pueden seleccionar y copiar (js/ui.js SELECCIONABLE): en el resto, no. */
+.texto-seleccionable, .grupo-resena, .perfil-resena-texto, .lectura-articulo, .social-respuesta p, .social-original p {
+  -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; cursor: text;
+}

@@ -23,6 +23,10 @@ const MIN_JUEGOS_COMUNES = 10;  // para polémico, oráculo, almas gemelas y né
 // Desde cuándo cuentan las fechas de las valoraciones: antes se importó todo de golpe.
 const ESTRENO = new Date('2026-11-12T00:00:00Z').getTime();
 const DIA = 86400000;
+// Reglas nuevas (17-11-2026): lo que se reparta de nuevo por ellas no avisa a nadie. Un móvil
+// con la versión anterior puede haber vuelto a crear filas viejas: se arreglan en silencio.
+const REGLAS_NUEVAS = new Date('2026-11-17T11:00:00Z').getTime();
+const CAMBIARON_DE_REGLA = new Set(['critico-implacable', 'ojos-de-cordero', 'mayor-viciado']);
 const ANIO = new Date().getFullYear();
 
 // ---------------------------------------------------------------------------
@@ -462,9 +466,15 @@ export async function sincronizar() {
       const g = gg.get(id);
       if ((g?.usuario_id ?? null) === uid && (g?.otro_id ?? null) === (uid2 ?? null)) continue;
       if (!g && !uid) continue;
-      grupo.push({ insignia: id, usuario_id: uid, otro_id: uid2 ?? null, anterior_id: g?.usuario_id ?? null, otro_anterior_id: g?.otro_id ?? null, valor, inicial: estreno || !g });
+      const silencio = g && CAMBIARON_DE_REGLA.has(id) && new Date(g.desde).getTime() < REGLAS_NUEVAS;
+      grupo.push({
+        insignia: id, usuario_id: uid, otro_id: uid2 ?? null, valor, inicial: estreno || !g || !!silencio,
+        anterior_id: silencio ? null : g?.usuario_id ?? null, otro_anterior_id: silencio ? null : g?.otro_id ?? null,
+      });
     }
-    await datos.guardarInsignias({ personales, grupo, bajar });
+    // Las que ya no existen (las quitadas), fuera sin avisos.
+    const quitar = (datos.estado.insigniasGrupo ?? []).filter((x) => !definicion(x.insignia)).map((x) => x.insignia);
+    await datos.guardarInsignias({ personales, grupo, bajar, quitar });
   } catch (e) {
     console.warn('[insignias]', e?.message || e);
   } finally {

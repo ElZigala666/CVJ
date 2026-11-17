@@ -901,8 +901,8 @@ export const hayInsignias = () => 'insignias' in huellas || (estado.insignias ??
  * cambio de dueño solo se aplica si el dueño guardado sigue siendo el que se vio aquí.
  * @param {{ personales: object[], grupo: { insignia, usuario_id, anterior_id, valor, inicial }[] }} c
  */
-export async function guardarInsignias({ personales = [], grupo = [], bajar = [] }) {
-  if (!personales.length && !grupo.length && !bajar.length) return;
+export async function guardarInsignias({ personales = [], grupo = [], bajar = [], quitar = [] }) {
+  if (!personales.length && !grupo.length && !bajar.length && !quitar.length) return;
   const sb = await cliente();
   const ahora = new Date().toISOString();
   for (const f of personales) {
@@ -913,6 +913,12 @@ export async function guardarInsignias({ personales = [], grupo = [], bajar = []
       : await sb.from('insignias').upsert(fila, { onConflict: 'usuario_id,insignia', ignoreDuplicates: true });
     if (r.error) { console.warn('[insignias]', r.error.message); continue; }
     estado.insignias = [...(estado.insignias ?? []).filter((x) => !(x.usuario_id === f.usuario_id && x.insignia === f.insignia)), fila];
+  }
+  // Insignias que ya no existen: fuera (sin avisos ni actividad).
+  if (quitar.length) {
+    const r = await sb.from('insignias_grupo').delete().in('insignia', quitar);
+    if (r.error) console.warn('[insignias]', r.error.message);
+    else estado.insigniasGrupo = (estado.insigniasGrupo ?? []).filter((x) => !quitar.includes(x.insignia));
   }
   // Reglas cambiadas: baja de nivel (o se quita) sin tocar la fecha, así no hay aviso.
   for (const b of bajar) {

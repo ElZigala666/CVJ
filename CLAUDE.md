@@ -75,7 +75,12 @@ español (código, comentarios, commits, interfaz).
   banner de Inicio (cuenta atrás; se cierra por persona en localStorage hasta que sube
   `aviso_version`), categorías incluidas, voto/pronóstico, resúmenes del grupo, veredicto de
   CVJ, porra, etiqueta de la ficha ("Nominado · TGA 2026 · …"), actividad y celebración.
-  `js/pantallas/evento.js` (#evento/{id}: página, chuleta con MIS VOTOS, "Ya he votado") y
+  En la interfaz: "Mi favorito" (tipo `voto`) y "Mi apuesta" (tipo `pronostico`, lo que puntúa).
+  Banner: sin X hasta la gala; botón "Hacer / Seguir mi porra (8/24) / Ver la porra".
+  `js/pantallas/papeleta.js` (#evento/{id}/papeleta(/{categoria}): una categoría por pantalla,
+  favorito → apuesta → siguiente sola; "Atrás", "Saltar", deslizar; al final "Tu papeleta").
+  `js/pantallas/evento.js` (#evento/{id}: consulta; mi papeleta, porra, oficial, veredicto y
+  categorías plegables en lectura que abren la papeleta en esa categoría; la chuleta) y
   `js/pantallas/evento-editar.js` (#evento/{id}/editar, #evento/nuevo: solo admin; se llega
   desde Ajustes → Eventos).
 - `js/social.js`: reacciones y respuestas (tira bajo reseñas y entradas, menú, hilo,

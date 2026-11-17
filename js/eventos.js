@@ -76,7 +76,22 @@ export function masElegido(categoriaId, tipo) {
   const empate = orden.length > 1 && orden[1][1].length === quien.length;
   return { nominado: datos.nominado(id), n: quien.length, empate };
 }
-/** Los pronósticos de los demás solo se ven si ya he hecho el mío (o tras la gala). */
+/**
+ * Lo que ve la gente: "Mi favorito" (tipo 'voto': a quién quiero que gane) y "Mi apuesta"
+ * (tipo 'pronostico': quién creo que se lleva el premio oficial; lo único que puntúa).
+ */
+export const NOMBRE = { voto: 'Mi favorito', pronostico: 'Mi apuesta' };
+export const ICONO = { voto: 'corazon', pronostico: 'diana' };
+
+/** Mi papeleta: categorías con favorito y apuesta (las dos cosas) de las incluidas. */
+export function progreso(eventoId, uid = usuarioActual()?.id) {
+  const cats = incluidas(eventoId);
+  const hecha = (c) => !!miEleccion(c.id, 'voto', uid) && !!miEleccion(c.id, 'pronostico', uid);
+  const hechas = cats.filter(hecha).length;
+  return { hechas, total: cats.length, completa: cats.length > 0 && hechas === cats.length, empezada: cats.some((c) => miEleccion(c.id, 'voto', uid) || miEleccion(c.id, 'pronostico', uid)), siguiente: cats.find((c) => !hecha(c)) ?? null };
+}
+
+/** Las apuestas de los demás solo se ven si ya he hecho la mía (o tras la gala). */
 export const veoPronosticos = (e, categoriaId) => cerrado(e) || !!miEleccion(categoriaId, 'pronostico');
 
 /** La nota del grupo de un juego nominado y las letras de quienes lo han jugado. */
@@ -134,29 +149,40 @@ const cerradoPorMi = (e) => { try { return localStorage.getItem(claveCerrado(e))
 export function cerrarBanner(e) { try { localStorage.setItem(claveCerrado(e), String(e.aviso_version ?? 1)); } catch { /* nada */ } }
 
 export function bannerInicio(ahora = Date.now()) {
-  return activos(ahora).filter((e) => !cerradoPorMi(e)).map((e) => {
+  // Mientras se puede votar no se cierra; tras la gala, sí (y vuelve si sube aviso_version).
+  return activos(ahora).filter((e) => !(cerrado(e, ahora) && cerradoPorMi(e))).map((e) => {
     const img = imagenDe(e);
     const falta = cuentaAtras(e.fecha_clave, ahora);
     const res = e.resultados_en ? porra(e.id) : null;
+    const pr = progreso(e.id);
+    const tras = cerrado(e, ahora);
     let linea;
     if (res?.ganadores.length) linea = `${esc(nombres(res.ganadores.map((f) => f.u)))} ${res.ganadores.length > 1 ? 'ganan' : 'gana'} la porra`;
     else if (e.resultados_en) linea = 'Ya hay ganadores';
     else if (falta) linea = `${esc(e.etiqueta_clave || 'Empieza')} en <b data-cuenta="${esc(e.fecha_clave)}">${esc(falta)}</b>`;
     else if (e.fecha_clave) linea = `${esc(e.etiqueta_clave || 'El evento')}: en marcha`;
     else linea = '';
+    let cta = null;
+    if (pr.total && !tras) {
+      cta = pr.completa ? ['Ver la porra', `#evento/${e.id}`]
+        : pr.empezada ? [`Seguir mi porra (${pr.hechas}/${pr.total})`, `#evento/${e.id}/papeleta`]
+          : ['Hacer mi porra', `#evento/${e.id}/papeleta`];
+    } else if (pr.total) cta = ['Ver la porra', `#evento/${e.id}`];
+    else if (conPagina(e)) cta = ['Ver más', `#evento/${e.id}`];
+    const oficial = e.enlace_url && !tras && votacionAbierta(e, ahora);
     return `
       <section class="evento-banner${img ? ' con-imagen' : ''}" style="--evento:${esc(colorDe(e))}" aria-label="${esc(e.titulo)}">
         ${img ? `<img class="evento-banner-img" src="${esc(img)}" alt="" loading="lazy" decoding="async" crossorigin="anonymous">` : ''}
         <div class="evento-banner-velo"></div>
-        <button type="button" class="evento-banner-cerrar" data-evento-cerrar="${esc(e.id)}" aria-label="Cerrar">${icono('cerrar', { tam: 16, color: 'currentColor' })}</button>
-        <div class="evento-banner-texto">
+        ${tras ? `<button type="button" class="evento-banner-cerrar" data-evento-cerrar="${esc(e.id)}" aria-label="Cerrar">${icono('cerrar', { tam: 16, color: 'currentColor' })}</button>` : ''}
+        <a class="evento-banner-texto" href="#evento/${esc(e.id)}">
           ${e.siglas ? `<span class="evento-banner-siglas">${esc(e.siglas)}</span>` : ''}
           <h2 class="evento-banner-titulo">${esc(e.titulo)}</h2>
           ${linea ? `<p class="evento-banner-cuenta">${linea}</p>` : ''}
-        </div>
-        <div class="evento-banner-botones fila-botones">
-          ${e.enlace_url && !e.resultados_en ? `<a class="boton-principal con-icono" href="${esc(e.enlace_url)}" target="_blank" rel="noopener">${esc(e.enlace_texto || 'Ver en la web')}${icono('externo', { tam: 16, color: 'currentColor' })}</a>` : ''}
-          ${conPagina(e) ? `<a class="boton-secundario" href="#evento/${esc(e.id)}">${e.resultados_en ? 'Ver resultados' : 'Ver más'}</a>` : ''}
+        </a>
+        <div class="evento-banner-acciones">
+          ${cta ? `<a class="boton-principal" href="${esc(cta[1])}">${esc(cta[0])}</a>` : ''}
+          ${oficial ? `<a class="evento-banner-oficial" href="${esc(e.enlace_url)}" target="_blank" rel="noopener">${esc(e.enlace_texto || 'Ver en la web oficial')}${icono('externo', { tam: 14, color: 'currentColor' })}</a>` : ''}
         </div>
       </section>`;
   }).join('');

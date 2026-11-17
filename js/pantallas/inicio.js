@@ -119,8 +119,8 @@ function html() {
   if (!hayAlgo) {
     return `
       ${cabecera(yo)}
-      ${eventos.bannerInicio()}
       ${elGrupo()}
+      ${eventos.bannerInicio()}
       ${apelaciones.avisosInicio()}
     ${cementerio.avisosInicio()}
     ${propuestas.avisosInicio()}
@@ -135,8 +135,8 @@ function html() {
   }
   return `
     ${cabecera(yo)}
-    ${eventos.bannerInicio()}
     ${elGrupo()}
+    ${eventos.bannerInicio()}
     ${apelaciones.avisosInicio()}
     ${cementerio.avisosInicio()}
     ${propuestas.avisosInicio()}

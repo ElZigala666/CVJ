@@ -11,6 +11,7 @@ import { volver } from '../navegacion.js';
 import { abrirHoja } from '../hoja.js';
 import { textoHoras } from '../metricas.js';
 import { padrino } from '../propuestas.js';
+import { vecesApelado, clicApelaciones } from '../apelaciones.js';
 
 export function render(el) {
   document.title = 'CVJ · Cementerio';
@@ -21,6 +22,7 @@ export function render(el) {
   el.addEventListener('click', async (e) => {
     if (e.target.closest('[data-accion="atras"]')) { volver('#inicio'); return; }
     if (cem.clicAviso(e)) return;
+    if (clicApelaciones(e)) return;
     const v = e.target.closest('[data-vela]');
     if (v) {
       const encender = !datos.velasDe(v.dataset.vela).some((x) => x.usuario_id === yo?.id);
@@ -119,6 +121,7 @@ function lapida(u, h, yo) {
           <p class="lapida-duracion">${esc(cem.duracion(vida.desde, vida.hasta))}</p>` : ''}
         <p class="lapida-epitafio">${esc(cem.epitafio(u, h, l))}</p>
         ${h.muertes > 1 ? `<p class="lapida-muertes">Muertes: ${h.muertes}</p>` : ''}
+        ${apelado(u)}
         <dl class="lapida-datos">
           <div><dt>Causa de la muerte</dt><dd>${causa}</dd></div>
           <div><dt>Últimas palabras</dt><dd>${pal
@@ -143,6 +146,14 @@ function lapida(u, h, yo) {
         ${sellada || r ? '' : botonReanimar(u, yo)}
       </div>
     </article>`;
+}
+
+/** "Ha apelado N veces" (para todos); el admin, además, puede leerlas desde aquí. */
+function apelado(u) {
+  const n = vecesApelado(u.id);
+  if (!n) return '';
+  const texto = `Ha apelado ${n} ${n === 1 ? 'vez' : 'veces'}`;
+  return `<p class="lapida-apelaciones">${cem.soyAdmin() ? `<a href="#cementerio" data-apelaciones="${esc(u.id)}">${texto}</a>` : texto}</p>`;
 }
 
 function botonReanimar(u, yo) {

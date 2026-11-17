@@ -337,3 +337,11 @@ body.seleccionando #barra { visibility: visible; }
    (en hojas y modales ya la limita su ancho máximo).
    --------------------------------------------------------------------------- */
 .pantalla .boton-principal:not(.boton-pequeno) { max-width: 480px; }
+
+/* Apelaciones: el aviso de Inicio alineado con los demás; la pantalla del difunto, centrada. */
+.aviso-apelacion { width: 100%; margin-left: 0; margin-right: 0; }
+.difunto { padding-top: 48px; }
+/* Sin sesión (entrar con código o la pantalla del difunto): sin barra lateral. */
+body:has(#vista .entrada, #vista .difunto) #barra { display: none; }
+body:has(#vista .entrada, #vista .difunto) #app { margin-left: 0; }
+body:has(#vista .entrada, #vista .difunto) #aviso { left: 50%; }

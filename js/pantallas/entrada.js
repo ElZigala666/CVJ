@@ -3,7 +3,7 @@ import { icono } from '../icons.js';
 import { entrar } from '../sesion.js';
 import { normalizarCodigo, LARGO_CODIGO } from '../codigo.js';
 
-export function render(el, { alEntrar }) {
+export function render(el, { alEntrar, alDifunto }) {
   el.innerHTML = `
     <section class="entrada">
       <form class="entrada-form" novalidate>
@@ -57,6 +57,8 @@ export function render(el, { alEntrar }) {
       const usuario = await entrar(input.value);
       alEntrar(usuario);
     } catch (err) {
+      // Expulsado: en vez de un error, su pantalla (lápida y Apelar).
+      if (err.tipo === 'difunto' && alDifunto) { alDifunto(); return; }
       enviando = false;
       boton.textContent = 'Entrar';
       actualizar();

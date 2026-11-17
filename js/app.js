@@ -1,10 +1,10 @@
 // Arranque de CVJ: sesión, datos, rutas (#inicio, #buscar, #juego/123...) y barra inferior.
 import { icono } from './icons.js';
-import { usuarioActual, salir, refrescarUsuario } from './sesion.js';
+import { usuarioActual, salir, refrescarUsuario, difuntoGuardado, guardarDifunto } from './sesion.js';
 import * as datos from './datos.js';
 import { aplicarAcento, SELECCIONABLE } from './ui.js';
 import { iniciarInstalacion } from './instalar.js';
-import { iniciarApariencia, aplicarApariencia, olvidarApariencia, aparienciaActual, acentoVisitado } from './apariencia.js';
+import { iniciarApariencia, aplicarApariencia, olvidarApariencia, aparienciaActual, acentoVisitado, ACENTO_DEFECTO } from './apariencia.js';
 import { anotarNavegacion, corregirRuta } from './navegacion.js';
 
 const vista = document.getElementById('vista');
@@ -34,6 +34,7 @@ const RUTAS = {
   propuestas: () => import('./pantallas/propuestas.js'),      // #propuestas(/{id}): proponer, votar y (admin) decidir
 };
 const login = () => import('./pantallas/entrada.js');
+const pantallaDifunto = () => import('./pantallas/difunto.js'); // expulsado: su lápida y Apelar
 
 // Lo que no hace falta para pintar: se carga cuando se usa o cuando la app está quieta.
 const abrirAjustes = (...a) => import('./ajustes.js').then((m) => m.abrirAjustes(...a));
@@ -145,7 +146,8 @@ function fijarAcentoDeRuta() {
   if (ruta === 'perfil' || ruta === 'estadisticas') dueno = params[0] || null;
   else if (ruta === 'columna') dueno = datos.columna(params[0])?.usuario_id ?? null;
   else if (ruta === 'entrada') dueno = datos.entrada(params[0])?.usuario_id ?? null;
-  acentoVisitado(dueno && dueno !== yo ? datos.usuario(dueno)?.acento ?? null : null);
+  // El que tiene elegido en su Apariencia; si nunca ha elegido, el de la app (nunca el mío).
+  acentoVisitado(dueno && dueno !== yo ? datos.usuario(dueno)?.acento || ACENTO_DEFECTO : null);
 }
 
 function marcarBarra(ruta, params) {
@@ -204,7 +206,13 @@ function navegar() {
 
   if (!usuario) {
     if (location.hash) corregirRuta(location.pathname + location.search);
-    montar(login, { alEntrar }, false);
+    const difunto = difuntoGuardado();
+    if (difunto) {
+      montar(pantallaDifunto, { difunto, alEntrar, alOtro: navegar }, false);
+      document.title = 'CVJ · Más allá';
+      return;
+    }
+    montar(login, { alEntrar, alDifunto: navegar }, false);
     document.title = 'CVJ · Entrar';
     return;
   }
@@ -262,6 +270,7 @@ function revisarPlataformas() {
 
 let suscrito = false;
 let migrada = false;
+let acentoSubido = false;
 function iniciarDatos() {
   if (datosIniciados) return;
   datosIniciados = true;
@@ -269,8 +278,15 @@ function iniciarDatos() {
     // Si cambian mis datos (nombre, color, acento) en el servidor, actualizarlos aquí.
     const yo = usuarioActual();
     const fresco = yo && datos.usuario(yo.id);
-    // Desactivado por el admin: se cierra la sesión en este móvil.
-    if (fresco?.activo === false) { alSalir(); return; }
+    // Expulsado por el admin: se cierra la sesión y ve su pantalla de difunto (puede apelar).
+    if (fresco?.activo === false) { guardarDifunto({ id: yo.id }); alSalir(); return; }
+    // Un color que se quedó solo en este dispositivo (se eligió y no llegó a la cuenta):
+    // se sube una vez, para que los demás lo vean en su perfil.
+    if (fresco && !fresco.acento && /^#[0-9a-f]{6}$/i.test(yo.acento ?? '') && datos.datosFrescos() && !acentoSubido) {
+      acentoSubido = true;
+      datos.actualizarUsuario(yo.id, { acento: yo.acento.toUpperCase() }, null);
+      return;
+    }
     if (fresco && (fresco.acento !== yo.acento || fresco.color !== yo.color || fresco.nombre !== yo.nombre || (fresco.foto_url ?? null) !== (yo.foto_url ?? null))) {
       refrescarUsuario(fresco);
     }

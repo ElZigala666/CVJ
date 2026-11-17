@@ -16,8 +16,9 @@ español (código, comentarios, commits, interfaz).
   - `xbox`: OpenXBL por gamertag con la clave del grupo (cupo en `openxbl_uso`).
   - `steam`: inicio de sesión oficial (OpenID 2.0) + GetOwnedGames.
   - `admin`: gestionar el grupo (crear persona, código nuevo, editar) y el cementerio
-    (expulsar, exorcizar, levantar, readmitir, vetar, permitir → `admin_vida()`) y las
-    propuestas (aparcar, reabrir, rechazar → `admin_propuesta()`; `crear` con `propuesta_id`
+    (expulsar, exorcizar, levantar, readmitir, vetar, permitir → `admin_vida()`), las
+    apelaciones (`apelaciones` lista con texto, `apelacion_aceptar`, `apelacion_rechazar` →
+    `admin_apelacion()`) y las propuestas (aparcar, reabrir, rechazar → `admin_propuesta()`; `crear` con `propuesta_id`
     la acepta y enlaza a la persona). Comprueba
     `es_admin` de quien llama. La app la llama con `js/admin-api.js`.
 
@@ -46,7 +47,8 @@ español (código, comentarios, commits, interfaz).
   todo se resuelve en variables CSS inline en `<html>`.
   El acento que se ve tiene UN punto de entrada: `fijarAcentoDeRuta()` (`js/app.js`, según la
   ruta) → `acentoVisitado()`: en el perfil de otro (y su tier list, estadísticas, columna y
-  entradas) se ve su acento sobre MI fondo, fundido en 250 ms (temporizador, no rAF). `js/ajustes-apariencia.js` su
+  entradas) se ve su acento (`usuarios.acento`; si nunca eligió, `ACENTO_DEFECTO` de
+  `js/apariencia.js`, nunca el mío) sobre MI fondo, fundido en 250 ms (temporizador, no rAF). `js/ajustes-apariencia.js` su
   pantalla (vista previa en vivo). `js/encuadre.js` arrastrar y zoom (fondo y cabecera).
 - `js/perfil-personal.js` (datos y cabecera del perfil: arte del favorito, imagen,
   degradado o patrón, con máscara para fundirse con el fondo), `js/cabecera-editar.js`,
@@ -65,6 +67,10 @@ español (código, comentarios, commits, interfaz).
   votado, filas de la actividad). `js/pantallas/propuestas.js` (#propuestas, #propuestas/{id}):
   proponer, votar (hoja con comentario) y, el admin, Invitar (abre `anadirPersona()` de
   `js/ajustes-grupo.js` con el nombre puesto), Aparcar o Rechazar (con motivo).
+- `js/apelaciones.js`: apelaciones de los expulsados (aviso de Inicio y hoja del admin con
+  Aceptar/Rechazar, sección de Gestionar grupo, "Ha apelado N veces", filas de actividad).
+  `js/pantallas/difunto.js`: lo que ve un expulsado en vez del login (su lápida y Apelar);
+  `sesion.js` guarda `cvj.difunto` ({id, hash}) y, si lo aceptan, entra solo con ese hash.
 - `js/social.js`: reacciones y respuestas (tira bajo reseñas y entradas, menú, hilo,
   aviso "Lo nuevo en lo tuyo" y filas de actividad).
 - `js/pantallas/`: `inicio`, `buscar`, `juego`, `perfil` (+ tier list), `rankings`
@@ -78,7 +84,8 @@ español (código, comentarios, commits, interfaz).
   puerto 8766; sin service worker; `localStorage['prueba.escenario'] = 'fase3'` trae
   columnas, entradas, reacciones e insignias; el cementerio (difuntos, un exorcizado con
   3 muertes, una reanimación en curso, `window.__cementerio.completar()` = la tarea
-  programada) y las propuestas (abiertas, una aparcada, Mateo entró por una, una rechazada;
+  programada), las apelaciones (`window.__apelaciones`; `localStorage['prueba.difunto'] =
+  'u-gonzalo'` abre la app como ese expulsado; códigos GONZA2, NACHO2, RUBEN2) y las propuestas (abiertas, una aparcada, Mateo entró por una, una rechazada;
   `window.__propuestas`) salen en cualquier escenario menos `vacio`; `window.__fallar = true` simula sin red).
 - `herramientas/`: restaurar copia (`RESTAURAR.md`, `restaurar-copia.sh`), pruebas de
   PSN/Xbox/buscador, generar iconos y hash de código.
@@ -151,6 +158,13 @@ español (código, comentarios, commits, interfaz).
   padrino / Mal padrino). Solo lectura desde la app: `proponer()` (máx. 2 abiertas por
   persona; el que propone vota a favor solo; un rechazado no vuelve hasta 30 días),
   `votar_propuesta()` y `admin_propuesta()`. Salen en la actividad desde `propuestas`.
+- Apelaciones (migración 038): `apelaciones` (pública: usuario, estado pendiente/aceptada/
+  rechazada, `exorcizado`, fechas) y `apelaciones_textos` (PRIVADA, sin acceso anon: texto ≤ 500
+  y respuesta ≤ 300; la lee el admin por la función `admin` y el difunto con su código vía
+  `estado_difunto()`). Se apela con `apelar(hash, texto)`: código comprobado en el servidor, una
+  pendiente a la vez, 7 días tras un rechazo, exorcizados una cada 30 días. Aceptar
+  (`admin_apelacion()`) = vidas `reanimacion` con `apelacion_id` (y `exorcismo_levantado` si
+  estaba sellado), mismo código. Si vuelve por otro camino, la pendiente se cierra sola.
 - `actividad` (feed: valoro/empezo/completo/abandono/pendiente/rejuega, `lote`,
   `celebrar`), `celebraciones_vistas`, `avisos`, `estado_servicios`, `igdb_token`,
   `openxbl_uso`.

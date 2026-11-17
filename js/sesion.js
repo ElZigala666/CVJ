@@ -35,8 +35,11 @@ export function usuarioActual() {
  * @throws {Error} con .tipo = 'codigo' (no existe) o 'red'
  */
 export async function entrar(codigo) {
-  const cod = normalizarCodigo(codigo);
-  const hash = await hashCodigo(cod);
+  return entrarConHash(await hashCodigo(normalizarCodigo(codigo)));
+}
+
+/** Lo mismo con el hash ya calculado (al volver tras una apelación aceptada). */
+export async function entrarConHash(hash) {
   let resp;
   try {
     const sb = await cliente();
@@ -48,10 +51,31 @@ export async function entrar(codigo) {
   if (resp.error) throw Object.assign(new Error(resp.error.message), { tipo: 'red' });
   if (!resp.data) throw Object.assign(new Error('Código no válido'), { tipo: 'codigo' });
   // Desactivado por el admin: no puede entrar (se dice igual que un código que no vale).
-  if (resp.data.activo === false) throw Object.assign(new Error('Código enterrado'), { tipo: 'difunto' }); // expulsado: está en el cementerio
+  // Expulsado: no entra; se queda en su pantalla de difunto (puede apelar con este código).
+  if (resp.data.activo === false) {
+    guardarDifunto({ id: resp.data.id, hash });
+    throw Object.assign(new Error('Código enterrado'), { tipo: 'difunto', usuarioId: resp.data.id });
+  }
   const { activo: _, ...usuario } = resp.data;
+  olvidarDifunto();
   guardar({ usuario, desde: new Date().toISOString() });
   return usuario;
+}
+
+// Un expulsado en este dispositivo: su id y, si ha metido su código aquí, su hash (para
+// apelar y ver la respuesta). Mientras esté, la app enseña su pantalla en vez del login.
+const CLAVE_DIFUNTO = 'cvj.difunto';
+export function difuntoGuardado() {
+  try {
+    const d = JSON.parse(localStorage.getItem(CLAVE_DIFUNTO) || 'null');
+    return d?.id ? d : null;
+  } catch { return null; }
+}
+export function guardarDifunto(d) {
+  try { localStorage.setItem(CLAVE_DIFUNTO, JSON.stringify({ id: d.id, hash: d.hash ?? null })); } catch { /* modo privado */ }
+}
+export function olvidarDifunto() {
+  try { localStorage.removeItem(CLAVE_DIFUNTO); } catch { /* nada */ }
 }
 
 /** Actualiza los datos del usuario guardado (nombre, color, acento...) si han cambiado. */

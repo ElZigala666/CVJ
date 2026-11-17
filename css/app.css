@@ -2934,3 +2934,72 @@ body.apariencia-abierta > #app, body.apariencia-abierta > #barra { visibility: h
 .prop-form .prop-textarea { height: auto; min-height: 84px; padding-top: 10px; resize: vertical; line-height: 1.4; }
 .prop-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .campo-titulo small { font-weight: 400; color: var(--texto-2); text-transform: none; letter-spacing: 0; }
+
+/* ---------------------------------------------------------------------------
+   Apelaciones (migración 038): la pantalla del expulsado y lo del admin
+   --------------------------------------------------------------------------- */
+.difunto {
+  display: grid; gap: var(--esp-4); align-content: start; max-width: 520px; margin: 0 auto;
+  min-height: 100dvh; padding: calc(env(safe-area-inset-top, 0px) + 20px) var(--esp-4) calc(env(safe-area-inset-bottom, 0px) + 28px);
+}
+.difunto-desde { margin: 0; text-align: center; font: italic 400 16px/1.35 var(--fuente-lectura); color: var(--texto-2); }
+.difunto-fecha { margin: 8px 0 0; font: 600 15px/1.35 var(--fuente-lectura); }
+.difunto-lapida .lapida-datos { width: 100%; }
+.difunto-estado {
+  display: flex; gap: var(--esp-3); align-items: flex-start; padding: var(--esp-3) var(--esp-4); border-radius: 14px;
+  background: var(--superficie); color: var(--texto); font-size: 14px; line-height: 1.4;
+}
+.difunto-estado > svg { flex: 0 0 auto; margin-top: 1px; color: var(--texto-2); }
+.difunto-estado p { margin: 0; display: grid; gap: 2px; min-width: 0; }
+.difunto-estado span { color: var(--texto-2); font-size: 13px; }
+.difunto-estado.rechazo > svg { color: var(--lacre); }
+.difunto-respuesta {
+  display: block; margin-top: var(--esp-2); padding-left: var(--esp-3); border-left: 2px solid var(--borde-fuerte);
+  font: italic 400 15px/1.45 var(--fuente-lectura); color: var(--texto); overflow-wrap: anywhere;
+}
+.difunto-respuesta::before { content: "«"; } .difunto-respuesta::after { content: "»"; }
+.difunto-acciones { display: grid; gap: var(--esp-3); justify-items: center; }
+.difunto-espera { margin: 0; text-align: center; font-size: 14px; color: var(--texto-2); }
+.difunto-vuelta { display: grid; gap: var(--esp-3); justify-items: center; text-align: center; margin-top: 18vh; }
+.difunto-vuelta .fila-botones { width: 100%; }
+.difunto-vuelta-icono { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: var(--acento-suave); color: var(--acento); }
+.difunto-titulo { margin: 0; font: 800 26px/1.15 var(--fuente-lectura); }
+.difunto-sub { margin: 0; color: var(--texto-2); }
+.apel-textarea { min-height: 140px; }
+.apel-contador { margin: -4px 0 0; text-align: right; font-size: 12px; color: var(--texto-2); }
+
+/* Lápida: "Ha apelado N veces" y, para el admin, el acceso a sus apelaciones */
+.lapida-apelaciones { margin: 6px 0 0; font-size: 12.5px; font-weight: 600; color: var(--piedra-texto-2); }
+.lapida-apelaciones a { color: inherit; }
+
+/* Aviso de Inicio (admin) */
+.aviso-apelacion {
+  width: calc(100% - 40px); margin: 12px 20px 0; border: 0; font: inherit; text-align: left; cursor: pointer;
+  display: flex; align-items: center; gap: var(--esp-3); padding: var(--esp-3) 14px; border-radius: 14px; text-decoration: none;
+  background: linear-gradient(160deg, var(--piedra-1), var(--piedra-2)); color: var(--piedra-texto);
+  box-shadow: inset 0 0 0 1px var(--piedra-borde); font-size: 14px; line-height: 1.35;
+}
+.aviso-apelacion-icono { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, .4); }
+.aviso-apelacion-texto { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.aviso-apelacion-texto small { font-size: 12.5px; color: var(--piedra-texto-2); }
+.aviso-apelacion-ver { flex: 0 0 auto; font-weight: 700; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+
+/* Hoja de apelaciones (admin) */
+.apelaciones-lista { display: grid; gap: var(--esp-3); }
+.apelacion {
+  display: grid; gap: var(--esp-2); padding: var(--esp-3) var(--esp-4); border-radius: 14px;
+  background: var(--superficie); box-shadow: inset 0 0 0 1px var(--borde);
+}
+.apelacion-cab { display: flex; align-items: center; gap: var(--esp-3); }
+.apelacion-cab > div { display: grid; gap: 1px; min-width: 0; }
+.apelacion-cab small { font-size: 12.5px; color: var(--texto-2); }
+.apelacion-texto { margin: 0; font: 400 15px/1.5 var(--fuente-lectura); white-space: pre-wrap; overflow-wrap: anywhere; }
+.apelacion-historial { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 12.5px; color: var(--texto-2); }
+.apelacion-historial li { display: flex; gap: var(--esp-2); justify-content: space-between; }
+.apelacion-historial li span:first-child { white-space: nowrap; }
+.apelacion-historial li span:last-child { text-align: right; min-width: 0; overflow-wrap: anywhere; }
+.apelacion-respuesta { margin: 0; font-size: 13px; color: var(--texto-2); }
+.apelacion-estado { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--texto-2); }
+.apelacion.pendiente { box-shadow: inset 0 0 0 1.5px var(--acento); }
+.grupo-apelaciones { display: grid; gap: var(--esp-2); }
+.lapida.sellada .lapida-apelaciones { color: var(--sellada-texto-2); }

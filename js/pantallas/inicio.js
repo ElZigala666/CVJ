@@ -11,6 +11,7 @@ import * as social from '../social.js';
 import * as insignias from '../insignias.js';
 import * as cementerio from '../cementerio.js';
 import * as propuestas from '../propuestas.js';
+import * as apelaciones from '../apelaciones.js';
 import { usuarioActual } from '../sesion.js';
 import { mediaGrupo, recomendacionGrupo, desviacionTipica } from '../notas.js';
 import { abrirHoja } from '../hoja.js';
@@ -85,6 +86,7 @@ export function render(el) {
     const lote = e.target.closest('[data-lote]');
     if (lote && !e.target.closest('[data-perfil]')) { e.preventDefault(); abrirLote(lote.dataset.lote); return; }
     if (cementerio.clicAviso(e)) return;
+    if (apelaciones.clicApelaciones(e)) return;
     const leido = e.target.closest('[data-aviso-leido]');
     if (leido) datos.marcarAvisoLeido(leido.dataset.avisoLeido, aviso);
   };
@@ -113,7 +115,8 @@ function html() {
     return `
       ${cabecera(yo)}
       ${elGrupo()}
-      ${cementerio.avisosInicio()}
+      ${apelaciones.avisosInicio()}
+    ${cementerio.avisosInicio()}
     ${propuestas.avisosInicio()}
       ${avisoPsn()}
       <div class="inicio-vacio">
@@ -127,6 +130,7 @@ function html() {
   return `
     ${cabecera(yo)}
     ${elGrupo()}
+    ${apelaciones.avisosInicio()}
     ${cementerio.avisosInicio()}
     ${propuestas.avisosInicio()}
     ${avisoPsn()}
@@ -443,6 +447,8 @@ function actividad() {
     .concat(cementerio.eventosActividad().map((ev) => ({ vida: ev, creado_en: ev.fecha })))
     // Propuestas de nuevos miembros: nuevas, aceptadas y las que no pasaron el casting.
     .concat(propuestas.eventosActividad().map((ev) => ({ propuesta: ev, creado_en: ev.fecha })))
+    // Apelaciones de los expulsados (sin el texto, que es privado) y sus rechazos.
+    .concat(apelaciones.eventosActividad().map((ev) => ({ apelacion: ev, creado_en: ev.fecha })))
     .sort((a, b) => new Date(b.a?.creado_en ?? b.creado_en) - new Date(a.a?.creado_en ?? a.creado_en))
     .slice(0, MAX_ACTIVIDAD);
 
@@ -465,8 +471,9 @@ function actividad() {
     return social.tira(tipo, v.id, { visibles: 1 });
   };
   const contenido = filas.length
-    ? filas.map(({ a, u, j, columna: ce, lote, social: ev, insignia: ins, vida, propuesta }) => {
+    ? filas.map(({ a, u, j, columna: ce, lote, social: ev, insignia: ins, vida, propuesta, apelacion }) => {
       if (vida) return cementerio.filaActividad(vida, ahora);
+      if (apelacion) return apelaciones.filaActividad(apelacion, ahora);
       if (propuesta) return propuestas.filaActividad(propuesta, ahora);
       if (ins) return insignias.filaActividad(ins, yo?.id, ahora);
       if (ev) return social.filaActividad(ev, yo?.id, ahora);

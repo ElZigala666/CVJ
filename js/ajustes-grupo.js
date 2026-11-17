@@ -15,6 +15,7 @@ import { logoColumna, logoCuadrado } from './columnas-ui.js';
 import { llamarAdmin } from './admin-api.js';
 import { historia } from './cementerio.js';
 import { textoPadrino } from './propuestas.js';
+import { bloqueGrupo, clicApelaciones, vecesApelado } from './apelaciones.js';
 
 const FECHA = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -183,6 +184,7 @@ export function montarGrupo(cont) {
                     <button type="button" class="boton-secundario boton-pequeno" data-codigo="${esc(u.id)}">Generar código nuevo</button>
                     <button type="button" class="boton-secundario neutro boton-pequeno" data-editar="${esc(u.id)}">Editar nombre y color</button>
                     ${'foto_url' in u ? botonFoto(u) : ''}
+                    ${vecesApelado(u.id) ? `<button type="button" class="boton-secundario neutro boton-pequeno" data-apelaciones="${esc(u.id)}">Apelaciones (${vecesApelado(u.id)})</button>` : ''}
                     ${Array.isArray(datos.estado.columnas) ? (datos.columnaDe(u.id)
                       ? `<button type="button" class="boton-secundario neutro boton-pequeno con-icono" data-columna="${esc(u.id)}">${logoColumna(datos.columnaDe(u.id), 20)}<span>Columna: ${esc(datos.columnaDe(u.id).nombre)}</span></button>`
                       : `<button type="button" class="boton-secundario neutro boton-pequeno" data-columna="${esc(u.id)}">Hacer columnista</button>`) : ''}
@@ -197,6 +199,7 @@ export function montarGrupo(cont) {
               </div>`;
           }).join('')}
         </div>
+        ${bloqueGrupo()}
         <button type="button" class="boton-secundario con-icono" data-anadir>${icono('mas', { tam: 18, color: 'currentColor' })}<span>Añadir persona</span></button>
         ${datos.sagasOcultas().length ? `
           <details class="plat-otras">
@@ -215,6 +218,7 @@ export function montarGrupo(cont) {
 
   cont.addEventListener('click', async (e) => {
     const t = e.target;
+    if (clicApelaciones(e)) return;
     const colu = t.closest('[data-columna]');
     if (colu) { hojaColumna(datos.usuario(colu.dataset.columna)); return; }
     const ms = t.closest('[data-mostrar-saga]');

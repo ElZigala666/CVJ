@@ -91,6 +91,8 @@ const TABLAS = [
   // Propuestas de nuevos miembros (migración 037) y sus votos.
   { k: 'propuestas', t: 'propuestas', orden: ['creado_en', 'id'] },
   { k: 'propuestasVotos', t: 'propuestas_votos', orden: ['propuesta_id', 'usuario_id'] },
+  // Apelaciones de los expulsados (migración 038): lo público; el texto, solo el admin.
+  { k: 'apelaciones', t: 'apelaciones', orden: ['creado_en', 'id'] },
   { k: 'horasAjustes', t: 'horas_ajustes', orden: ['usuario_id', 'juego_id'] },
   { k: 'horasEstimadas', t: 'horas_estimadas', orden: ['usuario_id', 'juego_id'] },
   // Celebraciones de "completado" que ya he visto (solo las mías).
@@ -1035,6 +1037,31 @@ export const proponer = (autorId, { nombre, deQue, motivo, plataformas }) => rpc
 export const votarPropuesta = (usuarioId, propuestaId, voto, comentario = null) => rpcPropuestas('votar_propuesta',
   { p_usuario: usuarioId, p_propuesta: propuestaId, p_voto: voto, p_comentario: comentario || null },
   'Sin conexión. El voto no ha llegado a la urna.');
+
+// ---------------------------------------------------------------------------
+// Apelaciones (migración 038). El difunto no tiene datos cargados: va directo al servidor
+// con su código (hash). Lo del admin, por la función admin (js/apelaciones.js).
+// ---------------------------------------------------------------------------
+export const apelaciones = () => estado.apelaciones ?? [];
+export const apelacionesDe = (usuarioId) => apelaciones().filter((a) => a.usuario_id === usuarioId);
+export const apelacionesPendientes = () => apelaciones().filter((a) => a.estado === 'pendiente');
+
+/** Lo que ve un expulsado de sí mismo: con su hash, todo; con su id, lo público. */
+export async function estadoDifunto({ hash = null, id = null }) {
+  try {
+    return (await api('rpc/estado_difunto', { p_hash: hash, p_usuario: hash ? null : id })) ?? { ok: false, codigo: 'red' };
+  } catch {
+    return { ok: false, codigo: 'red', error: 'Sin conexión con el más allá.' };
+  }
+}
+/** Apelar (solo con el código válido). → { ok, error?, desde? } */
+export async function apelar(hash, texto) {
+  try {
+    return (await api('rpc/apelar', { p_hash: hash, p_texto: texto })) ?? { ok: false, error: 'No ha contestado nadie.' };
+  } catch {
+    return { ok: false, error: 'Sin conexión. La apelación se ha quedado en el limbo.' };
+  }
+}
 
 export async function subirImagenColumna(ruta, blob) {
   const sb = await cliente();

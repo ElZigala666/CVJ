@@ -272,7 +272,8 @@ export function actualizarCuentas(raiz, ahora = Date.now()) {
 /** Lo que sale en "Actividad reciente": expulsiones, intentos, vetos, vueltas y exorcismos. */
 export function eventosActividad() {
   return (datos.estado.vidas ?? [])
-    .filter((e) => e.tipo !== 'alta' && datos.usuario(e.usuario_id))
+    // El exorcismo que se levanta al aceptar una apelación no sale aparte: es parte de la vuelta.
+    .filter((e) => e.tipo !== 'alta' && !(e.tipo === 'exorcismo_levantado' && e.apelacion_id) && datos.usuario(e.usuario_id))
     .map((e) => ({ e, fecha: e.fecha }));
 }
 
@@ -305,8 +306,9 @@ export function filaActividad({ e }, ahora = new Date()) {
     extra = quien ? `${esc(quien.nombre)} tendrá que buscarse otro muerto.` : 'Descanse en paz. Otra vez.';
   } else if (e.tipo === 'reanimacion') {
     vivo = true;
+    if (e.apelacion_id) frase = `${nom(d)} ha vuelto tras apelar`;
     const por = autor && !(autor.es_admin && !e.reanimacion_id) ? `reanimado por ${esc(autor.nombre)}` : `indultado por ${DICTADOR}`;
-    frase = `${nom(d)} ha vuelto de entre los muertos (${por})`;
+    if (!frase) frase = `${nom(d)} ha vuelto de entre los muertos (${por})`;
   } else return '';
   return `
     <a class="actividad-fila actividad-cementerio" href="${vivo ? `#perfil/${esc(d.id)}` : '#cementerio'}">

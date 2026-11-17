@@ -4,7 +4,7 @@ import { usuarioActual, salir, refrescarUsuario } from './sesion.js';
 import * as datos from './datos.js';
 import { aplicarAcento, SELECCIONABLE } from './ui.js';
 import { iniciarInstalacion } from './instalar.js';
-import { iniciarApariencia, aplicarApariencia, olvidarApariencia, aparienciaActual } from './apariencia.js';
+import { iniciarApariencia, aplicarApariencia, olvidarApariencia, aparienciaActual, acentoVisitado } from './apariencia.js';
 import { anotarNavegacion, corregirRuta } from './navegacion.js';
 
 const vista = document.getElementById('vista');
@@ -132,6 +132,20 @@ document.addEventListener('keydown', (e) => {
   location.hash = '#buscar';
 });
 
+/**
+ * El acento de toda la app: el mío o, en el perfil de otro y lo que cuelga de él (su tier
+ * list, sus estadísticas, su columna y sus entradas), el suyo. Aquí y en ningún otro sitio.
+ */
+function fijarAcentoDeRuta() {
+  const { ruta, params } = leerRuta();
+  const yo = usuarioActual()?.id;
+  let dueno = null;
+  if (ruta === 'perfil' || ruta === 'estadisticas') dueno = params[0] || null;
+  else if (ruta === 'columna') dueno = datos.columna(params[0])?.usuario_id ?? null;
+  else if (ruta === 'entrada') dueno = datos.entrada(params[0])?.usuario_id ?? null;
+  acentoVisitado(dueno && dueno !== yo ? datos.usuario(dueno)?.acento ?? null : null);
+}
+
 function marcarBarra(ruta, params) {
   // Perfil propio, sus tiers y estadísticas marcan "Perfil"; los de otros, nada.
   const yo = usuarioActual()?.id;
@@ -203,6 +217,7 @@ function navegar() {
   document.title = `CVJ · ${ruta[0].toUpperCase() + ruta.slice(1)}`;
   montar(RUTAS[ruta], { ruta, params, alSalir }, !SIN_BARRA.has(ruta), scroll);
   marcarBarra(ruta, params);
+  fijarAcentoDeRuta();
 }
 
 // ---------------------------------------------------------------------------
@@ -266,6 +281,8 @@ function iniciarDatos() {
         datos.actualizarUsuario(yo.id, { apariencia: aparienciaActual() }, null);
       }
     } else if (fresco) aplicarAcento(fresco.acento);
+    // Su color puede llegar con los datos (o cambiar mientras estoy en su perfil).
+    fijarAcentoDeRuta();
   });
   // Sincronizaciones automáticas: en segundo plano y con datos del servidor (no de la caché).
   datos.cuandoFrescos(revisarPlataformas);

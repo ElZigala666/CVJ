@@ -40,7 +40,10 @@ español (código, comentarios, commits, interfaz).
   `js/cuentas-ui.js`, `js/plataformas-ui.js`: plataformas y Ajustes.
 - `js/apariencia.js`: fondos (cada uno ya es claro u oscuro; no hay ajuste de tema),
   modo automático día/noche, imagen propia medida (velo y sombra si hace falta) y acento:
-  todo se resuelve en variables CSS inline en `<html>`. `js/ajustes-apariencia.js` su
+  todo se resuelve en variables CSS inline en `<html>`.
+  El acento que se ve tiene UN punto de entrada: `fijarAcentoDeRuta()` (`js/app.js`, según la
+  ruta) → `acentoVisitado()`: en el perfil de otro (y su tier list, estadísticas, columna y
+  entradas) se ve su acento sobre MI fondo, fundido en 250 ms (temporizador, no rAF). `js/ajustes-apariencia.js` su
   pantalla (vista previa en vivo). `js/encuadre.js` arrastrar y zoom (fondo y cabecera).
 - `js/perfil-personal.js` (datos y cabecera del perfil: arte del favorito, imagen,
   degradado o patrón, con máscara para fundirse con el fondo), `js/cabecera-editar.js`,

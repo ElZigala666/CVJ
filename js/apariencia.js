@@ -152,10 +152,12 @@ export function acentoTexto(acc, lumFondo, oscuro) {
  * → { id, oscuro, imagen, sombra, color, ajustado, legible, vars }
  * @param {string} id     fondo (de FONDOS)
  * @param {object} ap     apariencia normalizada (para la imagen)
- * @param {string} acc    acento (#RRGGBB)
+ * @param {string} acc    acento (#RRGGBB) de botones, textos, tiers...
+ * @param {string} [accFondo]  acento con el que se pinta el fondo "Tu color" (siempre el mío)
  */
-export function resolverFondo(id, ap, acc) {
+export function resolverFondo(id, ap, acc, accFondo = acc) {
   acc = esHex(acc) ? acc.toUpperCase() : ACENTO_DEFECTO;
+  accFondo = esHex(accFondo) ? accFondo.toUpperCase() : acc;
   const im = id === 'imagen' ? ap?.imagen : null;
   if (id === 'imagen' && !im) id = 'carbon';
   const F = FONDOS[id] ?? FONDOS.carbon;
@@ -184,7 +186,7 @@ export function resolverFondo(id, ap, acc) {
   } else {
     base = F.base;
     Object.assign(vars, {
-      '--f-imagen': F.css(acc), '--f-velo': 'transparent', '--f-desenfoque': '0px', '--f-pos': '50% 50%', '--f-zoom': '1',
+      '--f-imagen': F.css(accFondo), '--f-velo': 'transparent', '--f-desenfoque': '0px', '--f-pos': '50% 50%', '--f-zoom': '1',
       '--superficie': oscuro ? 'rgba(255, 255, 255, 0.07)' : 'rgba(22, 20, 27, 0.05)',
       '--sup-desenfoque': 'none',
     });
@@ -242,7 +244,9 @@ export function pintar(r) {
 }
 
 // Lo que está puesto: lo de la cuenta (o lo que se está probando en Apariencia).
-const estado = { ap: null, acento: null, prueba: null };
+// acento: el mío. visita: el del perfil que estoy viendo (y lo que cuelga de él), o null.
+// Es el único punto que decide qué acento se ve en toda la app.
+const estado = { ap: null, acento: null, prueba: null, visita: null };
 
 function guardarLocal(ap, acc) {
   // Lo ya resuelto para el <head>: los dos fondos del automático, o el fijo.
@@ -255,9 +259,49 @@ function guardarLocal(ap, acc) {
   } catch { /* modo privado */ }
 }
 
-function repintar() {
+// El acento que se está viendo ahora (para fundir el cambio con el de un perfil visitado).
+let acentoVisto = null;
+let animacion = 0;
+
+function repintar(acentoForzado = null) {
   const ap = estado.prueba ?? estado.ap ?? normalizar(null);
-  pintar(resolverFondo(fondoActivo(ap), ap, estado.acento ?? ACENTO_DEFECTO));
+  const mio = estado.acento ?? ACENTO_DEFECTO;
+  // En Apariencia siempre el mío (se está eligiendo); si no, el del perfil visitado, si hay.
+  const acc = acentoForzado ?? (!estado.prueba && estado.visita ? estado.visita : mio);
+  pintar(resolverFondo(fondoActivo(ap), ap, acc, mio));
+  if (!acentoForzado) { clearTimeout(animacion); acentoVisto = acc; }
+}
+
+/** Funde el acento visto con el nuevo en ~250 ms (todo lo que lo usa, a la vez). */
+function fundirAcento() {
+  const ap = estado.prueba ?? estado.ap;
+  const destino = !estado.prueba && estado.visita ? estado.visita : estado.acento ?? ACENTO_DEFECTO;
+  const desde = acentoVisto;
+  clearTimeout(animacion);
+  const quieto = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if (!ap || !desde || desde === destino || quieto) { repintar(); return; }
+  const t0 = performance.now();
+  // Con temporizador y no requestAnimationFrame: siempre termina (aunque no se pinte).
+  const paso = () => {
+    const k = Math.min(1, (performance.now() - t0) / 250);
+    const e = 1 - (1 - k) ** 3; // sale rápido y frena al llegar
+    if (k >= 1) { repintar(); return; }
+    repintar(mezcla(desde, destino, e).toUpperCase());
+    animacion = setTimeout(paso, 16);
+  };
+  paso();
+}
+
+/**
+ * El acento del perfil que estoy viendo (otro usuario), o null para volver al mío. Solo
+ * cambia el acento (con la misma legibilidad sobre MI fondo); el fondo no se toca. Es el
+ * único punto por el que cambia el acento de visita (lo llama js/app.js según la ruta).
+ */
+export function acentoVisitado(hex) {
+  const v = esHex(hex) ? hex.toUpperCase() : null;
+  if (v === estado.visita) return;
+  estado.visita = v;
+  if (estado.ap || estado.prueba) fundirAcento();
 }
 
 /** Aplica lo de la cuenta (apariencia y acento) y lo recuerda en este dispositivo. */
@@ -295,7 +339,7 @@ export function iniciarApariencia() {
 /** Al cerrar sesión: fuera lo de este dispositivo. */
 export function olvidarApariencia() {
   try { localStorage.removeItem(CLAVE); } catch { /* nada */ }
-  estado.ap = null; estado.prueba = null; estado.acento = null;
+  estado.ap = null; estado.prueba = null; estado.acento = null; estado.visita = null;
   repintar();
 }
 

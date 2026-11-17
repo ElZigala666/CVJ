@@ -60,6 +60,9 @@ const ICONOS = {
   // PlayStation: abrir fuera, pegar el código y "no se guarda"
   externo: { d: 'M13.5 3H21v7.5h-2.6V7.4l-7.5 7.5-1.8-1.8 7.5-7.5h-3.1zM3 7a2 2 0 0 1 2-2h6v2.6H5.6v10.8h10.8V13H19v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' },
   pegar: { d: 'M9 2h6a1 1 0 0 1 1 1v1h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2V3a1 1 0 0 1 1-1z', t: 'M8.5 11h7M8.5 15h5' },
+  // Copiar: dos hojas, la de atrás asomando; "Copiado" usa un check relleno.
+  copiar: { d: 'M5 7h10a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2zM9 2h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-.5V7.5a2 2 0 0 0-2-2H7V4a2 2 0 0 1 2-2z' },
+  hecho: { d: 'M9.2 15.6 19.4 5.4l2.3 2.3L9.2 20.2 2.3 13.3l2.3-2.3z' },
   candado: { d: 'M12 2a5 5 0 0 1 5 5v3h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h1V7a5 5 0 0 1 5-5zm0 2.6A2.4 2.4 0 0 0 9.6 7v3h4.8V7A2.4 2.4 0 0 0 12 4.6z', t: 'M12 14.2v2.8' },
   // Menú de opciones (tres puntos)
   opciones: { d: 'M12 3.5a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4zm0 6.3a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4zm0 6.3a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4z' },

@@ -5,7 +5,7 @@
 import { SUPABASE_BASE, SUPABASE_KEY } from './config.js';
 import { abrirHoja } from './hoja.js';
 import { icono } from './icons.js';
-import { esc, aviso, avatar } from './ui.js';
+import { esc, aviso, avatar, botonCopiar, seleccionarTexto } from './ui.js';
 import * as datos from './datos.js';
 import { usuarioActual } from './sesion.js';
 import { PALETA } from './acento.js';
@@ -56,11 +56,12 @@ function mostrarCodigo(nombre, codigo) {
           <button type="button" class="boton-secundario" data-ref="copiar">Copiar</button>
           ${navigator.share ? '<button type="button" class="boton-principal" data-ref="compartir">Compartir</button>' : ''}
         </div>
-        <p class="ajustes-nota">Mensaje listo para mandar: «${esc(texto)}»</p>
+        <p class="ajustes-nota">Mensaje listo para mandar: «<span class="texto-seleccionable" data-ref="mensaje">${esc(texto)}</span>»</p>
       </div>`,
     alMontar(cuerpo) {
-      cuerpo.querySelector('[data-ref="copiar"]').addEventListener('click', async () => {
-        try { await navigator.clipboard.writeText(texto); aviso('Copiado'); } catch { aviso('No se ha podido copiar: apúntalo a mano'); }
+      // Si no se puede copiar, el mensaje queda seleccionado para copiarlo a mano.
+      botonCopiar(cuerpo.querySelector('[data-ref="copiar"]'), texto, {
+        alFallar: () => seleccionarTexto(cuerpo.querySelector('[data-ref="mensaje"]')),
       });
       cuerpo.querySelector('[data-ref="compartir"]')?.addEventListener('click', () => {
         navigator.share({ title: 'CVJ', text: texto }).catch(() => {});

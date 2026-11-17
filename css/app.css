@@ -117,7 +117,8 @@ body.sin-barra .pantalla { padding-bottom: 0; }
    Aviso discreto
    --------------------------------------------------------------------------- */
 #aviso {
-  position: fixed; left: 50%; z-index: 20;
+  /* Por encima de las hojas (30) y menús (40): un aviso lanzado desde una hoja tiene que verse. */
+  position: fixed; left: 50%; z-index: 45;
   bottom: calc(var(--alto-barra) + 12px + env(safe-area-inset-bottom));
   max-width: min(360px, calc(100% - 40px));
   padding: 10px 14px; border-radius: 12px;
@@ -1537,10 +1538,17 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 .grupo-persona-acciones { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 12px 12px; align-items: center; }
 .grupo-persona-acciones .psn-confirmar { flex-basis: 100%; }
 .codigo-nuevo { display: grid; gap: 14px; text-align: center; }
-.codigo-grande { margin: 4px 0 0; font: 800 44px var(--fuente-titulos); letter-spacing: .18em; color: var(--texto); user-select: all; -webkit-user-select: all; }
+.codigo-grande { margin: 4px 0 0; font: 800 44px var(--fuente-titulos); letter-spacing: .18em; color: var(--texto); user-select: all; -webkit-user-select: all; -webkit-touch-callout: default; }
 .codigo-aviso { margin: 0; }
 .codigo-botones { display: flex; gap: 10px; justify-content: center; }
 .codigo-botones > * { flex: 1; max-width: 180px; }
+.codigo-botones .boton-secundario { height: 56px; border-radius: var(--r-xl); font-size: 16px; }
+
+/* Botón Copiar (helper botonCopiar de js/ui.js): secundario pero claramente pulsable,
+   con borde de acento; al copiar enseña "Copiado" con un check un par de segundos. */
+.boton-copiar { gap: 8px; box-shadow: inset 0 0 0 1.5px var(--acento); font-weight: 700; }
+.boton-copiar.copiado { background: var(--acento); color: var(--sobre-acento); box-shadow: none; }
+.boton-copiar svg { flex: 0 0 auto; }
 
 /* Inicio: bienvenida de alguien nuevo */
 .bienvenida { display: grid; gap: 10px; margin: 0 16px 16px; padding: 18px; border-radius: 18px; background: var(--superficie); border: 1px solid var(--borde); }

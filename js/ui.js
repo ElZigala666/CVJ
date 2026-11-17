@@ -225,6 +225,88 @@ export function avisoDeshacer(mensaje, deshacer, ms = 6000) {
 }
 
 // ---------------------------------------------------------------------------
+// Copiar al portapapeles (helper común de todos los botones de copiar)
+// ---------------------------------------------------------------------------
+/** Método antiguo: textarea temporal (con selección permitida, el CSS global la quita) + execCommand. */
+function copiarConSeleccion(texto) {
+  const previo = document.activeElement;
+  const ta = document.createElement('textarea');
+  ta.value = texto;
+  ta.setAttribute('readonly', '');
+  ta.setAttribute('aria-hidden', 'true');
+  // 16 px para que iOS no haga zoom al enfocarlo; fuera de la vista pero "visible" (si no, no copia).
+  ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;padding:0;border:0;opacity:0;'
+    + 'font-size:16px;-webkit-user-select:text;user-select:text;pointer-events:none;';
+  // Dentro de la hoja abierta (si la hay): fuera de un diálogo modal algunos navegadores no enfocan.
+  (previo?.closest?.('.hoja') ?? document.body).appendChild(ta);
+  let ok = false;
+  try {
+    ta.focus({ preventScroll: true });
+    ta.select();
+    ta.setSelectionRange(0, texto.length); // iOS
+    ok = document.execCommand('copy');
+  } catch { ok = false; }
+  ta.remove();
+  window.getSelection?.()?.removeAllRanges();
+  previo?.focus?.({ preventScroll: true });
+  return ok;
+}
+
+/**
+ * Copia texto. Hay que llamarla DIRECTAMENTE en el clic (sin await antes), o el navegador
+ * deja de considerarlo un gesto del usuario. Primero la API moderna; si no está o la
+ * rechaza, el textarea temporal. Devuelve una promesa con true / false.
+ */
+export function copiarTexto(texto) {
+  const api = window.isSecureContext && navigator.clipboard?.writeText;
+  if (!api) return Promise.resolve(copiarConSeleccion(texto));
+  return navigator.clipboard.writeText(texto).then(() => true, () => copiarConSeleccion(texto));
+}
+
+/**
+ * Convierte un botón en "Copiar": al pulsarlo copia, enseña "Copiado" con un check un par
+ * de segundos y, si no se puede, un aviso claro y llama a alFallar (p. ej. seleccionar el
+ * texto para copiarlo a mano). texto puede ser una función (se evalúa al pulsar).
+ */
+export function botonCopiar(boton, texto, { etiqueta = 'Copiar', hecho = 'Copiado', alFallar } = {}) {
+  if (!boton) return;
+  const pintar = (copiado) => {
+    boton.classList.toggle('copiado', copiado);
+    boton.innerHTML = `${icono(copiado ? 'hecho' : 'copiar', { tam: 18, color: 'currentColor' })}<span>${esc(copiado ? hecho : etiqueta)}</span>`;
+  };
+  boton.classList.add('boton-copiar');
+  boton.disabled = false;
+  pintar(false);
+  let vuelta = 0;
+  boton.addEventListener('click', () => {
+    const valor = typeof texto === 'function' ? texto() : texto;
+    copiarTexto(String(valor ?? '')).then((ok) => {
+      clearTimeout(vuelta);
+      if (ok) {
+        pintar(true);
+        vuelta = setTimeout(() => pintar(false), 2000);
+      } else {
+        pintar(false);
+        aviso('No se ha podido copiar. Mantén pulsado el texto para copiarlo a mano.', 4500);
+        alFallar?.();
+      }
+    });
+  });
+}
+
+/** Deja seleccionado todo el texto de un elemento (para copiarlo a mano). */
+export function seleccionarTexto(el) {
+  if (!el) return;
+  try {
+    const rango = document.createRange();
+    rango.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(rango);
+  } catch { /* sin selección */ }
+}
+
+// ---------------------------------------------------------------------------
 // Acento del usuario (se aplica en <html>)
 // ---------------------------------------------------------------------------
 /**

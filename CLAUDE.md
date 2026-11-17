@@ -19,7 +19,7 @@ español (código, comentarios, commits, interfaz).
     `es_admin` de quien llama.
 
 ## Mapa de archivos
-- `index.html`: shell; aplica tema/acento/fondo antes de pintar. `manifest.webmanifest`.
+- `index.html`: shell; aplica lo resuelto de apariencia (`localStorage` "cvj.ap") antes de pintar.
 - `css/tokens.css` (variables), `css/app.css` (todo, móvil), `css/escritorio.css` (solo
   dentro de media queries anchas; no puede alterar el móvil).
 - `js/app.js`: arranque, rutas por hash (`#inicio`, `#juego/123`...), barra inferior,
@@ -38,8 +38,14 @@ español (código, comentarios, commits, interfaz).
   `js/galeria.js`; `js/refrescar.js` tirar para refrescar; `js/celebracion.js`.
 - `js/psn.js`, `js/xbox.js`, `js/steam.js`, `js/igdb.js` + `js/ajustes-*.js`,
   `js/cuentas-ui.js`, `js/plataformas-ui.js`: plataformas y Ajustes.
-- `js/apariencia.js`, `js/tema.js`, `js/acento.js`, `js/selector-color.js`,
-  `js/ajustes-fondo.js`, `js/perfil-editar.js`, `js/perfil-personal.js`, `js/foto-perfil.js`.
+- `js/apariencia.js`: fondos (cada uno ya es claro u oscuro; no hay ajuste de tema),
+  modo automático día/noche, imagen propia medida (velo y sombra si hace falta) y acento:
+  todo se resuelve en variables CSS inline en `<html>`. `js/ajustes-apariencia.js` su
+  pantalla (vista previa en vivo). `js/encuadre.js` arrastrar y zoom (fondo y cabecera).
+- `js/perfil-personal.js` (datos y cabecera del perfil: arte del favorito, imagen,
+  degradado o patrón, con máscara para fundirse con el fondo), `js/cabecera-editar.js`,
+  `js/perfil-editar.js`, `js/foto-perfil.js`, `js/acento.js` (paleta de colores de
+  usuario), `js/selector-color.js`.
 - `js/columnas-ui.js`: piezas de columnas (formato del cuerpo, tarjetas).
 - `js/insignias.js`: catálogo de insignias (condiciones), medallas SVG, cálculo memorizado
   por versión de datos, guardado de cambios tras cada refresco, avisos y vitrina del perfil.
@@ -62,12 +68,16 @@ español (código, comentarios, commits, interfaz).
 
 ## Modelo de datos (public)
 - `usuarios`: nombre, inicial, color, acento, `codigo_hash`, `es_admin`, `activo`
-  (desactivado = no sale en listas, sus datos cuentan), `apariencia`/`perfil_datos`
-  (jsonb), `umbral_probados`, `estimar_horas`, `plataformas_ocultas`.
+  (desactivado = no sale en listas, sus datos cuentan), `apariencia` (jsonb `{v: 2, modo
+  fijo|auto, fondo, dia, noche, imagen:{url, desenfoque, velo, texto, x, y, zoom, medida}}`;
+  lo de antes se migra solo al abrir), `perfil_datos` (bio, estado, plataforma, favorito,
+  vitrina, insignias, `cabecera:{tipo, arte|imagen+encuadre|intensidad}`),
+  `umbral_probados`, `estimar_horas`, `plataformas_ocultas`.
 - `juegos` (PK `igdb_id`): caché de IGDB + `es_online`(_manual) = sin final,
   `relaciones` (jsonb de IGDB), `ttb_*` tiempo para terminar, `mostrar_como` (versión
   cuya portada/nombre se enseña), `arte_id`/`arte_tipo` arte horizontal de IGDB (artwork o
-  captura; `t_1080p`), aún sin usar en la interfaz. Función igdb, acción "arte" (cron cada hora).
+  captura; `t_1080p`; acción "arte", cron cada hora) y `artes` (todas las apaisadas, acción
+  "artes", al editar la cabecera).
 - `juegos_alias` (alias → principal, `auto`): versiones fusionadas. `versiones_separadas`:
   lo que el admin separó (no se vuelve a fusionar solo). `fusiones_rechazadas`: "son
   distintos" por usuario.

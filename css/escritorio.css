@@ -269,3 +269,33 @@ body.seleccionando #barra { visibility: visible; }
   .perfil.con-banner .perfil-lado { padding-top: 36px; }
   .perfil-lado > .perfil-vitrina, .perfil-lado > .perfil-insignias { margin: 0; }
 }
+
+/* Apariencia: vista previa a la izquierda (fija) y opciones a la derecha */
+.ap-dentro { max-width: 1296px; padding: 40px 72px 60px; }
+.ap-cab { margin-bottom: 26px; }
+.ap-cols { display: grid; grid-template-columns: 460px minmax(0, 1fr); gap: 32px; align-items: start; }
+.ap-izq { position: sticky; top: 0; }
+.ap-previa { height: 640px; }
+.ap-fondos { gap: 10px; }
+
+/* Perfil (diseño v2, pantalla 07): la cabecera ocupa todo el ancho junto a la barra lateral;
+   mis datos a la izquierda (fijos, con su propio scroll si no caben) y el historial a la derecha. */
+@media (min-width: 1024px) {
+  .pantalla:has(> .perfil) { max-width: none; padding-left: 48px; padding-right: 48px; }
+  .perfil { grid-template-columns: 380px minmax(0, 1fr); column-gap: 56px; row-gap: 24px; padding-top: 0; }
+  .perfil-cabecera { grid-column: 1 / -1; grid-row: 1; height: 340px; margin: 0 -48px; }
+  .cab-barra { left: 48px; right: 16px; top: 16px; }
+  .perfil-lado { grid-column: 1; grid-row: 2; margin-top: -108px; padding-top: 8px; }
+  .perfil.con-banner .perfil-lado { padding-top: 8px; }
+  .perfil-principal { grid-column: 2; grid-row: 2; }
+  .perfil-datos { align-items: flex-start; margin-top: 0; padding: 0; text-align: left; }
+  .perfil-foto .avatar { --tam: 136px !important; }
+  .perfil-nombre { align-items: flex-start; }
+  .perfil-nombre-grande { font-size: 36px; }
+  .perfil-meta { justify-content: flex-start; }
+  .perfil-datos .perfil-bio { max-width: none; }
+  .perfil-editar-enlace { align-self: flex-start; }
+}
+@media (min-width: 1600px) {
+  .perfil { grid-template-columns: 380px minmax(0, 1fr); column-gap: 64px; }
+}

@@ -1,44 +1,33 @@
-// Hoja de Ajustes (icono de ajustes de mi perfil): tema, color de la app,
-// instalar y cerrar sesión.
+// Hoja de Ajustes (icono de ajustes de mi perfil): apariencia (fondo y color, en su
+// propia pantalla), plataformas, biblioteca, grupo, instalar y cerrar sesión.
 import { icono } from './icons.js';
 import { abrirHoja } from './hoja.js';
-import { aviso, aplicarAcento, esc } from './ui.js';
+import { aviso, esc } from './ui.js';
 import { modoInstalacion, instalar } from './instalar.js';
-import { TEMAS, preferenciaTema, guardarTema } from './tema.js';
-import { PALETA, ACENTO_DEFECTO, seLeeMal, esDePaleta } from './acento.js';
 import { usuarioActual } from './sesion.js';
 import * as datos from './datos.js';
 import * as metricas from './metricas.js';
 import { VERSION_CORTA } from './version.js';
 import { montarPlataformas } from './ajustes-plataformas.js';
 import { montarGrupo } from './ajustes-grupo.js';
-import { abrirSelectorColor } from './selector-color.js';
 import { botonFoto } from './foto-perfil.js';
-import { montarFondo } from './ajustes-fondo.js';
+import { normalizar, FONDOS, ACENTO_DEFECTO } from './apariencia.js';
 import { avatar } from './ui.js';
 
-function bloqueApariencia(acentoActual) {
-  const tema = preferenciaTema();
-  const enPaleta = PALETA.some((p) => p.hex.toUpperCase() === acentoActual);
+/** Fila "Apariencia": el fondo (o la pareja del automático) y el color, y abre su pantalla. */
+function bloqueApariencia(u) {
+  const ap = normalizar(u?.apariencia);
+  const acc = String(u?.acento || ACENTO_DEFECTO).toUpperCase();
+  const texto = ap.modo === 'auto' ? `Automático · ${FONDOS[ap.dia].nombre} y ${FONDOS[ap.noche].nombre}` : FONDOS[ap.fondo].nombre;
+  const mini = (id) => `<i style="background:${esc(id === 'imagen' && ap.imagen ? `url('${ap.imagen.url}') center / cover` : FONDOS[id].css(acc))}"></i>`;
   return `
     <section class="ajustes-bloque">
-      <span class="campo-titulo">Tema</span>
-      <div class="segmentado" role="radiogroup" aria-label="Tema">
-        ${TEMAS.map((t) => `<button type="button" role="radio" data-pref-tema="${t.id}" class="${t.id === tema ? 'activo' : ''}" aria-checked="${t.id === tema}">${t.nombre}</button>`).join('')}
-      </div>
-    </section>
-    <section class="ajustes-bloque">
-      <span class="campo-titulo">Color de la app</span>
-      <div class="paleta" role="radiogroup" aria-label="Color de la app">
-        ${PALETA.map((p) => `
-          <button type="button" role="radio" class="muestra${p.hex.toUpperCase() === acentoActual ? ' activa' : ''}"
-            style="--muestra:${p.hex}" data-acento="${p.hex}" aria-checked="${p.hex.toUpperCase() === acentoActual}" aria-label="${esc(p.nombre)}"></button>`).join('')}
-        <button type="button" class="muestra-libre${enPaleta ? '' : ' activa'}" data-libre aria-label="Color personalizado">
-          <span class="muestra-mini" style="--muestra:${enPaleta ? 'conic-gradient(#e53935, #fdd835, #43a047, #1e88e5, #8e24aa, #e53935)' : acentoActual}"></span>
-          <span>Otro</span>
-        </button>
-      </div>
-      <p class="ajustes-nota" data-ref="nota-acento"></p>
+      <span class="campo-titulo">Apariencia</span>
+      <button type="button" class="enlace-fila ajustes-apariencia-fila" data-accion="apariencia">
+        <span class="ap-fila-minis">${ap.modo === 'auto' ? mini(ap.dia) + mini(ap.noche) : mini(ap.fondo)}<b style="background:${acc}"></b></span>
+        <span class="enlace-fila-texto">Fondo y color<small>${esc(texto)}</small></span>
+        ${icono('adelante', { tam: 18, color: 'var(--texto-2)' })}
+      </button>
     </section>`;
 }
 
@@ -71,15 +60,14 @@ function bloqueInstalar(modo, abierto) {
 }
 
 /** Abre la hoja de Ajustes. alSalir: cierra la sesión (lo pasa app.js). */
-export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas = false, color = false } = {}) {
+export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas = false } = {}) {
   let pasosAbiertos = false;
   abrirHoja({
     titulo: 'Ajustes',
     html: `
       <div class="ajustes">
         <div data-ref="foto"></div>
-        <div data-ref="apariencia" class="ajustes-apariencia"></div>
-        <div data-ref="fondo"></div>
+        <div data-ref="apariencia"></div>
         <section class="ajustes-bloque ajustes-plataformas" id="ajustes-plataformas">
           <span class="campo-titulo">Plataformas</span>
           <div data-ref="plataformas"></div>
@@ -144,12 +132,13 @@ export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas 
         const yoId = usuarioActual()?.id;
         if (yoId) datos.actualizarUsuario(yoId, { umbral_probados: Number(sel.value) }, aviso, 'No se ha podido guardar. Se ha deshecho el cambio.');
       });
-      const quitarFoto = datos.suscribir(() => { pintarFoto(); pintarUmbral(); });
+      const pintarApariencia = () => { cuerpo.querySelector('[data-ref="apariencia"]').innerHTML = bloqueApariencia(datos.usuario(usuarioActual()?.id)); };
+      pintarApariencia();
+      const quitarFoto = datos.suscribir(() => { pintarFoto(); pintarUmbral(); pintarApariencia(); });
       // PlayStation (se quita la suscripción al cerrar la hoja).
       // PSN se abre desplegada desde el aviso de "Reconectar"; Steam, al volver de su inicio de sesión.
       const quitarPlataformas = montarPlataformas(cuerpo.querySelector('[data-ref="plataformas"]'), { abrir: psn ? 'psn' : steam ? 'steam' : null });
       const quitarGrupo = montarGrupo(cuerpo.querySelector('[data-ref="grupo"]'));
-      const quitarFondo = montarFondo(cuerpo.querySelector('[data-ref="fondo"]'));
       // Abierta desde el aviso de "Reconectar": directamente al bloque de PlayStation.
       if (psn || steam || plataformas) {
         setTimeout(() => {
@@ -158,69 +147,16 @@ export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas 
           if (bloque && scroll) scroll.scrollTop += bloque.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 8;
         }, 450);
       }
-      const vigilar = new MutationObserver(() => { if (!cuerpo.isConnected) { quitarPlataformas(); quitarGrupo(); quitarFoto(); quitarFondo(); vigilar.disconnect(); } });
+      const vigilar = new MutationObserver(() => { if (!cuerpo.isConnected) { quitarPlataformas(); quitarGrupo(); quitarFoto(); vigilar.disconnect(); } });
       vigilar.observe(document.body, { childList: true });
 
-      // --- Apariencia ---------------------------------------------------------
-      const yo = usuarioActual();
-      const acentoGuardado = () => String(datos.usuario(yo?.id)?.acento ?? yo?.acento ?? ACENTO_DEFECTO).toUpperCase();
-      const pintarApariencia = () => {
-        cuerpo.querySelector('[data-ref="apariencia"]').innerHTML = bloqueApariencia(acentoGuardado());
-        pintarNota(acentoGuardado());
-      };
-      const pintarNota = (hex) => {
-        const nota = cuerpo.querySelector('[data-ref="nota-acento"]');
-        if (nota) nota.textContent = !esDePaleta(hex) && seLeeMal(hex) ? 'Este color puede leerse mal.' : '';
-      };
-      /** Marca en la paleta el color que se está usando (siempre, en cualquier orden). */
-      const marcar = (hex) => {
-        for (const m of cuerpo.querySelectorAll('[data-acento]')) {
-          const on = m.dataset.acento.toUpperCase() === hex;
-          m.classList.toggle('activa', on);
-          m.setAttribute('aria-checked', String(on));
-        }
-        cuerpo.querySelector('.muestra-libre')?.classList.toggle('activa', !esDePaleta(hex));
-      };
-      pintarApariencia();
-
-      const elegirAcento = (valor, guardar) => {
-        const hex = String(valor).toUpperCase();
-        aplicarAcento(hex);
-        marcar(hex);
-        pintarNota(hex);
-        if (!guardar || !yo || hex === acentoGuardado()) return;
-        datos.actualizarUsuario(yo.id, { acento: hex }, (msg) => {
-          aviso(msg);
-          aplicarAcento(acentoGuardado());
-          pintarApariencia();
-        });
-      };
-
       cuerpo.addEventListener('click', async (e) => {
-        const t = e.target.closest('[data-pref-tema]');
-        if (t) {
-          guardarTema(t.dataset.prefTema);
-          for (const b of cuerpo.querySelectorAll('[data-pref-tema]')) {
-            const on = b === t;
-            b.classList.toggle('activo', on);
-            b.setAttribute('aria-checked', String(on));
-          }
-          return;
-        }
-        const m = e.target.closest('[data-acento]');
-        if (m) { elegirAcento(m.dataset.acento, true); return; }
-        // Color personalizado: selector propio en otra hoja; al cerrarla se vuelve a Ajustes.
-        if (e.target.closest('[data-libre]')) {
-          abrirSelectorColor({
-            inicial: acentoGuardado(),
-            alAplicar: (hex) => elegirAcento(hex, true),
-            alCerrar: () => abrirAjustes(alSalir, { color: true }),
-          });
-          return;
-        }
         const b = e.target.closest('[data-accion]');
         if (!b) return;
-        if (b.dataset.accion === 'salir') {
+        if (b.dataset.accion === 'apariencia') {
+          cerrar(true);
+          import('./ajustes-apariencia.js').then((m) => m.abrirApariencia());
+        } else if (b.dataset.accion === 'salir') {
           cerrar(true);
           alSalir();
         } else if (b.dataset.accion === 'instalar') {

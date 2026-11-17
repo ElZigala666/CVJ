@@ -42,7 +42,7 @@ const COLUMNAS_USUARIO = 'id, nombre, inicial, color, acento, creado_en';
 const COLUMNAS_ENTRADA = 'id, columna_id, usuario_id, juego_id, coleccion_id, saga_id, titulo, subtitulo, palabras, estado, publicada_en, creado_en, actualizado_en';
 const PAGINA = 1000;
 const SIN_USUARIO = '00000000-0000-0000-0000-000000000000';
-const COLUMNAS_JUEGO = 'igdb_id, nombre, slug, cover_id, anio, plataformas, desarrolladora, generos, actualizado_en, color_dominante, es_online, es_online_manual, relaciones, ttb_historia, ttb_extras, ttb_completo, mostrar_como';
+const COLUMNAS_JUEGO = 'igdb_id, nombre, slug, cover_id, anio, plataformas, desarrolladora, generos, actualizado_en, color_dominante, es_online, es_online_manual, relaciones, ttb_historia, ttb_extras, ttb_completo, mostrar_como, arte_id';
 
 /**
  * Las tablas que se cargan: k = dónde va en estado, t = tabla, orden = columnas para
@@ -53,7 +53,8 @@ const TABLAS = [
   { k: 'usuarios', t: 'usuarios', orden: ['creado_en', 'id'], esencial: true,
     sel: `${COLUMNAS_USUARIO}, foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas, estimar_horas, apariencia, perfil_datos, social_visto_en, insignias_visto_en`, alt: COLUMNAS_USUARIO },
   { k: 'valoraciones', t: 'valoraciones', orden: ['id'], esencial: true },
-  { k: 'juegos', t: 'juegos', orden: ['igdb_id'], esencial: true, sel: COLUMNAS_JUEGO, alt: '*' },
+  // v: con arte_id (cabecera del perfil): la caché de antes se vuelve a pedir una vez.
+  { k: 'juegos', t: 'juegos', orden: ['igdb_id'], esencial: true, sel: COLUMNAS_JUEGO, alt: '*', v: '2' },
   { k: 'actividad', t: 'actividad', esencial: true, q: () => `order=creado_en.desc&limit=${LIMITE_ACTIVIDAD}`, unaPagina: true },
   { k: 'biblioteca', t: 'biblioteca', orden: ['id'] },
   { k: 'psnIgdb', t: 'psn_igdb', orden: ['psn_title_id'] },

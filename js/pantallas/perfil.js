@@ -22,7 +22,7 @@ import { abrirMenuJuego, abrirMenuColeccion } from '../menu-juego.js';
 import { logoColumna } from '../columnas-ui.js';
 import { entrarSeleccion } from '../seleccion.js';
 import { imagenPlataforma } from '../portadas.js';
-import { perfilDe, htmlBanner, htmlBio, htmlVitrina, botonEditar, tieneBanner } from '../perfil-personal.js';
+import { perfilDe, cabeceraEfectiva, capasCabecera } from '../perfil-personal.js';
 
 const PESTANAS = [
   { id: 'jugando', nombre: 'Jugando' },
@@ -124,46 +124,83 @@ function renderPerfil(el, id, alSalir) {
 
     // Plataforma principal: la que ha elegido en "Editar perfil" o, si no, la que más usa.
     const mia = perfilDe(u);
-    const sub = p.jugados
-      ? `${p.jugados} ${p.jugados === 1 ? 'juego valorado' : 'juegos valorados'}${mia.plataforma ? ` · ${mia.plataforma}` : p.plataformaPrincipal ? ` · juega sobre todo en ${p.plataformaPrincipal}` : ''}`
-      : (esMio ? 'Aún no has valorado ningún juego' : 'Aún no ha valorado ningún juego');
     const hayBiblioteca = bib.total || bib.ocultos.length;
 
+    // Cabecera (diseño v2) y datos: foto montada sobre el borde de la cabecera.
+    const cab = cabeceraEfectiva(u);
+    const accDueno = u.acento || '#7C3AED';
+    const plat = mia.plataforma || p.plataformaPrincipal || '';
+    const top = mia.vitrina.map((x) => datos.juegoConocido(x)).filter(Boolean);
+    const unido = u.creado_en ? tiempoRelativo(u.creado_en).toLowerCase() : '';
+    const meta = p.jugados ? `${p.jugados} ${p.jugados === 1 ? 'juego valorado' : 'juegos valorados'}` : (unido ? `Se unió ${unido.startsWith('hace') ? unido : `el ${unido}`}` : '');
+    const falta = (texto, foco) => `<button type="button" class="perfil-falta" data-accion="editar-perfil" data-foco="${foco}">${icono('mas', { tam: 16, color: 'currentColor' })}<span>${texto}</span></button>`;
+    const conPerfil = 'perfil_datos' in u;
+
     el.innerHTML = `
-      <section class="perfil${tieneBanner(u) ? ' con-banner' : ''}">
+      <section class="perfil">
+        <header class="perfil-cabecera">
+          ${capasCabecera(cab, accDueno)}
+          <div class="cab-barra">
+            ${esMio ? '' : `<button type="button" class="cab-boton" data-accion="atras" aria-label="Volver">${icono('atras', { tam: 20, color: '#FFFFFF' })}</button>`}
+            ${cab.tipo === 'juego' ? `<a class="cab-favorito" href="#juego/${cab.juego.igdb_id}"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.8 21 7v10l-9 5.2L3 17V7z" fill="${esc(accDueno)}"/></svg><span>Favorito · ${esc(cab.juego.nombre)}</span></a>` : ''}
+            <span class="cab-hueco"></span>
+            ${esMio && conPerfil ? `<button type="button" class="cab-boton" data-accion="cabecera" aria-label="Cambiar cabecera">${icono('cabecera', { tam: 20, color: '#FFFFFF' })}</button>` : ''}
+            ${esMio ? `<button type="button" class="cab-boton" data-accion="ajustes" aria-label="Ajustes">${icono('ajustes', { tam: 20, color: '#FFFFFF' })}</button>` : ''}
+          </div>
+        </header>
         <div class="perfil-lado">
-        ${htmlBanner(u)}
-        <div class="perfil-barra">
-          ${esMio ? '<span></span>' : `<button type="button" class="boton-cuadrado" data-accion="atras" aria-label="Volver">${icono('atras', { tam: 20, color: 'var(--texto)' })}</button>`}
-          ${esMio ? `<button type="button" class="boton-cuadrado" data-accion="ajustes" aria-label="Ajustes">${icono('ajustes', { tam: 22, color: 'var(--texto)' })}</button>` : '<span></span>'}
-        </div>
-        <div class="perfil-cab">
-          ${avatar(u, 128)}
-          <h1 class="perfil-nombre-grande">${esc(u.nombre)}</h1>
-          <span class="perfil-sub">${esc(sub)}</span>
-          ${htmlBio(u)}
-          ${esMio && 'perfil_datos' in u ? botonEditar(u) : ''}
+        <div class="perfil-datos">
+          <div class="perfil-foto">
+            ${avatar(u, 112)}
+            ${esMio && 'foto_url' in u && !u.foto_url ? `<button type="button" class="perfil-foto-mas" data-foto="${esc(u.id)}" aria-label="Poner foto">${icono('mas', { tam: 18, color: '#FFFFFF' })}</button>` : ''}
+          </div>
+          <div class="perfil-nombre">
+            <h1 class="perfil-nombre-grande">${esc(u.nombre)}</h1>
+            <div class="perfil-meta">
+              ${plat ? `<span class="perfil-plat">${icono(/^PS/.test(plat) ? 'jugando' : 'monitor', { tam: 15, color: 'var(--acento)', trazo: 'var(--fondo)' })}${esc(plat)}</span>` : ''}
+              ${meta ? `<span>${esc(meta)}</span>` : ''}
+            </div>
+          </div>
+          ${mia.bio ? `<p class="perfil-bio">${esc(mia.bio)}</p>` : esMio && conPerfil ? falta('Añade una biografía', 'bio') : ''}
+          ${mia.estado ? `
+            <div class="perfil-ahora">
+              <i aria-hidden="true"></i>
+              <span><small>Ahora mismo</small><strong>${esc(mia.estado)}</strong></span>
+            </div>` : esMio && conPerfil ? falta('¿A qué estás jugando ahora?', 'estado') : ''}
+          ${!mia.plataforma && esMio && conPerfil ? falta('Elige tu plataforma principal', 'plataforma') : ''}
+
+          <div class="tarjetas-3">
+            <div class="tarjeta-dato">
+              <span class="dato-num">${p.completados}</span>
+              <span class="dato-etq">Completados</span>
+            </div>
+            <div class="tarjeta-dato">
+              ${p.media !== null
+                ? `<span class="dato-num con-letra">${formatearNota(p.media)}${chipLetra(p.letra, 'md2')}</span>`
+                : '<span class="dato-num apagado">—</span>'}
+              <span class="dato-etq">Nota media</span>
+            </div>
+            <div class="tarjeta-dato">
+              ${tiempo.total
+                ? `<span class="dato-num">${tiempo.total}</span><span class="dato-etq">Horas jugadas</span>`
+                : `<span class="dato-num apagado">—</span><span class="dato-etq">Horas · ${vinculado ? 'sin datos' : 'sin plataforma'}</span>`}
+            </div>
+          </div>
+
+          ${top.length ? `
+            <div class="perfil-top">
+              <h2 class="perfil-top-titulo">${esMio ? 'Mi' : 'Su'} top ${top.length}</h2>
+              <div class="vitrina-top-fila">
+                ${top.map((j, i) => `
+                  <a class="vitrina-top-item" href="#juego/${j.igdb_id}" data-precarga="${esc(j.cover_id ?? '')}" aria-label="${i + 1}. ${esc(j.nombre)}">
+                    ${portada(j, { clase: 'portada-jugando', titulo: 'arriba' })}
+                    <span class="vitrina-pos">${i + 1}</span>
+                  </a>`).join('')}
+              </div>
+            </div>` : ''}
+          ${esMio && conPerfil && (mia.bio || mia.estado || mia.plataforma) ? '<button type="button" class="enlace-discreto perfil-editar-enlace" data-accion="editar-perfil">Editar perfil</button>' : ''}
         </div>
 
-        <div class="tarjetas-3">
-          <div class="tarjeta-dato">
-            <span class="dato-num">${p.completados}</span>
-            <span class="dato-etq">Completados</span>
-          </div>
-          <div class="tarjeta-dato">
-            ${p.media !== null
-              ? `<span class="dato-num con-letra">${formatearNota(p.media)}${chipLetra(p.letra, 'md2')}</span>`
-              : '<span class="dato-num apagado">—</span>'}
-            <span class="dato-etq">Nota media</span>
-          </div>
-          <div class="tarjeta-dato">
-            ${tiempo.total
-              ? `<span class="dato-num">${tiempo.total}</span><span class="dato-etq">Horas jugadas</span>`
-              : '<span class="dato-num apagado">—</span><span class="dato-etq">Horas · sin datos</span>'}
-          </div>
-        </div>
-
-        ${htmlVitrina(u, esMio)}
         ${insignias.vitrinaHtml(u, esMio)}
 
         ${esMio ? '' : `<a class="boton-principal enlace perfil-comparar" href="#rankings/comparar/${esc(yo.id)}/${esc(id)}">${icono('rankings', { tam: 20, color: 'currentColor' })}<span>Comparar conmigo</span></a>`}
@@ -500,7 +537,9 @@ function renderPerfil(el, id, alSalir) {
       const u = datos.usuario(id) ?? yo;
       pintarHistorial(u, metricas.perfil(id));
     } else if (b.dataset.accion === 'editar-perfil') {
-      import('../perfil-editar.js').then((m) => m.abrirEditarPerfil(yo.id));
+      import('../perfil-editar.js').then((m) => m.abrirEditarPerfil(yo.id, null, b.dataset.foco || null));
+    } else if (b.dataset.accion === 'cabecera') {
+      import('../cabecera-editar.js').then((m) => m.abrirEditarCabecera(yo.id));
     } else if (b.dataset.accion === 'ajustes') {
       abrirAjustes(alSalir);
     } else if (b.dataset.accion === 'atras') {

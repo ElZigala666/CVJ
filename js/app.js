@@ -4,8 +4,7 @@ import { usuarioActual, salir, refrescarUsuario } from './sesion.js';
 import * as datos from './datos.js';
 import { aplicarAcento } from './ui.js';
 import { iniciarInstalacion } from './instalar.js';
-import { iniciarTema } from './tema.js';
-import { iniciarApariencia, aplicarApariencia, olvidarApariencia } from './apariencia.js';
+import { iniciarApariencia, aplicarApariencia, olvidarApariencia, aparienciaActual } from './apariencia.js';
 import { anotarNavegacion, corregirRuta } from './navegacion.js';
 
 const vista = document.getElementById('vista');
@@ -245,6 +244,7 @@ function revisarPlataformas() {
 }
 
 let suscrito = false;
+let migrada = false;
 function iniciarDatos() {
   if (datosIniciados) return;
   datosIniciados = true;
@@ -256,10 +256,16 @@ function iniciarDatos() {
     if (fresco?.activo === false) { alSalir(); return; }
     if (fresco && (fresco.acento !== yo.acento || fresco.color !== yo.color || fresco.nombre !== yo.nombre || (fresco.foto_url ?? null) !== (yo.foto_url ?? null))) {
       refrescarUsuario(fresco);
-      aplicarAcento(fresco.acento);
     }
-    // El fondo va en la cuenta: si se cambió en otro dispositivo, llega aquí.
-    if (fresco && 'apariencia' in fresco) aplicarApariencia(fresco.apariencia);
+    // Fondo y acento van en la cuenta: si se cambian en otro dispositivo, llegan aquí.
+    if (fresco && 'apariencia' in fresco) {
+      aplicarApariencia(fresco.apariencia, fresco.acento ?? null);
+      // Lo de antes del diseño v2 (tema de este móvil + fondo): se pasa una vez a lo nuevo.
+      if (fresco.apariencia?.v !== 2 && datos.datosFrescos() && !migrada) {
+        migrada = true;
+        datos.actualizarUsuario(yo.id, { apariencia: aparienciaActual() }, null);
+      }
+    } else if (fresco) aplicarAcento(fresco.acento);
   });
   // Sincronizaciones automáticas: en segundo plano y con datos del servidor (no de la caché).
   datos.cuandoFrescos(revisarPlataformas);
@@ -269,7 +275,6 @@ function iniciarDatos() {
 // ---------------------------------------------------------------------------
 // Arranque
 // ---------------------------------------------------------------------------
-iniciarTema();
 iniciarApariencia();
 iniciarInstalacion();
 pintarBarra();

@@ -1,7 +1,7 @@
 // Piezas de interfaz reutilizables (devuelven HTML como texto).
 import { icono } from './icons.js';
 import { notaALetra, formatearNota } from './notas.js';
-import { esDePaleta, hexARgb, mezclar, textoSobre } from './acento.js';
+import { aplicarAcento as acentoApariencia } from './apariencia.js';
 import * as datos from './datos.js';
 
 export { portada, urlPortada, colorBloque, colorFondo, precargar, mejorCargada } from './portadas.js';
@@ -223,20 +223,9 @@ export function avisoDeshacer(mensaje, deshacer, ms = 6000) {
  * se usa EXACTAMENTE como es, en claro y en oscuro, y solo el texto que va encima
  * (botones, letras de tier S y A) pasa a negro o blanco según lo que se lea mejor.
  */
+/** Color de acento de la app: lo resuelve js/apariencia.js junto con el fondo. */
 export function aplicarAcento(hex) {
-  const raiz = document.documentElement;
-  for (const v of ['--sobre-libre', '--sobre-libre-a']) raiz.style.removeProperty(v);
-  if (!hex || !/^#[0-9a-f]{6}$/i.test(hex)) {
-    raiz.style.removeProperty('--acento-base');
-    raiz.removeAttribute('data-acento-libre');
-    return;
-  }
-  raiz.style.setProperty('--acento-base', hex.toUpperCase());
-  if (esDePaleta(hex)) { raiz.removeAttribute('data-acento-libre'); return; }
-  const rgb = hexARgb(hex);
-  raiz.setAttribute('data-acento-libre', '');
-  raiz.style.setProperty('--sobre-libre', textoSobre(rgb));
-  raiz.style.setProperty('--sobre-libre-a', textoSobre(mezclar(rgb, [255, 255, 255], 0.25)));
+  acentoApariencia(hex);
 }
 
 /** Guarda y restaura el scroll horizontal de los carruseles al repintar. */

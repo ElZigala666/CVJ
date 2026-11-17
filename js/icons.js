@@ -39,6 +39,12 @@ const ICONOS = {
   reaccionar: { d: 'M4 2.5h16A2.5 2.5 0 0 1 22.5 5v10a2.5 2.5 0 0 1-2.5 2.5h-8.2L6 22v-4.5H4A2.5 2.5 0 0 1 1.5 15V5A2.5 2.5 0 0 1 4 2.5zM11 5.5h2V9h3.5v2H13v3.5h-2V11H7.5V9H11z' },
   comentario: { d: 'M4 2.5h16A2.5 2.5 0 0 1 22.5 5v10a2.5 2.5 0 0 1-2.5 2.5h-8.2L6 22v-4.5H4A2.5 2.5 0 0 1 1.5 15V5A2.5 2.5 0 0 1 4 2.5z' },
   leido: { d: 'M12 5c5.2 0 9 4.4 10 7-1 2.6-4.8 7-10 7S3 14.6 2 12c1-2.6 4.8-7 10-7zm0 3.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8z' },
+  // Aviso: círculo con exclamación recortada.
+  alerta: { d: 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zM10.9 6.5h2.2l-.3 7.5h-1.6zM10.9 15.8h2.2V18h-2.2z' },
+  // Cambiar la cabecera del perfil: un cuadro con montañas (diseño v2).
+  cabecera: { d: 'M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zm2 11.5V19h12v-4.2l-3.3-3.3-4.2 4.2-2.3-2.2zM9 6.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z' },
+  // Plataforma principal (pantalla de ordenador).
+  monitor: { d: 'M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6v2h3v2H8v-2h3v-2H5a2 2 0 0 1-2-2z' },
   // Sincronizar: flecha en círculo.
   recargar: { d: 'M12 3.5a8.5 8.5 0 0 1 7.6 4.7l1.4-1.4v5.7h-5.7l2.3-2.3A6 6 0 1 0 18 13.4l2.4.6A8.5 8.5 0 1 1 12 3.5z' },
   // Columnas de opinión: un periódico.

@@ -46,3 +46,9 @@ export async function fichaJuego(igdbId, signal) {
   const d = await llamar({ accion: 'juego', igdb_id: Number(igdbId) }, signal);
   return d?.juego ?? null;
 }
+
+/** Imágenes horizontales de un juego (artworks y luego capturas): [{ id, tipo, w, h }]. */
+export async function artesDeJuego(igdbId, signal) {
+  const r = await llamar({ accion: 'artes', igdb_id: Number(igdbId) }, signal);
+  return Array.isArray(r?.artes) ? r.artes : [];
+}

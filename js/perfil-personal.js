@@ -94,3 +94,93 @@ export function botonEditar(u) {
   const vacio = !p.bio && !p.estado && !p.favorito && !p.vitrina.length && !p.banner && !p.plataforma;
   return `<button type="button" class="boton-secundario neutro boton-pequeno perfil-editar" data-accion="editar-perfil">${icono('ajustes', { tam: 15, color: 'currentColor' })}<span>${vacio ? 'Personalizar mi perfil' : 'Editar perfil'}</span></button>`;
 }
+
+// ---------------------------------------------------------------------------
+// Cabecera del perfil (diseño v2): arte del juego favorito, imagen propia, degradado del
+// color de acento (el tipo por defecto) o patrón de hexágonos. Ocupa todo el ancho, se
+// oscurece arriba para que se vean los botones y se desvanece por abajo con una máscara:
+// se funde con el fondo real de la app (tema, galería o imagen), sin cortes.
+// ---------------------------------------------------------------------------
+export const TIPOS_CABECERA = [
+  { id: 'juego', nombre: 'Juego fav.' },
+  { id: 'imagen', nombre: 'Tu imagen' },
+  { id: 'degradado', nombre: 'Degradado' },
+  { id: 'patron', nombre: 'Patrón' },
+];
+const URL_ARTE = (id) => `https://images.igdb.com/igdb/image/upload/t_1080p/${id}.jpg`;
+export const urlArte = URL_ARTE;
+const lim = (n, a, b) => Math.min(b, Math.max(a, Number(n) || 0));
+
+/** Lo elegido (también desde la cabecera de antes, perfil_datos.banner). */
+export function cabeceraDe(u) {
+  const d = u?.perfil_datos && typeof u.perfil_datos === 'object' ? u.perfil_datos : {};
+  let c = d.cabecera && typeof d.cabecera === 'object' ? d.cabecera : null;
+  if (!c) {
+    const b = d.banner;
+    c = b?.tipo === 'imagen' && /^https:\/\//.test(b.valor ?? '') ? { tipo: 'imagen', imagen: b.valor }
+      : b?.tipo === 'juego' ? { tipo: 'juego' } : { tipo: 'degradado' };
+  }
+  return {
+    tipo: TIPOS_CABECERA.some((t) => t.id === c.tipo) ? c.tipo : 'degradado',
+    arte: typeof c.arte === 'string' && /^[a-z0-9]+$/i.test(c.arte) ? c.arte : null,
+    imagen: typeof c.imagen === 'string' && /^https:\/\//.test(c.imagen) ? c.imagen : null,
+    x: lim(c.x ?? 50, 0, 100), y: lim(c.y ?? 50, 0, 100), zoom: lim(c.zoom ?? 1, 1, 3),
+    intensidad: lim(c.intensidad ?? 50, 0, 100),
+  };
+}
+
+/** Lo que se pinta de verdad: si falta algo (sin favorito, sin arte, sin imagen), el degradado. */
+export function cabeceraEfectiva(u, c = cabeceraDe(u)) {
+  if (c.tipo === 'juego') {
+    const fav = datos.juegoConocido(perfilDe(u).favorito);
+    const arte = c.arte ?? fav?.arte_id ?? null;
+    if (fav && arte) return { ...c, juego: fav, arte };
+    return { ...c, tipo: 'degradado' };
+  }
+  if (c.tipo === 'imagen' && !c.imagen) return { ...c, tipo: 'degradado' };
+  return c;
+}
+
+// Colores (como en el diseño): el acento girado en el círculo de color.
+const hx = (h) => { const s = String(h || '#7C3AED').replace('#', ''); return [0, 2, 4].map((i) => parseInt(s.substr(i, 2), 16) || 0); };
+const rgbaDe = (h, a) => { const c = hx(h); return `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${a})`; };
+function girar(h, d, l = null) {
+  const [r, g, b] = hx(h).map((v) => v / 255);
+  const mx = Math.max(r, g, b); const mn = Math.min(r, g, b); const ll = (mx + mn) / 2; const dd = mx - mn;
+  let s = 0; let hh = 0;
+  if (dd) { s = ll > 0.5 ? dd / (2 - mx - mn) : dd / (mx + mn); hh = (mx === r ? ((g - b) / dd + (g < b ? 6 : 0)) : mx === g ? ((b - r) / dd + 2) : ((r - g) / dd + 4)) * 60; }
+  const H = (((hh + d) % 360) + 360) % 360; const S = Math.max(s, 0.45); const L = l == null ? ll : l;
+  const k = (n) => (n + H / 30) % 12; const a = S * Math.min(L, 1 - L);
+  const f = (n) => L - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return `#${[f(0), f(8), f(4)].map((x) => Math.round(x * 255).toString(16).padStart(2, '0')).join('')}`;
+}
+const oscuroAhora = () => document.documentElement.getAttribute('data-tema') === 'oscuro';
+
+/** Degradado del color de acento con textura fina. */
+export function cssDegradado(acc, oscuro = oscuroAhora()) {
+  return `repeating-linear-gradient(135deg, rgba(255,255,255,.05) 0 1px, transparent 1px 10px), radial-gradient(70% 120% at 8% 0%, ${rgbaDe(acc, 0.9)} 0%, transparent 60%), radial-gradient(60% 110% at 92% 6%, ${rgbaDe(girar(acc, 45), 0.75)} 0%, transparent 62%), radial-gradient(90% 120% at 55% 100%, ${rgbaDe(girar(acc, -55), 0.6)} 0%, transparent 66%), ${girar(acc, 0, oscuro ? 0.22 : 0.78)}`;
+}
+/** Patrón de hexágonos de la marca en tonos del acento (intensidad 0-100). */
+export function htmlPatron(acc, intensidad = 50, oscuro = oscuroAhora(), id = 'hexpat') {
+  const f = 0.3 + 1.4 * (intensidad / 100);
+  const base = `radial-gradient(80% 120% at 85% 0%, ${rgbaDe(acc, 0.55)} 0%, transparent 65%), ${girar(acc, -20, oscuro ? 0.16 : 0.86)}`;
+  return `
+    <div class="cab-fondo" style="background:${base}"></div>
+    <svg class="cab-patron" width="100%" height="100%" aria-hidden="true">
+      <defs><pattern id="${id}" width="34" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(-12)">
+        <path d="M17 3 29 10v14l-12 7-12-7V10z" fill="${rgbaDe(acc, Math.min(0.9, 0.22 * f))}"/>
+        <path d="M17 23 22 26v6l-5 3-5-3v-6z" fill="${rgbaDe(girar(acc, 40), Math.min(0.95, 0.35 * f))}" transform="translate(17 0)"/>
+      </pattern></defs>
+      <rect width="100%" height="100%" fill="url(#${id})"/>
+    </svg>`;
+}
+
+/** Las capas de una cabecera (sin botones): para el perfil y para la vista previa. */
+export function capasCabecera(c, acc, id = 'hexpat') {
+  let fondo;
+  if (c.tipo === 'juego') fondo = `<div class="cab-fondo" style="background-image:url('${esc(URL_ARTE(c.arte))}');background-size:cover;background-position:center 30%"></div>`;
+  else if (c.tipo === 'imagen') fondo = `<div class="cab-fondo" style="background-image:url('${esc(c.imagen)}');background-size:cover;background-position:${c.x}% ${c.y}%;transform:scale(${c.zoom});transform-origin:${c.x}% ${c.y}%"></div>`;
+  else if (c.tipo === 'patron') fondo = htmlPatron(acc, c.intensidad, undefined, id);
+  else fondo = `<div class="cab-fondo" style="background:${cssDegradado(acc)}"></div>`;
+  return `<div class="cab-capa">${fondo}<div class="cab-sombra"></div></div>`;
+}

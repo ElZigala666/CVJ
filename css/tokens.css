@@ -15,6 +15,8 @@
   --fondo: #FFFFFF;
   --superficie: #F6F5F9;
   --superficie-2: #EDEBF2;   /* botones apagados y skeletons */
+  --flotante: #FFFFFF;       /* menús y popovers: opaco */
+  --sombra-flotante: 0 14px 36px rgba(20, 16, 30, .22), 0 2px 6px rgba(20, 16, 30, .12);
   --texto: #15131A;
   --texto-2: #68656F;        /* texto secundario */
   --borde: #E8E6EE;
@@ -91,6 +93,8 @@
   --fondo: #0F0E13;
   --superficie: #1A1920;
   --superficie-2: #24222B;
+  --flotante: #23212A;
+  --sombra-flotante: 0 14px 36px rgba(0, 0, 0, .55), 0 2px 6px rgba(0, 0, 0, .35);
   --texto: #F3F2F7;
   --texto-2: #A6A3B1;
   --borde: #2E2C36;

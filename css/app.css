@@ -3280,3 +3280,18 @@ body.apariencia-abierta > #app, body.apariencia-abierta > #barra { visibility: h
   transition: transform 240ms cubic-bezier(.2, .8, .2, 1), opacity .2s linear;
 }
 @media (prefers-reduced-motion: reduce) { .barra-indicador { transition: opacity .2s linear; } }
+
+/* ---------------------------------------------------------------------------
+   Lo que flota encima (menús, popovers, hojas, avisos, barras fijas): fondo OPACO y sombra,
+   para leerse con cualquier fondo, imagen propia o portada debajo. Lo semitransparente con
+   desenfoque es solo para tarjetas del contenido. (Al final: manda sobre lo de arriba.)
+   --------------------------------------------------------------------------- */
+.social-menu, .menu-juego, .selector-flotante {
+  background: var(--flotante); border: 1px solid var(--borde-fuerte); box-shadow: var(--sombra-flotante);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+.social-menu-op:hover, .social-menu-op:active { background: var(--superficie-2); }
+.editor-formato { background: var(--flotante); box-shadow: 0 -6px 20px rgba(0, 0, 0, .12); }
+.hoja { background: var(--fondo); box-shadow: 0 -10px 40px rgba(0, 0, 0, .25); }
+#aviso, #aviso-version { box-shadow: var(--sombra-flotante); }
+.tirar-indicador { background: var(--flotante); box-shadow: var(--sombra-flotante); }

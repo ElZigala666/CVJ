@@ -199,6 +199,9 @@ export function resolverFondo(id, ap, acc, accFondo = acc) {
     '--fondo': base,
     '--superficie-2': oscuro ? 'rgba(255, 255, 255, 0.12)' : 'rgba(22, 20, 27, 0.08)',
     '--superficie-solida': oscuro ? mezcla(base, '#FFFFFF', 0.08) : mezcla(base, '#16141B', 0.04),
+    // Lo que flota encima (menús, popovers, barras fijas): siempre opaco, con cualquier fondo o imagen.
+    '--flotante': oscuro ? mezcla(base, '#FFFFFF', 0.1) : mezcla(base, '#FFFFFF', 0.7),
+    '--sombra-flotante': oscuro ? '0 14px 36px rgba(0, 0, 0, .55), 0 2px 6px rgba(0, 0, 0, .35)' : '0 14px 36px rgba(20, 16, 30, .22), 0 2px 6px rgba(20, 16, 30, .12)',
     '--texto': oscuro ? '#F4F3F8' : '#16141B',
     '--texto-2': oscuro ? (im ? '#B4B1BF' : '#ABA8B6') : (im ? '#55525E' : '#5F5C68'),
     '--borde': oscuro ? 'rgba(255, 255, 255, 0.10)' : 'rgba(22, 20, 27, 0.10)',

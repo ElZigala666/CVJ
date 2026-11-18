@@ -64,7 +64,11 @@ function filtrar(lista, f, datosDe) {
   return con.map(({ x }) => x);
 }
 
-function barraFiltro(clave, f) {
+// Biblioteca: "Solo sin valorar" (por defecto) o todos; se recuerda en este dispositivo.
+const CLAVE_SIN_VALORAR = 'cvj.bib.sinValorar';
+let soloSinValorar = (() => { try { return localStorage.getItem(CLAVE_SIN_VALORAR) !== '0'; } catch { return true; } })();
+
+function barraFiltro(clave, f, extra = '') {
   return `
     <div class="filtro" data-filtro="${esc(clave)}">
       <label class="filtro-buscar">
@@ -78,6 +82,7 @@ function barraFiltro(clave, f) {
         </select>
         ${icono('desplegable', { tam: 12, color: 'var(--texto-2)' })}
       </label>
+      ${extra}
     </div>`;
 }
 
@@ -346,9 +351,21 @@ function renderPerfil(el, id, alSalir) {
     fecha: x.ultimaVez,
   });
 
+  /** ¿Lo ha valorado (él mismo o a través de su colección, tipo FIFA/EA FC)? */
+  const valorado = (x) => {
+    if (x.valoracion) return true;
+    const ids = x.coleccion ? x.coleccion.juegos.map((j) => j.igdb_id) : x.igdbId != null ? [x.igdbId] : [];
+    return ids.some((jid) => { const c = datos.coleccionDeJuego(jid); return !!(c && datos.miValoracionColeccion(id, c.id)); });
+  };
+  const sinValorar = (l) => l.filter((x) => !valorado(x));
+
   const rejillaBiblioteca = (bib, origen = bib.misJuegos, vacio = 'Todavía no hay juegos identificados.') => {
-    const lista = filtrar(origen, fBib, datosBiblioteca);
+    const base = soloSinValorar ? sinValorar(origen) : origen;
+    const lista = filtrar(base, fBib, datosBiblioteca);
     if (!lista.length) {
+      if (soloSinValorar && origen.length && !base.length) {
+        return `<p class="historial-tab-vacia">${esMio ? 'Lo tienes todo valorado.' : 'Lo tiene todo valorado.'} <button type="button" class="enlace-discreto" data-accion="sin-valorar">Ver todos</button></p>`;
+      }
       return `<p class="historial-tab-vacia">${fBib.texto ? 'Ningún juego con ese nombre.' : vacio}</p>`;
     }
     const item = (x, i) => (x.coleccion
@@ -378,7 +395,7 @@ function renderPerfil(el, id, alSalir) {
     const nDup = esMio ? metricas.posiblesDuplicados(id).length : 0;
     pintarHtml(cont, `
       <p class="bib-recuento">
-        <span><strong>${bib.misJuegos.length}</strong> en Mis juegos</span>
+        <span><strong>${sinValorar(bib.misJuegos).length}</strong> sin valorar · ${bib.misJuegos.length} en total</span>
         <span><strong>${bib.probados.length}</strong> probados</span>
         ${esMio ? `<span><strong>${bib.ocultos.length}</strong> ocultos</span>` : ''}
       </p>
@@ -388,7 +405,7 @@ function renderPerfil(el, id, alSalir) {
           <span>Revisar posibles duplicados (${nDup})</span>
           ${icono('adelante', { tam: 18, color: 'currentColor' })}
         </a>` : ''}
-      ${barraFiltro('bib', fBib)}
+      ${barraFiltro('bib', fBib, `<button type="button" class="chip bib-sin-valorar${soloSinValorar ? ' activo' : ''}" data-accion="sin-valorar" aria-pressed="${soloSinValorar}" title="${soloSinValorar ? 'Ver todos' : 'Ver solo los que no tienen valoración'}">${soloSinValorar ? 'Sin valorar' : 'Todos'}</button>`)}
       ${esMio && bib.identificados.length ? `
         <div class="bib-seleccionar">
           <button type="button" class="enlace-discreto" data-accion="seleccionar">Seleccionar</button>
@@ -529,6 +546,12 @@ function renderPerfil(el, id, alSalir) {
       return;
     }
     if (b.dataset.accion === 'vincular-psn') { abrirAjustes(alSalir, { psn: true }); return; }
+    if (b.dataset.accion === 'sin-valorar') {
+      soloSinValorar = !soloSinValorar;
+      try { localStorage.setItem(CLAVE_SIN_VALORAR, soloSinValorar ? '1' : '0'); } catch { /* nada */ }
+      pintarBiblioteca(metricas.biblioteca(id));
+      return;
+    }
     if (b.dataset.accion === 'ver-ocultos') { vista.ocultos = !vista.ocultos; pintarBiblioteca(metricas.biblioteca(id)); return; }
     if (b.dataset.accion === 'seleccionar') {
       entrarSeleccion(el.querySelector('[data-ref="rejilla-bib"]'), false);

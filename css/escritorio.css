@@ -362,3 +362,6 @@ body:has(#vista .entrada, #vista .difunto) #aviso { left: 50%; }
 .pap-nominados { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .pap-pie { max-width: 760px; }
 .evento-editar { max-width: 760px; margin: 0 auto; padding-top: 32px; }
+
+/* Sin barra inferior: ni indicador ni deslizar entre pestañas. */
+.barra-indicador { display: none; }

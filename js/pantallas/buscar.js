@@ -241,7 +241,9 @@ export function render(el, { ruta, params = [] } = {}) {
   pintar();
   // Búsqueda que se quedó a medias en la visita anterior: repetirla.
   if (clave(memoria.texto).length >= MIN_LETRAS && !cache.has(clave(memoria.texto))) lanzarBusqueda();
-  if (!memoria.texto || modo === 'valorar') requestAnimationFrame(() => input.focus({ preventScroll: true }));
+  // Al llegar deslizando entre pestañas no se abre el teclado (solo tocando "Buscar" o con "/").
+  const deslizando = document.documentElement.dataset.llegada === 'deslizar';
+  if ((!memoria.texto || modo === 'valorar') && !deslizando) requestAnimationFrame(() => input.focus({ preventScroll: true }));
 
   return () => {
     desuscribir();

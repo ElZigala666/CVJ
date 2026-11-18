@@ -50,7 +50,7 @@ function cargarSegundoPlano() {
   segundoPlano = true;
   setTimeout(() => enCalma(() => {
     cargarSeleccion();
-    import('./deslizar.js').then((m) => m.iniciarDeslizar(vista));
+    import('./deslizar.js').then((m) => m.iniciarDeslizar(vista, { fotos, indicador: moverIndicador, indicadorQuieto: () => colocarIndicador() }));
     import('./estimaciones.js').then((m) => m.iniciarEstimaciones());
     import('./insignias.js').then((m) => m.iniciarInsignias());
     for (const r of ['inicio', 'perfil', 'buscar', 'rankings', 'juego']) RUTAS[r]().catch(() => {});
@@ -70,6 +70,45 @@ const REFRESCO_MS = 60_000;
 
 let limpiar = null;
 let datosIniciados = false;
+
+// Deslizar entre pestañas (js/deslizar.js): la última foto de cada pestaña principal, para
+// que la vecina se vea al arrastrar (sin ids ni animación de entrada).
+const PRINCIPALES = new Set(['inicio', 'buscar', 'rankings', 'perfil']);
+const fotos = new Map();
+let montada = null; // { ruta, params } de la pantalla que se ve
+function guardarFoto() {
+  const p = vista.firstElementChild;
+  if (!p || !montada || !PRINCIPALES.has(montada.ruta) || (montada.params ?? []).filter(Boolean).length) return;
+  const copia = p.cloneNode(true);
+  for (const x of copia.querySelectorAll('[id]')) x.removeAttribute('id');
+  for (const x of copia.querySelectorAll('input, textarea, select, button, a')) x.setAttribute('tabindex', '-1');
+  fotos.set(montada.ruta, copia);
+}
+
+// Indicador de la barra inferior: bajo la pestaña activa; al deslizar, acompaña al dedo.
+const indicadorBarra = document.createElement('span');
+indicadorBarra.className = 'barra-indicador';
+indicadorBarra.setAttribute('aria-hidden', 'true');
+function centroTab(ruta) {
+  const a = ruta && barra.querySelector(`.barra-tab[data-ruta="${ruta}"]`);
+  if (!a || !a.getClientRects().length) return null;
+  const r = a.getBoundingClientRect();
+  return r.left + r.width / 2 - barra.getBoundingClientRect().left;
+}
+function colocarIndicador(x = centroTab(barra.querySelector('.barra-tab.activa')?.dataset.ruta), animar = true) {
+  if (!indicadorBarra.isConnected) barra.appendChild(indicadorBarra);
+  indicadorBarra.style.transition = animar ? '' : 'none';
+  if (x == null) { indicadorBarra.style.opacity = '0'; return; }
+  indicadorBarra.style.opacity = '1';
+  indicadorBarra.style.transform = `translateX(${x}px)`;
+}
+function moverIndicador(desde, hacia, p) {
+  const a = centroTab(desde);
+  const b = hacia ? centroTab(hacia) : null;
+  if (a == null) return;
+  colocarIndicador(b == null ? a : a + (b - a) * p, p === 0 || p === 1);
+}
+window.addEventListener('resize', () => colocarIndicador(undefined, false));
 
 // ---------------------------------------------------------------------------
 // Barra inferior
@@ -163,6 +202,7 @@ function marcarBarra(ruta, params) {
     if (on) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   }
+  colocarIndicador();
 }
 
 // ---------------------------------------------------------------------------
@@ -184,9 +224,11 @@ async function montar(cargar, contexto, conBarra, scroll = 0) {
     return;
   }
   if (turno !== turnoMontar) return; // se ha ido a otra pantalla mientras tanto
+  guardarFoto();
   try { limpiar?.(); } catch (e) { console.error(e); }
   limpiar = null;
   seleccion?.alCambiarPantalla();
+  montada = { ruta: contexto?.ruta, params: contexto?.params };
 
   const pantalla = document.createElement('div');
   pantalla.className = 'pantalla';
@@ -199,6 +241,8 @@ async function montar(cargar, contexto, conBarra, scroll = 0) {
   window.scrollTo(0, scroll);
   // Al volver: lo que se pinta un poco después (imágenes, datos) puede cambiar la altura.
   if (scroll) for (const ms of [50, 200, 500]) setTimeout(() => { if (window.scrollY < scroll - 2) window.scrollTo(0, scroll); }, ms);
+  // Ya está pintada (deslizar.js quita la capa de la vecina cuando llega esto).
+  window.dispatchEvent(new Event('cvj:pantalla'));
   cargarSegundoPlano();
 }
 

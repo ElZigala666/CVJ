@@ -3262,3 +3262,21 @@ body.apariencia-abierta > #app, body.apariencia-abierta > #barra { visibility: h
 .grupo-evento { display: flex; align-items: center; gap: var(--esp-3); padding: 10px 12px; text-decoration: none; color: var(--texto); }
 .grupo-evento-color { width: 14px; height: 40px; border-radius: 6px; flex: 0 0 auto; }
 .evento-cat-texto .marca-voto, .evento-cat-texto .marca-pronostico, .pap-resumen-sel .marca-voto, .pap-resumen-sel .marca-pronostico { margin-right: 3px; }
+
+/* ---------------------------------------------------------------------------
+   Deslizar entre pestañas (js/deslizar.js): la vecina sigue al dedo
+   --------------------------------------------------------------------------- */
+/* Lo horizontal es nuestro (las filas con scroll propio siguen desplazándose solas). */
+#vista { touch-action: pan-y pinch-zoom; }
+.desliz-vecina {
+  position: fixed; top: 0; left: 0; right: 0; height: 100dvh; overflow: hidden; z-index: 5;
+  pointer-events: none; will-change: transform; background: transparent;
+}
+.desliz-app { max-width: var(--ancho-max); margin: 0 auto; }
+.desliz-vecina .pantalla, :root[data-entra="deslizando"] .pantalla { animation: none !important; }
+.barra-indicador {
+  position: absolute; top: -1px; left: -14px; width: 28px; height: 3px; border-radius: 0 0 3px 3px;
+  background: var(--acento); pointer-events: none; opacity: 0;
+  transition: transform 240ms cubic-bezier(.2, .8, .2, 1), opacity .2s linear;
+}
+@media (prefers-reduced-motion: reduce) { .barra-indicador { transition: opacity .2s linear; } }

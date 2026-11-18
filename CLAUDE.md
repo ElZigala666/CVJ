@@ -38,7 +38,10 @@ español (código, comentarios, commits, interfaz).
 - `js/hoja-valorar.js` valorar (estado, nota, plataformas, reseña, cuenta en ranking).
 - `js/horas-ui.js` desglose de horas con control manual; `js/estimaciones.js` automático.
 - `js/fusiones.js` "¿Es el mismo juego?"; `js/colecciones-ui.js`; `js/menu-juego.js`.
-- `js/seleccion.js` selección múltiple; `js/deslizar.js` cambiar de pestaña deslizando;
+- `js/seleccion.js` selección múltiple; `js/deslizar.js` deslizar entre las 4 pestañas
+  principales siguiendo el dedo (vecina = foto que guarda app.js al salir, o esqueleto;
+  indicador de la barra; las subpestañas ya no se deslizan; lo que tiene scroll horizontal
+  propio manda; llegar a Buscar deslizando no abre el teclado);
   `js/galeria.js`; `js/refrescar.js` tirar para refrescar; `js/celebracion.js`.
 - `js/psn.js`, `js/xbox.js`, `js/steam.js`, `js/igdb.js` + `js/ajustes-*.js`,
   `js/cuentas-ui.js`, `js/plataformas-ui.js`: plataformas y Ajustes.

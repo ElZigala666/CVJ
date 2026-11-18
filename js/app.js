@@ -32,7 +32,8 @@ const RUTAS = {
   columnas: () => import('./pantallas/columnas.js'),          // #columnas: todas las columnas y sus últimas entradas
   cementerio: () => import('./pantallas/cementerio.js'),      // #cementerio: los expulsados, sus lápidas y las reanimaciones
   propuestas: () => import('./pantallas/propuestas.js'),      // #propuestas(/{id}): proponer, votar y (admin) decidir
-  evento: () => import('./pantallas/evento.js'),              // #evento/{id}: evento destacado (TGA...); #evento/{id}/editar y #evento/nuevo: el admin
+  evento: () => import('./pantallas/evento.js'),
+  avisos: () => import('./pantallas/avisos.js'),              // #avisos: el centro de avisos (notificaciones)              // #evento/{id}: evento destacado (TGA...); #evento/{id}/editar y #evento/nuevo: el admin
 };
 const login = () => import('./pantallas/entrada.js');
 const pantallaDifunto = () => import('./pantallas/difunto.js'); // expulsado: su lápida y Apelar
@@ -147,7 +148,7 @@ function pintarBarra() {
     const tab = `<a class="barra-tab" href="#${ruta}" data-ruta="${ruta}">${icono(ruta, { tam: 24 })}<span>${texto}</span></a>`;
     // Columnas: solo en la barra lateral de escritorio (en el móvil, desde Inicio).
     return ruta === 'rankings' ? `${tab}<a class="barra-tab barra-solo-escritorio" href="#columnas" data-ruta="columnas">${icono('columnas', { tam: 24 })}<span>Columnas</span></a>` : tab;
-  }).join('') + `<a class="barra-tab barra-solo-escritorio barra-propuestas" href="#propuestas" data-ruta="propuestas">${icono('urna', { tam: 20 })}<span>Propuestas</span></a><a class="barra-tab barra-solo-escritorio barra-cementerio" href="#cementerio" data-ruta="cementerio">${icono('lapida', { tam: 20 })}<span>Cementerio</span></a>`;
+  }).join('') + `<a class="barra-tab barra-solo-escritorio barra-avisos" href="#avisos" data-ruta="avisos">${icono('aviso', { tam: 22 })}<span>Avisos</span><b class="avisos-contador" data-avisos-contador hidden></b></a><a class="barra-tab barra-solo-escritorio barra-propuestas" href="#propuestas" data-ruta="propuestas">${icono('urna', { tam: 20 })}<span>Propuestas</span></a><a class="barra-tab barra-solo-escritorio barra-cementerio" href="#cementerio" data-ruta="cementerio">${icono('lapida', { tam: 20 })}<span>Cementerio</span></a>`;
 }
 
 // Buscador de la barra lateral (escritorio): lo que se escribe va al buscador de la app.
@@ -234,6 +235,22 @@ function leerRuta() {
   return { ruta: RUTAS[ruta] ? ruta : 'inicio', params };
 }
 
+// Al llegar desde un aviso: resaltar el sitio exacto (la reseña, la lápida...).
+function irAlDestacado() {
+  let hay = null;
+  try { hay = sessionStorage.getItem('cvj.destacar'); } catch { /* nada */ }
+  if (hay) import('./avisos.js').then((m) => m.destacarPendiente());
+}
+// El contador de avisos sin leer de la barra lateral (escritorio).
+function pintarContadorAvisos() {
+  const b = barra.querySelector('[data-avisos-contador]');
+  if (!b) return;
+  const yo = usuarioActual()?.id;
+  const n = datos.notificaciones().filter((x) => x.usuario_id === yo && !x.leida).length;
+  b.hidden = !n;
+  b.textContent = n > 99 ? '99+' : String(n);
+}
+
 let turnoMontar = 0;
 async function montar(cargar, contexto, conBarra, scroll = 0) {
   // La pantalla anterior se queda hasta que llega el código de la nueva (la primera vez).
@@ -276,6 +293,7 @@ async function montar(cargar, contexto, conBarra, scroll = 0) {
       if (q && !q.value) q.focus({ preventScroll: true });
     }
     window.dispatchEvent(new Event('cvj:pantalla'));
+    irAlDestacado();
     return;
   }
 
@@ -289,6 +307,7 @@ async function montar(cargar, contexto, conBarra, scroll = 0) {
   if (scroll) for (const ms of [50, 200, 500]) setTimeout(() => { if (window.scrollY < scroll - 2) window.scrollTo(0, scroll); }, ms);
   // Ya está pintada (deslizar.js quita la capa de la vecina cuando llega esto).
   window.dispatchEvent(new Event('cvj:pantalla'));
+  irAlDestacado();
   cargarSegundoPlano();
 }
 
@@ -392,6 +411,9 @@ function iniciarDatos() {
     } else if (fresco) aplicarAcento(fresco.acento);
     // Su color puede llegar con los datos (o cambiar mientras estoy en su perfil).
     fijarAcentoDeRuta();
+    pintarContadorAvisos();
+    // "Mientras no estabas": al abrir la app (en la pantalla que sea) y al volver tras un rato.
+    if (datos.notificaciones().length) import('./avisos.js').then((m) => m.revisarResumen());
   });
   // Sincronizaciones automáticas: en segundo plano y con datos del servidor (no de la caché).
   datos.cuandoFrescos(revisarPlataformas);

@@ -13,6 +13,7 @@ import * as cementerio from '../cementerio.js';
 import * as propuestas from '../propuestas.js';
 import * as apelaciones from '../apelaciones.js';
 import * as eventos from '../eventos.js';
+import * as avisos from '../avisos.js';
 import { usuarioActual } from '../sesion.js';
 import { mediaGrupo, recomendacionGrupo, desviacionTipica } from '../notas.js';
 import { abrirHoja } from '../hoja.js';
@@ -64,9 +65,8 @@ export function render(el) {
     // "¡Completado!" de los demás: una vez, al entrar (aunque sea días después).
     // Solo si se ve (las pestañas visitadas siguen montadas, ocultas, y se actualizan solas).
     if (el.hidden) return;
-    import('../celebracion.js').then((m) => { if (el.isConnected && !el.hidden) m.revisarCelebraciones(); });
-    // Quién gana la porra de un evento: una vez, al haber resultados.
-    if (datos.datosFrescos()) eventos.celebrarPorra();
+    // "Mientras no estabas": lo importante sin ver (insignias, completados, avisos...).
+    avisos.revisarResumen();
   };
   el.addEventListener('click', (e) => {
     const b = e.target.closest('[data-pestana]');
@@ -120,12 +120,10 @@ function html() {
   const hayAlgo = datos.valoracionesEfectivas().length > 0 || jugandoPsn(new Set()).length > 0;
   if (!hayAlgo) {
     return `
-      ${cabecera(yo)}
+      ${cabecera(yo, avisos.botonCabecera())}
       ${elGrupo()}
       ${eventos.bannerInicio()}
-      ${apelaciones.avisosInicio()}
-    ${cementerio.avisosInicio()}
-    ${propuestas.avisosInicio()}
+      ${cementerio.avisosInicio()}
       ${avisoPsn()}
       <div class="inicio-vacio">
         <span class="vacio-icono grande">${icono('valorar', { tam: 36, color: 'var(--acento)', trazo: 'var(--acento-suave)' })}</span>
@@ -136,16 +134,13 @@ function html() {
       </div>`;
   }
   return `
-    ${cabecera(yo)}
+    ${cabecera(yo, avisos.botonCabecera())}
     ${elGrupo()}
     ${eventos.bannerInicio()}
-    ${apelaciones.avisosInicio()}
     ${cementerio.avisosInicio()}
-    ${propuestas.avisosInicio()}
     ${avisoPsn()}
     ${avisoRevisar()}
     ${avisosPersonales()}
-    ${yo ? social.avisoNovedades(yo.id) : ''}
     ${bienvenida()}
     ${yo ? `<div class="inicio-sugerencias">${metricas.sugerenciasColeccion(yo.id).map(tarjetaSugerenciaColeccion).join('')}</div>` : ''}
     <div class="inicio">

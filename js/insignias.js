@@ -18,7 +18,7 @@ import { historia } from './cementerio.js';
 import { ahijados } from './propuestas.js';
 
 export const NIVELES = ['', 'bronce', 'plata', 'oro'];
-const NOMBRE_NIVEL = ['', 'Bronce', 'Plata', 'Oro'];
+export const NOMBRE_NIVEL = ['', 'Bronce', 'Plata', 'Oro'];
 export const MAX_DESTACADAS = 4;
 const MIN_NOTAS_MEDIA = 15;     // para las de nota media
 const MIN_JUEGOS_COMUNES = 10;  // para polémico, oráculo, almas gemelas y némesis
@@ -635,7 +635,8 @@ export function iniciarInsignias() {
   if (iniciado) return;
   iniciado = true;
   const enCalma = (fn) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 4000 }) : setTimeout(fn, 800));
-  const tras = () => enCalma(async () => { await sincronizar(); revisarAvisos(); });
+  // Los avisos (conseguida, sube, perdida) los genera el servidor al guardarse (js/avisos.js).
+  const tras = () => enCalma(() => sincronizar());
   datos.cuandoFrescos(tras);
   if (datos.datosFrescos()) tras();
 }

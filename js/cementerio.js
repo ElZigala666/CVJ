@@ -219,7 +219,8 @@ export function accesoGrupo() {
 export function avisosInicio() {
   const yo = usuarioActual();
   const lista = datos.reanimacionesEnCurso().filter((r) => datos.usuario(r.difunto_id) && datos.usuario(r.autor_id));
-  if (!lista.length) return '';
+  // Para todos, el aviso va en Avisos (notificaciones); aquí queda solo el del Dictador, que actúa.
+  if (!lista.length || !soyAdmin()) return '';
   const admin = soyAdmin();
   return lista.map((r) => {
     const d = datos.usuario(r.difunto_id);

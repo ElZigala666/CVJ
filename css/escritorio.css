@@ -365,3 +365,9 @@ body:has(#vista .entrada, #vista .difunto) #aviso { left: 50%; }
 
 /* Sin barra inferior: ni indicador ni deslizar entre pestañas. */
 .barra-indicador { display: none; }
+
+/* Avisos: en la barra lateral, con su contador; la pantalla, centrada. */
+.barra-avisos { position: relative; }
+.barra-avisos .avisos-contador { top: 6px; right: 10px; }
+.cabecera-avisos { display: none; }
+.avisos-pantalla { max-width: 760px; margin: 0 auto; padding-top: 32px; }

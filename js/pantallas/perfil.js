@@ -276,7 +276,6 @@ function renderPerfil(el, id, alSalir) {
     }
     primeraPintada = false;
     // Si es el perfil de otro y tiene un "¡Completado!" que no he visto, aquí también.
-    if (!esMio) import('../celebracion.js').then((m) => { if (el.isConnected) m.revisarCelebraciones(id); });
 
     if (enFiltro) {
       const inp = el.querySelector(`[data-filtro="${enFiltro}"] [data-filtro-texto]`);

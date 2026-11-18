@@ -99,6 +99,8 @@ const TABLAS = [
   { k: 'eventosNominados', t: 'eventos_nominados', orden: ['categoria_id', 'orden', 'id'] },
   { k: 'eventosElecciones', t: 'eventos_elecciones', orden: ['categoria_id', 'usuario_id', 'tipo'] },
   { k: 'eventosVotado', t: 'eventos_votado', orden: ['evento_id', 'usuario_id'] },
+  // Mis notificaciones (migración 040): se generan en el servidor; aquí, leerlas y marcarlas.
+  { k: 'notificaciones', t: 'notificaciones', deUsuario: true, q: (uid) => `usuario_id=eq.${uid}`, orden: ['actualizado_en.desc', 'id'] },
   { k: 'horasAjustes', t: 'horas_ajustes', orden: ['usuario_id', 'juego_id'] },
   { k: 'horasEstimadas', t: 'horas_estimadas', orden: ['usuario_id', 'juego_id'] },
   // Celebraciones de "completado" que ya he visto (solo las mías).
@@ -113,7 +115,9 @@ async function api(ruta, cuerpo) {
     body: cuerpo ? JSON.stringify(cuerpo) : undefined,
   });
   if (!r.ok) throw Object.assign(new Error(`${ruta.split('?')[0]}: ${r.status}`), { estado: r.status });
-  return r.json();
+  if (r.status === 204) return null; // funciones que no devuelven nada
+  const texto = await r.text();
+  return texto ? JSON.parse(texto) : null;
 }
 
 /** Todas las filas de una tabla, por páginas. Lanza si falla. */
@@ -1159,6 +1163,21 @@ export async function borrarEnEvento(clave, id, onError) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Notificaciones (migración 040). La lógica (textos, resumen, centro) está en js/avisos.js.
+// ---------------------------------------------------------------------------
+export const notificaciones = () => estado.notificaciones ?? [];
+/** Marcar leídas (ids o todas) o, con resumen, solo "ya salió en el resumen al entrar". */
+export function marcarAvisos(usuarioId, ids = null, { resumen = false } = {}, onError) {
+  const toca = (n) => n.usuario_id === usuarioId && (!ids || ids.includes(n.id));
+  return escribirOptimista(
+    (s) => { s.notificaciones = (s.notificaciones ?? []).map((n) => (toca(n) ? { ...n, en_resumen: true, leida: resumen ? n.leida : true } : n)); },
+    async () => { await api('rpc/marcar_avisos', { p_usuario: usuarioId, p_ids: ids, p_resumen: resumen }); },
+    onError,
+    'No se ha podido marcar. Se ha deshecho el cambio.',
+  );
+}
+
 export async function subirImagenColumna(ruta, blob) {
   const sb = await cliente();
   const r = await sb.storage.from('columnas').upload(ruta, blob, { contentType: blob.type, cacheControl: '31536000', upsert: false });
@@ -1273,6 +1292,7 @@ async function escribirOptimista(aplicar, guardar, onError, mensajeError = 'No s
     insignias: estado.insignias, insigniasGrupo: estado.insigniasGrupo,
     eventos: estado.eventos, eventosCategorias: estado.eventosCategorias, eventosNominados: estado.eventosNominados,
     eventosElecciones: estado.eventosElecciones, eventosVotado: estado.eventosVotado,
+    notificaciones: estado.notificaciones,
   };
   escriturasEnCurso++;
   aplicar(estado);

@@ -2,7 +2,7 @@
 // propia pantalla), plataformas, biblioteca, grupo, instalar y cerrar sesión.
 import { icono } from './icons.js';
 import { abrirHoja } from './hoja.js';
-import { aviso, esc } from './ui.js';
+import { aviso, esc, pintarHtml } from './ui.js';
 import { modoInstalacion, instalar } from './instalar.js';
 import { usuarioActual } from './sesion.js';
 import * as datos from './datos.js';
@@ -68,6 +68,7 @@ export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas 
       <div class="ajustes">
         <div data-ref="foto"></div>
         <div data-ref="apariencia"></div>
+        <div data-ref="avisos"></div>
         <section class="ajustes-bloque ajustes-plataformas" id="ajustes-plataformas">
           <span class="campo-titulo">Plataformas</span>
           <div data-ref="plataformas"></div>
@@ -134,7 +135,11 @@ export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas 
       });
       const pintarApariencia = () => { cuerpo.querySelector('[data-ref="apariencia"]').innerHTML = bloqueApariencia(datos.usuario(usuarioActual()?.id)); };
       pintarApariencia();
-      const quitarFoto = datos.suscribir(() => { pintarFoto(); pintarUmbral(); pintarApariencia(); });
+      // Notificaciones: qué sale en el resumen al entrar ("Mientras no estabas").
+      const pintarAvisos = () => import('./avisos.js').then((m) => { const c = cuerpo.querySelector('[data-ref="avisos"]'); if (c) pintarHtml(c, m.bloqueAjustes(datos.usuario(usuarioActual()?.id))); });
+      pintarAvisos();
+      cuerpo.addEventListener('change', (e) => { if (e.target.closest('[data-aviso-grupo]')) import('./avisos.js').then((m) => m.cambioAjustes(e)); });
+      const quitarFoto = datos.suscribir(() => { pintarFoto(); pintarUmbral(); pintarApariencia(); pintarAvisos(); });
       // PlayStation (se quita la suscripción al cerrar la hoja).
       // PSN se abre desplegada desde el aviso de "Reconectar"; Steam, al volver de su inicio de sesión.
       const quitarPlataformas = montarPlataformas(cuerpo.querySelector('[data-ref="plataformas"]'), { abrir: psn ? 'psn' : steam ? 'steam' : null });

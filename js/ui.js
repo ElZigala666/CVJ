@@ -143,14 +143,14 @@ export function cabeceraAtras(titulo, subtitulo = '') {
 // ---------------------------------------------------------------------------
 // Cabecera, estados vacíos y skeletons
 // ---------------------------------------------------------------------------
-export function cabecera(usuario) {
+export function cabecera(usuario, junto = '') {
   return `
     <header class="cabecera">
       <a class="marca" href="#inicio" aria-label="CVJ, ir a Inicio">
         ${icono('logo', { tam: 30, color: 'var(--acento)' })}
         <span class="marca-texto">CVJ</span>
       </a>
-      ${avatar(usuario, 40, '#perfil')}
+      <span class="cabecera-derecha">${junto}${avatar(usuario, 40, '#perfil')}</span>
     </header>`;
 }
 

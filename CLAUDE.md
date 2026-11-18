@@ -92,8 +92,15 @@ español (código, comentarios, commits, interfaz).
   categorías plegables en lectura que abren la papeleta en esa categoría; la chuleta) y
   `js/pantallas/evento-editar.js` (#evento/{id}/editar, #evento/nuevo: solo admin; se llega
   desde Ajustes → Eventos).
-- `js/social.js`: reacciones y respuestas (tira bajo reseñas y entradas, menú, hilo,
-  aviso "Lo nuevo en lo tuyo" y filas de actividad).
+- `js/avisos.js`: notificaciones (un solo sistema de avisos): textos por tipo, botón con
+  contador (cabecera de Inicio en móvil, barra lateral en escritorio), abrir uno = ir al sitio
+  exacto (`destino` + `datos.destacar`, resaltado con `.destacado-aviso`) y marcarlo leído,
+  "Mientras no estabas" (al abrir la app o volver tras 5 min: carrusel con las 5 más
+  importantes sin ver; sustituye a las capas de insignias y "¡Completado!") y Ajustes →
+  Notificaciones. `js/pantallas/avisos.js` (#avisos): por días, filtros y "Marcar todo".
+  En Inicio ya no van avisos sueltos (solo el del Dictador con Vetar / Permitir ya).
+- `js/social.js`: reacciones y respuestas (tira bajo reseñas y entradas, menú, hilo y
+  filas de actividad).
 - `js/pantallas/`: `inicio`, `buscar`, `juego`, `perfil` (+ tier list), `rankings`
   (+ comparar), `estadisticas`, `coleccion`, `saga`, `revisar`, `duplicados`, `entrada`
   (login), `escribir` (editor de columna), `lectura` (#entrada/{id}), `columna`,
@@ -197,6 +204,13 @@ español (código, comentarios, commits, interfaz).
   Escritura con la clave pública. Las categorías no incluidas no se ven ni puntúan, pero lo
   elegido se guarda. Los pronósticos ajenos solo se ven tras hacer el tuyo (en el cliente).
   The Game Awards no tiene API: se vota en su web; CVJ solo ayuda (chuleta).
+- Notificaciones (migración 040): `notificaciones` (por usuario: tipo, categoria mi|grupo,
+  `clave` para agrupar lo repetido mientras no se lea (actores, n), datos, destino, prioridad,
+  leida, en_resumen). Las generan disparadores en el servidor (reacciones, comentarios,
+  lecturas, entradas, insignias, vidas, propuestas y votos, apelaciones, actividad, eventos)
+  con `notificar()` / `notificar_todos()`; lo del reloj, la tarea `cvj-avisos` (15 min). La app
+  solo lee las suyas y marca con `marcar_avisos()`. `usuarios.avisos_resumen` = grupos apagados
+  en el resumen al entrar. Un tipo nuevo de aviso: disparador + texto en `js/avisos.js`.
 - `actividad` (feed: valoro/empezo/completo/abandono/pendiente/rejuega, `lote`,
   `celebrar`), `celebraciones_vistas`, `avisos`, `estado_servicios`, `igdb_token`,
   `openxbl_uso`.

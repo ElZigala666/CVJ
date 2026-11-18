@@ -11,17 +11,17 @@ import { esc, aviso, avatar } from './ui.js';
 import { cliente } from './supabase.js';
 import * as datos from './datos.js';
 import { artesDeJuego } from './igdb.js';
-import { abrirEncuadre } from './encuadre.js';
+import { abrirEncuadreDoble } from './encuadre.js';
 import { reducir } from './apariencia.js';
 import { elegirJuegos } from './colecciones-ui.js';
 import * as metricas from './metricas.js';
-import { TIPOS_CABECERA, cabeceraDe, capasCabecera, cssDegradado, perfilDe, urlArte } from './perfil-personal.js';
+import { TIPOS_CABECERA, cabeceraDe, capasCabecera, cssDegradado, perfilDe, urlArte, ASPECTO_CAB } from './perfil-personal.js';
 
 const BUCKET = 'avatares';
 const rutaDeUrl = (url) => { const m = String(url ?? '').match(/\/storage\/v1\/object\/public\/avatares\/(.+)$/); return m ? decodeURIComponent(m[1]) : null; };
 const miniArte = (id) => `https://images.igdb.com/igdb/image/upload/t_screenshot_med/${id}.jpg`;
-/** Forma de la cabecera en esta pantalla (para encuadrar como se va a ver). */
-const aspectoCabecera = () => (window.innerWidth >= 1024 ? (window.innerWidth - 240) / 340 : window.innerWidth / 280);
+/** Encuadre por defecto (centrado) en los dos formatos. */
+const centrado = (y = 50) => ({ x: 50, y, zoom: 1, esc: { x: 50, y, zoom: 1 } });
 
 /**
  * @param {string} uid  el usuario con sesión
@@ -75,13 +75,14 @@ export function abrirEditarCabecera(uid, s = null) {
               <span>${a.tipo === 'artwork' ? 'Arte' : `Captura ${++n}`}</span>
             </button>`).join('')}
         </div>
+        ${elegida ? '<button type="button" class="boton-secundario neutro boton-pequeno" data-cabed="encuadrar">Encuadrar (móvil y escritorio)</button>' : ''}
         <p class="ajustes-nota">Arte y capturas en horizontal del catálogo. Se cambia solo si cambias de juego favorito.</p>`;
     }
     if (c.tipo === 'imagen') {
       return `
         <div class="cabed-botones">
           <label class="boton-secundario neutro boton-pequeno">${s.archivo || c.imagen ? 'Cambiar imagen' : 'Elegir imagen'}<input type="file" accept="image/*" data-ref="archivo" hidden></label>
-          ${s.archivo || c.imagen ? '<button type="button" class="boton-secundario neutro boton-pequeno" data-cabed="encuadrar">Encuadrar</button>' : ''}
+          ${s.archivo || c.imagen ? '<button type="button" class="boton-secundario neutro boton-pequeno" data-cabed="encuadrar">Encuadrar (móvil y escritorio)</button>' : ''}
         </div>
         <p class="ajustes-nota">Se reduce para la web y solo la ve el grupo.</p>`;
     }
@@ -144,7 +145,7 @@ export function abrirEditarCabecera(uid, s = null) {
           const { blob } = await reducir(f, 1920);
           if (s.archivo) URL.revokeObjectURL(s.archivo.url);
           s.archivo = { blob, url: URL.createObjectURL(blob) };
-          Object.assign(s.c, { x: 50, y: 50, zoom: 1 });
+          Object.assign(s.c, centrado());
           pintar();
         } catch { aviso('No se ha podido abrir esa imagen.'); }
       });
@@ -159,13 +160,15 @@ export function abrirEditarCabecera(uid, s = null) {
           return;
         }
         const arte = t.closest('[data-arte]');
-        if (arte) { s.c.arte = arte.dataset.arte; pintar(); return; }
+        if (arte) { s.c.arte = arte.dataset.arte; Object.assign(s.c, centrado(30)); pintar(); return; }
         const acc2 = t.closest('[data-cabed]')?.dataset.cabed;
         if (acc2 === 'encuadrar') {
           volver = true;
-          abrirEncuadre({
-            url: s.archivo?.url ?? s.c.imagen, aspecto: aspectoCabecera(), valor: s.c, titulo: 'Encuadrar la cabecera',
-            alGuardar: (v) => { Object.assign(s.c, v); },
+          const ef = efectiva();
+          const url = ef.tipo === 'juego' ? urlArte(ef.arte) : (s.archivo?.url ?? s.c.imagen);
+          abrirEncuadreDoble({
+            url, aspectos: ASPECTO_CAB, movil: s.c, escritorio: s.c.esc, titulo: 'Encuadrar la cabecera',
+            alGuardar: ({ movil, escritorio }) => { Object.assign(s.c, movil, { esc: escritorio }); },
             alCerrar: () => abrirEditarCabecera(uid, s),
           });
           return;
@@ -185,7 +188,9 @@ export function abrirEditarCabecera(uid, s = null) {
         const antes = cabeceraDe(u);
         try {
           const c = { tipo: s.c.tipo };
-          if (c.tipo === 'juego') c.arte = s.c.arte ?? s.artes?.[0]?.id ?? fav()?.arte_id ?? null;
+          // Los dos encuadres (móvil: x, y, zoom; escritorio: esc), para el arte y para la imagen.
+          const encuadre = { x: s.c.x, y: s.c.y, zoom: s.c.zoom, esc: s.c.esc };
+          if (c.tipo === 'juego') Object.assign(c, { arte: s.c.arte ?? s.artes?.[0]?.id ?? fav()?.arte_id ?? null }, encuadre);
           if (c.tipo === 'imagen') {
             let url = s.c.imagen;
             if (s.archivo) {
@@ -195,7 +200,7 @@ export function abrirEditarCabecera(uid, s = null) {
               if (r.error) throw r.error;
               url = sb.storage.from(BUCKET).getPublicUrl(ruta).data.publicUrl;
             }
-            if (!url) { c.tipo = 'degradado'; } else Object.assign(c, { imagen: url, x: s.c.x, y: s.c.y, zoom: s.c.zoom });
+            if (!url) { c.tipo = 'degradado'; } else Object.assign(c, { imagen: url }, encuadre);
           }
           if (c.tipo === 'patron') c.intensidad = s.c.intensidad;
           // Lo demás del perfil se queda como está (la cabecera de antes, "banner", ya no se usa).

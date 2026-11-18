@@ -49,6 +49,8 @@ export function imagenDe(e) {
   return null;
 }
 export const colorDe = (e) => e.color || '#6D28D9';
+/** El punto de enfoque de la imagen (centro del recorte en todos los tamaños). */
+export const foco = (e) => `${Number(e.foco_x ?? 50)}% ${Number(e.foco_y ?? 50)}%`;
 
 // ---------------------------------------------------------------------------
 // Categorías y elecciones
@@ -172,7 +174,7 @@ export function bannerInicio(ahora = Date.now()) {
     const oficial = e.enlace_url && !tras && votacionAbierta(e, ahora);
     return `
       <section class="evento-banner${img ? ' con-imagen' : ''}" style="--evento:${esc(colorDe(e))}" aria-label="${esc(e.titulo)}">
-        ${img ? `<img class="evento-banner-img" src="${esc(img)}" alt="" loading="lazy" decoding="async" crossorigin="anonymous">` : ''}
+        ${img ? `<img class="evento-banner-img" src="${esc(img)}" alt="" loading="lazy" decoding="async" crossorigin="anonymous" style="object-position:${foco(e)}">` : ''}
         <div class="evento-banner-velo"></div>
         ${tras ? `<button type="button" class="evento-banner-cerrar" data-evento-cerrar="${esc(e.id)}" aria-label="Cerrar">${icono('cerrar', { tam: 16, color: 'currentColor' })}</button>` : ''}
         <a class="evento-banner-texto" href="#evento/${esc(e.id)}">

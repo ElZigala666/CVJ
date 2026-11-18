@@ -83,7 +83,7 @@ function html(e, yo, abiertas) {
   return `
     <section class="evento${cerrado ? ' evento-cerrado' : ''}" style="--evento:${esc(ev.colorDe(e))}">
       <header class="evento-cab${img ? ' con-imagen' : ''}">
-        ${img ? `<img class="evento-cab-img" src="${esc(img)}" alt="" decoding="async" crossorigin="anonymous">` : ''}
+        ${img ? `<img class="evento-cab-img" src="${esc(img)}" alt="" decoding="async" crossorigin="anonymous" style="object-position:${ev.foco(e)}">` : ''}
         <div class="evento-cab-velo"></div>
         <div class="evento-cab-barra">
           <button type="button" class="boton-cuadrado" data-accion="atras" aria-label="Volver">${icono('atras', { tam: 20, color: 'var(--texto)' })}</button>

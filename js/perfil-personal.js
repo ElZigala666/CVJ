@@ -120,14 +120,25 @@ export function cabeceraDe(u) {
     c = b?.tipo === 'imagen' && /^https:\/\//.test(b.valor ?? '') ? { tipo: 'imagen', imagen: b.valor }
       : b?.tipo === 'juego' ? { tipo: 'juego' } : { tipo: 'degradado' };
   }
+  const tipo = TIPOS_CABECERA.some((t) => t.id === c.tipo) ? c.tipo : 'degradado';
+  // Encuadre para MÓVIL (x, y, zoom; el arte de IGDB, por defecto algo por encima del centro)
+  // y para ESCRITORIO (esc: la franja ancha y baja). Sin esc: el mismo foco que en móvil.
+  const x = lim(c.x ?? 50, 0, 100);
+  const y = lim(c.y ?? (tipo === 'juego' ? 30 : 50), 0, 100);
+  const zoom = lim(c.zoom ?? 1, 1, 3);
+  const e = c.esc && typeof c.esc === 'object' ? c.esc : {};
   return {
-    tipo: TIPOS_CABECERA.some((t) => t.id === c.tipo) ? c.tipo : 'degradado',
+    tipo,
     arte: typeof c.arte === 'string' && /^[a-z0-9]+$/i.test(c.arte) ? c.arte : null,
     imagen: typeof c.imagen === 'string' && /^https:\/\//.test(c.imagen) ? c.imagen : null,
-    x: lim(c.x ?? 50, 0, 100), y: lim(c.y ?? 50, 0, 100), zoom: lim(c.zoom ?? 1, 1, 3),
+    x, y, zoom,
+    esc: { x: lim(e.x ?? x, 0, 100), y: lim(e.y ?? y, 0, 100), zoom: lim(e.zoom ?? 1, 1, 3) },
     intensidad: lim(c.intensidad ?? 50, 0, 100),
   };
 }
+
+/** Proporciones (ancho / alto) de la cabecera: en móvil y en escritorio (la franja). */
+export const ASPECTO_CAB = { movil: 390 / 280, escritorio: 1200 / 340 };
 
 /** Lo que se pinta de verdad: si falta algo (sin favorito, sin arte, sin imagen), el degradado. */
 export function cabeceraEfectiva(u, c = cabeceraDe(u)) {
@@ -178,8 +189,11 @@ export function htmlPatron(acc, intensidad = 50, oscuro = oscuroAhora(), id = 'h
 /** Las capas de una cabecera (sin botones): para el perfil y para la vista previa. */
 export function capasCabecera(c, acc, id = 'hexpat') {
   let fondo;
-  if (c.tipo === 'juego') fondo = `<div class="cab-fondo" style="background-image:url('${esc(URL_ARTE(c.arte))}');background-size:cover;background-position:center 30%"></div>`;
-  else if (c.tipo === 'imagen') fondo = `<div class="cab-fondo" style="background-image:url('${esc(c.imagen)}');background-size:cover;background-position:${c.x}% ${c.y}%;transform:scale(${c.zoom});transform-origin:${c.x}% ${c.y}%"></div>`;
+  // Imagen (propia o arte del juego): una capa por encuadre; la cabecera enseña la que más se
+  // parece a su forma (consulta de contenedor en app.css: estrecha = móvil, franja = escritorio).
+  const url = c.tipo === 'juego' ? URL_ARTE(c.arte) : c.tipo === 'imagen' ? c.imagen : null;
+  const capa = (cl, v) => `<div class="cab-fondo ${cl}" style="background-image:url('${esc(url)}');background-size:cover;background-position:${v.x}% ${v.y}%;transform:scale(${v.zoom});transform-origin:${v.x}% ${v.y}%"></div>`;
+  if (url) fondo = capa('cab-movil', c) + capa('cab-escritorio', c.esc ?? c);
   else if (c.tipo === 'patron') fondo = htmlPatron(acc, c.intensidad, undefined, id);
   else fondo = `<div class="cab-fondo" style="background:${cssDegradado(acc)}"></div>`;
   return `<div class="cab-capa">${fondo}<div class="cab-sombra"></div></div>`;

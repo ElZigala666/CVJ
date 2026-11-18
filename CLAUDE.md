@@ -59,6 +59,10 @@ español (código, comentarios, commits, interfaz).
   entradas) se ve su acento (`usuarios.acento`; si nunca eligió, `ACENTO_DEFECTO` de
   `js/apariencia.js`, nunca el mío) sobre MI fondo, fundido en 250 ms (temporizador, no rAF). `js/ajustes-apariencia.js` su
   pantalla (vista previa en vivo). `js/encuadre.js` arrastrar y zoom (fondo y cabecera).
+- `js/encuadre.js`: `abrirEncuadre` (un marco) y `abrirEncuadreDoble` (la imagen entera con los
+  marcos Móvil / Escritorio y su vista previa; lo usa la cabecera del perfil).
+- Prueba local: si el navegador sirve archivos viejos, es el service worker de `index.html`
+  (registrado al abrir la raíz): quitarlo y vaciar `caches` en esa pestaña.
 - `js/perfil-personal.js` (datos y cabecera del perfil: arte del favorito, imagen,
   degradado o patrón, con máscara para fundirse con el fondo), `js/cabecera-editar.js`,
   `js/perfil-editar.js`, `js/foto-perfil.js`, `js/acento.js` (paleta de colores de
@@ -128,7 +132,9 @@ español (código, comentarios, commits, interfaz).
   `exorcizado` (expulsión permanente: nadie lo reanima hasta que el admin lo levante), `apariencia` (jsonb `{v: 2, modo
   fijo|auto, fondo, dia, noche, imagen:{url, desenfoque, velo, texto, x, y, zoom, medida}}`;
   lo de antes se migra solo al abrir), `perfil_datos` (bio, estado, plataforma, favorito,
-  vitrina, insignias, `cabecera:{tipo, arte|imagen+encuadre|intensidad}`),
+  vitrina, insignias, `cabecera:{tipo, arte|imagen, x, y, zoom (encuadre MÓVIL), esc:{x, y, zoom}
+  (encuadre ESCRITORIO; sin él, el mismo foco), intensidad}`: se pintan las dos capas y una
+  consulta de contenedor en `.cab-capa` enseña la que más se parece a la forma real),
   `umbral_probados`, `estimar_horas`, `plataformas_ocultas`.
 - `juegos` (PK `igdb_id`): caché de IGDB + `es_online`(_manual) = sin final,
   `relaciones` (jsonb de IGDB), `ttb_*` tiempo para terminar, `mostrar_como` (versión
@@ -196,7 +202,8 @@ español (código, comentarios, commits, interfaz).
   estaba sellado), mismo código. Si vuelve por otro camino, la pendiente se cierra sola.
 - Eventos (migración 039): `eventos` (título, siglas, texto, imagen subida o arte de
   `juego_imagen_id`, color, inicio/fin, `fecha_clave` = la gala, `votacion_fin`, enlace,
-  `aviso_version`, `resultados_en`), `eventos_categorias` (orden de la web oficial, tipo
+  `aviso_version`, `resultados_en`, `foco_x`/`foco_y` = punto de enfoque de la imagen, usado como
+  `object-position` en todos los tamaños), `eventos_categorias` (orden de la web oficial, tipo
   juegos|texto, `incluida`, `principal`, `peso` en la porra, `ganador_id`),
   `eventos_nominados` (con `juego_id` de IGDB), `eventos_elecciones` (por persona y categoría:
   `voto` = a quién quiero que gane, lo que voto en la oficial; `pronostico` = quién creo que

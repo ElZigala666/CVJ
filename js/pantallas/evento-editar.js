@@ -56,6 +56,20 @@ export function render(el, { params = [] } = {}) {
     const evt = id ? datos.evento(id) : null;
     if (t.closest('[data-crear]')) { crear(el); return; }
     if (t.closest('[data-imagen-juego]')) { elegirJuego((j) => datos.editarEvento('eventos', id, { juego_imagen_id: j.igdb_id, imagen_url: null }, aviso)); return; }
+    const fc = t.closest('[data-foco]');
+    if (fc && id) {
+      // La imagen se ve entera (contain): el punto, en % de la imagen dibujada.
+      const im = fc.querySelector('img');
+      const r = im.getBoundingClientRect();
+      const ratio = im.naturalWidth / im.naturalHeight || r.width / r.height;
+      let w = r.width; let h = r.width / ratio;
+      if (h > r.height) { h = r.height; w = h * ratio; }
+      const x0 = r.left + (r.width - w) / 2; const y0 = r.top + (r.height - h) / 2;
+      const fx = Math.round(Math.min(100, Math.max(0, ((e.clientX - x0) / w) * 100)));
+      const fy = Math.round(Math.min(100, Math.max(0, ((e.clientY - y0) / h) * 100)));
+      datos.editarEvento('eventos', id, { foco_x: fx, foco_y: fy }, aviso);
+      return;
+    }
     if (t.closest('[data-imagen-quitar]')) { datos.editarEvento('eventos', id, { juego_imagen_id: null, imagen_url: null }, aviso); return; }
     const ab = t.closest('[data-abrir-cat]');
     if (ab) { const c = ab.dataset.abrirCat; if (abiertas.has(c)) abiertas.delete(c); else abiertas.add(c); pintar(); return; }
@@ -249,7 +263,8 @@ function html(e, abiertas) {
         <input id="ev-color" class="evento-color" type="color" data-campo="eventos.color" value="${esc(e?.color || '#6D28D9')}">
         ${e ? `
           <span class="campo-titulo">Imagen</span>
-          <div class="evento-imagen" style="--evento:${esc(ev.colorDe(e))}">${img ? `<img src="${esc(img)}" alt="" crossorigin="anonymous">` : '<span>Sin imagen: se usa el color</span>'}</div>
+          <div class="evento-imagen" style="--evento:${esc(ev.colorDe(e))}"${img ? ' data-foco' : ''}>${img ? `<img src="${esc(img)}" alt="" crossorigin="anonymous"><span class="evento-foco" style="left:${Number(e.foco_x ?? 50)}%;top:${Number(e.foco_y ?? 50)}%" aria-hidden="true"></span>` : '<span>Sin imagen: se usa el color</span>'}</div>
+          ${img ? '<p class="evento-nota">Toca en la imagen lo importante (caras, el título...): será el centro del recorte en todos los tamaños.</p>' : ''}
           <div class="fila-botones">
             <label class="boton-secundario boton-pequeno">Subir imagen<input type="file" accept="image/*" data-subir hidden></label>
             <button type="button" class="boton-secundario neutro boton-pequeno" data-imagen-juego>Arte de un juego</button>

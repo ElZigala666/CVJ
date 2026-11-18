@@ -15,6 +15,8 @@ export function tirarParaRefrescar(alRefrescar) {
   document.body.appendChild(ind);
 
   let inicioY = null;
+  let inicioX = 0;
+  let decidido = false; // el gesto ya es vertical (tirar) o se ha soltado por horizontal
   let recorrido = 0;
   let cargando = false;
 
@@ -33,11 +35,21 @@ export function tirarParaRefrescar(alRefrescar) {
     if (cargando || window.scrollY > 0 || e.touches.length !== 1) return;
     if (document.body.classList.contains('hoja-abierta')) return;
     inicioY = e.touches[0].clientY;
+    inicioX = e.touches[0].clientX;
+    decidido = false;
     recorrido = 0;
   };
   const mover = (e) => {
     if (inicioY === null) return;
     const dy = e.touches[0].clientY - inicioY;
+    // Un deslizamiento horizontal (filas con scroll, carruseles, chips) no es tirar: se
+    // suelta en cuanto se ve la dirección, sin bloquear nada.
+    if (!decidido) {
+      const dx = e.touches[0].clientX - inicioX;
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      if (Math.abs(dx) >= Math.abs(dy)) { inicioY = null; return; }
+      decidido = true;
+    }
     if (dy <= 0 || window.scrollY > 0) {
       if (recorrido) colocar(0, false);
       recorrido = 0;

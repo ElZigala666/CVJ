@@ -1209,7 +1209,10 @@ body.sin-barra #aviso-version { bottom: calc(96px + env(safe-area-inset-bottom))
 .el-grupo { margin-top: 4px; }
 .el-grupo-fila {
   display: flex; gap: 14px; overflow-x: auto; padding: 4px 20px 6px;
-  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; touch-action: pan-x pan-y;
+  /* Difuminado a la derecha: hay más (Propuestas, Cementerio...). */
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent);
 }
 .el-grupo-fila::-webkit-scrollbar { display: none; }
 .el-grupo-persona {

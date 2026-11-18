@@ -6,7 +6,7 @@ import * as datos from '../datos.js';
 import * as metricas from '../metricas.js';
 import { usuarioActual } from '../sesion.js';
 import { formatearNota, notaALetra } from '../notas.js';
-import { esc, avatar, avatarInsignia, portada, notaConLetra, estadoVacio } from '../ui.js';
+import { esc, avatar, avatarInsignia, portada, notaConLetra, estadoVacio, pintarHtml } from '../ui.js';
 import { reemplazarRuta } from '../navegacion.js';
 import { abrirHoja } from '../hoja.js';
 
@@ -17,7 +17,7 @@ export function render(el, { params }) {
   const modo = params[0] === 'comparar' ? 'comparar' : 'grupo';
 
   const pintar = () => {
-    el.innerHTML = `
+    pintarHtml(el, `
       <section class="rankings">
         <div class="rankings-cab">
           <h1 class="titulo-pantalla">Rankings</h1>
@@ -26,8 +26,8 @@ export function render(el, { params }) {
             <button type="button" role="tab" data-modo="comparar" class="${modo === 'comparar' ? 'activo' : ''}" aria-selected="${modo === 'comparar'}">Comparar</button>
           </div>
         </div>
-        <div data-ref="contenido" data-deslizar="[data-orden]">${modo === 'grupo' ? grupo() : comparar(params)}</div>
-      </section>`;
+        <div data-ref="contenido">${modo === 'grupo' ? grupo() : comparar(params)}</div>
+      </section>`);
   };
 
   el.addEventListener('click', (e) => {

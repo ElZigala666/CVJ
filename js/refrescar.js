@@ -7,7 +7,8 @@ const AMORTIGUACION = 0.5;
 const MIN_VISIBLE_MS = 600;
 
 /** Engancha el gesto a la pantalla. Devuelve la función para quitarlo. */
-export function tirarParaRefrescar(alRefrescar) {
+/** activo(): si devuelve false (la pantalla está oculta, montada en segundo plano), no actúa. */
+export function tirarParaRefrescar(alRefrescar, activo = () => true) {
   const ind = document.createElement('div');
   ind.className = 'tirar-indicador';
   ind.setAttribute('aria-hidden', 'true');
@@ -32,7 +33,7 @@ export function tirarParaRefrescar(alRefrescar) {
   };
 
   const inicio = (e) => {
-    if (cargando || window.scrollY > 0 || e.touches.length !== 1) return;
+    if (cargando || window.scrollY > 0 || e.touches.length !== 1 || !activo()) return;
     if (document.body.classList.contains('hoja-abierta')) return;
     inicioY = e.touches[0].clientY;
     inicioX = e.touches[0].clientX;

@@ -10,7 +10,7 @@
 import * as datos from './datos.js';
 import { icono } from './icons.js';
 import { usuarioActual } from './sesion.js';
-import { esc, avatar, avatarPerfil, nombrePerfil, tiempoRelativo, aviso, portada, SELECCIONABLE, haySeleccion } from './ui.js';
+import { esc, avatar, avatarPerfil, nombrePerfil, tiempoRelativo, aviso, portada, SELECCIONABLE, haySeleccion, igualarElemento } from './ui.js';
 import { abrirHoja, cerrarHoja } from './hoja.js';
 import { formatearNota, notaALetra } from './notas.js';
 
@@ -155,13 +155,11 @@ datos.suscribirSocial(() => {
     const [tipo, id] = el.dataset.social.split(':');
     const nuevo = tira(tipo, id, { visibles: Number(el.dataset.visibles) || 2 });
     if (!nuevo) { el.remove(); continue; }
-    const t = document.createElement('template');
-    t.innerHTML = nuevo.trim();
-    el.replaceWith(t.content.firstElementChild);
+    igualarElemento(el, nuevo); // si no ha cambiado nada, no se toca
   }
   for (const el of document.querySelectorAll('[data-social-cuentas]')) {
     const [tipo, id] = el.dataset.socialCuentas.split(':');
-    el.outerHTML = cuentasHtml(tipo, id);
+    igualarElemento(el, cuentasHtml(tipo, id));
   }
   repintarHilo?.();
 });

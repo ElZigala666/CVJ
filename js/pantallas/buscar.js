@@ -2,7 +2,7 @@
 import { icono } from '../icons.js';
 import { buscarJuegos } from '../igdb.js';
 import * as datos from '../datos.js';
-import { esc, portada, notaConLetra, skeletonFila, aviso } from '../ui.js';
+import { esc, portada, notaConLetra, skeletonFila, aviso, pintarHtml } from '../ui.js';
 import { abrirValorar } from '../hoja-valorar.js';
 import { volver } from '../navegacion.js';
 import { simplificarTitulo } from '../psn-nombres.js';
@@ -123,7 +123,7 @@ export function render(el, { ruta, params = [] } = {}) {
   const pintar = () => {
     const k = clave(memoria.texto);
     if (k.length < MIN_LETRAS) {
-      lista.innerHTML = `<p class="lista-mensaje">Escribe el nombre de un juego para buscarlo en el catálogo.</p>`;
+      pintarHtml(lista, `<p class="lista-mensaje">Escribe el nombre de un juego para buscarlo en el catálogo.</p>`);
       return;
     }
     const locales = delGrupo(k);
@@ -133,15 +133,15 @@ export function render(el, { ruta, params = [] } = {}) {
     if (!res) {
       const filasLocales = filtrar(locales);
       if (memoria.error?.k === k) {
-        lista.innerHTML = `
+        pintarHtml(lista, `
           ${filasLocales.map((j, i) => fila(j, i, modoValorar)).join('')}
           <div class="lista-mensaje">
             <p>No se ha podido buscar en el catálogo. Revisa la conexión.</p>
             <button type="button" class="boton-secundario" data-accion="reintentar">Reintentar</button>
-          </div>`;
+          </div>`);
         return;
       }
-      lista.innerHTML = `<span class="lista-cuenta sk-texto">Buscando…</span>${filasLocales.map((j, i) => fila(j, i, modoValorar)).join('')}${[65, 55, 70, 50, 60].map((w, i) => skeletonFila(w, 30 + (i % 3) * 8)).join('')}`;
+      pintarHtml(lista, `<span class="lista-cuenta sk-texto">Buscando…</span>${filasLocales.map((j, i) => fila(j, i, modoValorar)).join('')}${[65, 55, 70, 50, 60].map((w, i) => skeletonFila(w, 30 + (i % 3) * 8)).join('')}`);
       return;
     }
 
@@ -149,13 +149,13 @@ export function render(el, { ruta, params = [] } = {}) {
     const todos = [...locales, ...res.filter((j) => !ids.has(Number(j.igdb_id)))];
     const filtrados = filtrar(todos);
     if (!filtrados.length) {
-      lista.innerHTML = `<p class="lista-mensaje">${todos.length
+      pintarHtml(lista, `<p class="lista-mensaje">${todos.length
         ? `Ningún resultado en ${esc(memoria.plataforma)}.`
-        : `Sin resultados para «${esc(memoria.texto.trim())}».`}</p>`;
+        : `Sin resultados para «${esc(memoria.texto.trim())}».`}</p>`);
       return;
     }
     const n = filtrados.length;
-    lista.innerHTML = `<span class="lista-cuenta">${n} ${n === 1 ? 'resultado' : 'resultados'}</span>${filtrados.map((j, i) => fila(j, i, modoValorar)).join('')}`;
+    pintarHtml(lista, `<span class="lista-cuenta">${n} ${n === 1 ? 'resultado' : 'resultados'}</span>${filtrados.map((j, i) => fila(j, i, modoValorar)).join('')}`);
   };
 
   const lanzarBusqueda = async () => {

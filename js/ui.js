@@ -319,6 +319,96 @@ export function aplicarAcento(hex) {
   acentoApariencia(hex);
 }
 
+// ---------------------------------------------------------------------------
+// Repintar sin parpadeo: en vez de rehacer todo con innerHTML, se compara el HTML nuevo con
+// lo que se ve. Si es igual, no se toca nada; si no, solo cambian los nodos afectados
+// (emparejados por clave: href, data-k, id o src), así que las imágenes que siguen no se
+// vuelven a crear (ni repiten el fundido ni se recargan) y los elementos nuevos entran con
+// un fundido corto (.cambio-suave).
+// ---------------------------------------------------------------------------
+const plantilla = document.createElement('template');
+const claveDe = (n) => (n.nodeType !== 1 ? null
+  : n.getAttribute('data-k') ?? n.id ?? null) || (n.tagName === 'A' ? n.getAttribute('href') : null) || (n.tagName === 'IMG' ? n.getAttribute('src') : null);
+
+function igualarAtributos(a, b) {
+  if (a.tagName === 'IMG' && a.getAttribute('src') === b.getAttribute('src')) return; // ya cargada: tal cual
+  for (const { name } of [...a.attributes]) if (!b.hasAttribute(name)) a.removeAttribute(name);
+  for (const { name, value } of [...b.attributes]) if (a.getAttribute(name) !== value) a.setAttribute(name, value);
+  // Lo que escribe la persona (o el estado de un <details>) no se pisa.
+  if ((a.tagName === 'INPUT' || a.tagName === 'TEXTAREA') && document.activeElement !== a && 'value' in b && a.value !== b.value) a.value = b.value;
+  if (a.tagName === 'INPUT' && (a.type === 'checkbox' || a.type === 'radio')) a.checked = b.hasAttribute('checked');
+}
+
+function igualarNodo(a, b) {
+  if (a.nodeType === 3 || a.nodeType === 8) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
+  igualarAtributos(a, b);
+  // data-propio: su contenido lo pinta otro código (por su cuenta, con pintarHtml); no se toca.
+  if (!a.hasAttribute('data-propio')) igualarHijos(a, b);
+}
+
+function compatibles(a, b) {
+  return a.nodeType === b.nodeType && (a.nodeType !== 1 || (a.tagName === b.tagName && claveDe(a) === claveDe(b)));
+}
+
+function igualarHijos(a, b) {
+  const nuevos = [...b.childNodes];
+  const viejos = [...a.childNodes];
+  // Por clave (puede repetirse: dos filas del mismo juego), en orden.
+  const porClave = new Map();
+  for (const v of viejos) { const k = claveDe(v); if (k != null) { if (!porClave.has(k)) porClave.set(k, []); porClave.get(k).push(v); } }
+  let i = 0;
+  for (const n of nuevos) {
+    const k = claveDe(n);
+    let v = null;
+    if (k != null) {
+      v = porClave.get(k)?.shift() ?? null;
+      if (v && !compatibles(v, n)) v = null;
+    } else {
+      // Sin clave: el que esté en su sitio, si es del mismo tipo.
+      const aqui = a.childNodes[i];
+      v = aqui && claveDe(aqui) == null && compatibles(aqui, n) ? aqui : null;
+    }
+    if (v) {
+      if (a.childNodes[i] !== v) a.insertBefore(v, a.childNodes[i] ?? null);
+      igualarNodo(v, n);
+    } else {
+      const nuevo = document.importNode(n, true);
+      if (nuevo.nodeType === 1 && viejos.length) nuevo.classList.add('cambio-suave');
+      a.insertBefore(nuevo, a.childNodes[i] ?? null);
+    }
+    i++;
+  }
+  while (a.childNodes.length > i) a.lastChild.remove();
+}
+
+/** Pone este HTML en el elemento tocando solo lo que cambia. → true si ha cambiado algo. */
+export function pintarHtml(el, html) {
+  // Si otro código ha cambiado el contenido con innerHTML, lo guardado ya no vale.
+  const tocado = el.__primero !== el.firstChild || el.__cuantos !== el.childNodes.length;
+  if (el.__html === html && !tocado) return false;
+  const primera = el.__html == null || !el.firstChild;
+  el.__html = html;
+  if (primera) el.innerHTML = html;
+  else {
+    plantilla.innerHTML = html;
+    igualarHijos(el, plantilla.content);
+    plantilla.innerHTML = '';
+  }
+  el.__primero = el.firstChild;
+  el.__cuantos = el.childNodes.length;
+  return true;
+}
+
+/** Un elemento suelto (una tira, un contador) igualado a este HTML: solo cambia lo distinto. */
+export function igualarElemento(el, html) {
+  plantilla.innerHTML = html.trim();
+  const nuevo = plantilla.content.firstElementChild;
+  if (!nuevo) { plantilla.innerHTML = ''; el.remove(); return; }
+  if (nuevo.tagName === el.tagName) igualarNodo(el, nuevo);
+  else el.replaceWith(document.importNode(nuevo, true));
+  plantilla.innerHTML = '';
+}
+
 /** Guarda y restaura el scroll horizontal de los carruseles al repintar. */
 export function conservarScroll(raiz, pintar) {
   const pos = {};

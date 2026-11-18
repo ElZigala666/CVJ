@@ -50,7 +50,7 @@ function cargarSegundoPlano() {
   segundoPlano = true;
   setTimeout(() => enCalma(() => {
     cargarSeleccion();
-    import('./deslizar.js').then((m) => m.iniciarDeslizar(vista, { fotos, indicador: moverIndicador, indicadorQuieto: () => colocarIndicador() }));
+    import('./deslizar.js').then((m) => m.iniciarDeslizar(vista, { foto: fotoDe, indicador: moverIndicador, indicadorQuieto: () => colocarIndicador() }));
     import('./estimaciones.js').then((m) => m.iniciarEstimaciones());
     import('./insignias.js').then((m) => m.iniciarInsignias());
     for (const r of ['inicio', 'perfil', 'buscar', 'rankings', 'juego']) RUTAS[r]().catch(() => {});
@@ -68,7 +68,6 @@ const PESTANAS = [
 const SIN_BARRA = new Set(['juego', 'revisar', 'duplicados', 'coleccion', 'saga', 'escribir', 'entrada', 'columna', 'columnas', 'cementerio', 'propuestas', 'evento']);
 const REFRESCO_MS = 60_000;
 
-let limpiar = null;
 let datosIniciados = false;
 
 // Deslizar entre pestañas (js/deslizar.js): la última foto de cada pestaña principal, para
@@ -76,13 +75,35 @@ let datosIniciados = false;
 const PRINCIPALES = new Set(['inicio', 'buscar', 'rankings', 'perfil']);
 const fotos = new Map();
 let montada = null; // { ruta, params } de la pantalla que se ve
-function guardarFoto() {
-  const p = vista.firstElementChild;
-  if (!p || !montada || !PRINCIPALES.has(montada.ruta) || (montada.params ?? []).filter(Boolean).length) return;
+const esPestana = (c) => !!c?.ruta && PRINCIPALES.has(c.ruta) && !(c.params ?? []).filter(Boolean).length;
+/** Copia de una pantalla para enseñarla quieta (sin ids, sin foco, sin animación). */
+function copiaDe(p) {
   const copia = p.cloneNode(true);
+  copia.hidden = false;
+  copia.classList.add('vuelta');
   for (const x of copia.querySelectorAll('[id]')) x.removeAttribute('id');
   for (const x of copia.querySelectorAll('input, textarea, select, button, a')) x.setAttribute('tabindex', '-1');
-  fotos.set(montada.ruta, copia);
+  return copia;
+}
+function guardarFoto() {
+  if (actual?.pantalla && esPestana(montada)) fotos.set(montada.ruta, copiaDe(actual.pantalla));
+}
+/** La vecina al deslizar: si sigue montada, una copia de cómo está ahora; si no, la última foto. */
+const fotoDe = (ruta) => (vivas.get(ruta) ? copiaDe(vivas.get(ruta).pantalla) : fotos.get(ruta)?.cloneNode(true) ?? null);
+
+// Las pestañas principales ya visitadas se quedan montadas (ocultas): volver es instantáneo y
+// sin repintar. Las demás pantallas se desmontan al salir.
+const vivas = new Map(); // ruta → { pantalla, limpiar, clave, scrollY } (el título lo pone navegar())
+let actual = null;       // la que se ve
+function desmontar(x) {
+  try { x.limpiar?.(); } catch (e) { console.error(e); }
+  x.pantalla.remove();
+}
+/** Al cerrar sesión (o entrar otra persona): fuera todo lo montado. */
+function olvidarPestanas() {
+  for (const x of vivas.values()) desmontar(x);
+  vivas.clear();
+  fotos.clear();
 }
 
 // Indicador de la barra inferior: bajo la pestaña activa; al deslizar, acompaña al dedo.
@@ -225,19 +246,44 @@ async function montar(cargar, contexto, conBarra, scroll = 0) {
   }
   if (turno !== turnoMontar) return; // se ha ido a otra pantalla mientras tanto
   guardarFoto();
-  try { limpiar?.(); } catch (e) { console.error(e); }
-  limpiar = null;
+  // La que se deja: si es una pestaña principal, se queda montada y oculta.
+  if (actual) {
+    if (actual.clave && contexto?.ruta) {
+      actual.scrollY = window.scrollY;
+      actual.pantalla.hidden = true;
+      actual.pantalla.classList.add('vuelta'); // al volver, sin animación de entrada
+      vivas.set(actual.clave, actual);
+    } else desmontar(actual);
+    actual = null;
+  }
+  if (!contexto?.ruta) olvidarPestanas(); // entrar, difunto: sin nada de la sesión anterior
   seleccion?.alCambiarPantalla();
   montada = { ruta: contexto?.ruta, params: contexto?.params };
-
-  const pantalla = document.createElement('div');
-  pantalla.className = 'pantalla';
-  vista.replaceChildren(pantalla);
   barra.hidden = !conBarra;
   document.body.classList.toggle('sin-barra', !conBarra);
 
+  const clave = esPestana(contexto) ? contexto.ruta : null;
+  const viva = clave ? vivas.get(clave) : null;
+  if (viva) {
+    // Ya montada: se enseña tal cual (sus datos se han ido actualizando sin repintar de más).
+    vivas.delete(clave);
+    actual = viva;
+    viva.pantalla.hidden = false;
+    window.scrollTo(0, scroll || viva.scrollY || 0);
+    // Buscar tocando su botón (no deslizando): el teclado, como al entrar la primera vez.
+    if (clave === 'buscar' && document.documentElement.dataset.llegada !== 'deslizar') {
+      const q = viva.pantalla.querySelector('#q');
+      if (q && !q.value) q.focus({ preventScroll: true });
+    }
+    window.dispatchEvent(new Event('cvj:pantalla'));
+    return;
+  }
+
+  const pantalla = document.createElement('div');
+  pantalla.className = 'pantalla';
+  vista.appendChild(pantalla);
   const r = modulo.render(pantalla, contexto);
-  if (typeof r === 'function') limpiar = r;
+  actual = { pantalla, limpiar: typeof r === 'function' ? r : null, clave };
   window.scrollTo(0, scroll);
   // Al volver: lo que se pinta un poco después (imágenes, datos) puede cambiar la altura.
   if (scroll) for (const ms of [50, 200, 500]) setTimeout(() => { if (window.scrollY < scroll - 2) window.scrollTo(0, scroll); }, ms);

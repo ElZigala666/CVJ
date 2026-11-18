@@ -17,6 +17,9 @@ import { abrirFusion } from './fusiones.js';
 import { normalizarBusqueda } from './psn-nombres.js';
 import { resolverDuplicados, TEXTO_RESUELTO } from './horas-ui.js';
 
+// Las pestañas visitadas siguen montadas (ocultas) en #vista: solo cuenta la que se ve.
+const enVista = () => vista?.querySelector(':scope > .pantalla:not([hidden])') ?? vista;
+
 const PULSACION_LARGA_MS = 480;
 const PLATAFORMAS_GENERICAS = ['PS5', 'PS4', 'PC', 'Xbox', 'Switch'];
 const ESTADOS_SIN_FINAL = [
@@ -61,7 +64,7 @@ export function entrarSeleccion(desde = null, marcar = true) {
   if (!vista) return;
   const item = desde?.closest?.('[data-sel]') ?? null;
   const lista = (item ?? desde)?.closest?.('[data-lista]') ?? null;
-  listaIdx = lista ? [...vista.querySelectorAll('[data-lista]')].indexOf(lista) : -1;
+  listaIdx = lista ? [...enVista().querySelectorAll('[data-lista]')].indexOf(lista) : -1;
   if (!activo) {
     activo = true;
     claves.clear();
@@ -96,7 +99,7 @@ export function iniciarSeleccion(contenedor) {
   // Clics: en captura y en window, antes que cualquier otro (también los de los perfiles).
   window.addEventListener('click', (e) => {
     const item = e.target.closest?.('[data-sel]');
-    const enVista = item && vista.contains(item);
+    const enVista = item && enVista().contains(item);
     if (largaHecha) {
       largaHecha = false;
       if (enVista) { e.preventDefault(); e.stopPropagation(); }
@@ -117,7 +120,7 @@ export function iniciarSeleccion(contenedor) {
   window.addEventListener('pointerdown', (e) => {
     ultimoPuntero = e.pointerType;
     const item = e.target.closest?.('[data-sel]');
-    if (!item || !vista.contains(item) || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    if (!item || !enVista().contains(item) || (e.pointerType === 'mouse' && e.button !== 0)) return;
     if (e.target.closest?.(SELECCIONABLE)) return; // sobre el texto: seleccionarlo, no la tarjeta
     largaHecha = false;
     const x0 = e.clientX, y0 = e.clientY;
@@ -144,7 +147,7 @@ export function iniciarSeleccion(contenedor) {
   // Al tocar y mantener, el navegador abre su menú (y algunas pantallas el suyo): aquí no.
   window.addEventListener('contextmenu', (e) => {
     const item = e.target.closest?.('[data-sel]');
-    if (!item || !vista.contains(item) || e.target.closest?.(SELECCIONABLE)) return;
+    if (!item || !enVista().contains(item) || e.target.closest?.(SELECCIONABLE)) return;
     if (ultimoPuntero !== 'mouse' || activo) { e.preventDefault(); e.stopPropagation(); }
   }, true);
 
@@ -176,13 +179,13 @@ function alternar(k) {
 const visible = (el) => el.getClientRects().length > 0;
 
 function itemsDeLista() {
-  const listas = [...vista.querySelectorAll('[data-lista]')];
+  const listas = [...enVista().querySelectorAll('[data-lista]')];
   const raiz = listas[listaIdx] ?? vista;
   return [...raiz.querySelectorAll('[data-sel]')].filter(visible);
 }
 
 function rango(desde, hasta) {
-  const items = [...vista.querySelectorAll('[data-sel]')].filter(visible);
+  const items = [...enVista().querySelectorAll('[data-sel]')].filter(visible);
   const i = items.findIndex((x) => x.dataset.sel === desde);
   const j = items.indexOf(hasta);
   if (i < 0 || j < 0) { alternar(hasta.dataset.sel); return; }
@@ -199,7 +202,7 @@ function pintar() {
 
 function pintarMarcas() {
   if (!vista) return;
-  for (const el of vista.querySelectorAll('[data-sel]')) {
+  for (const el of enVista().querySelectorAll('[data-sel]')) {
     const on = activo && claves.has(el.dataset.sel);
     el.classList.toggle('sel-marcado', on);
     let c = el.querySelector(':scope > .sel-check');
@@ -292,7 +295,7 @@ function montarBarras() {
 // ---------------------------------------------------------------------------
 /** Los juegos elegidos (ids principales, sin repetir, en el orden de la pantalla). */
 function juegosElegidos() {
-  const orden = [...vista.querySelectorAll('[data-sel]')].map((x) => x.dataset.sel);
+  const orden = [...enVista().querySelectorAll('[data-sel]')].map((x) => x.dataset.sel);
   const lista = [...claves].sort((a, b) => (orden.indexOf(a) + 1 || 1e9) - (orden.indexOf(b) + 1 || 1e9));
   const ids = lista.map((k) => (contexto?.juegoDe ? contexto.juegoDe(k) : Number(k))).filter((n) => Number.isFinite(n) && n > 0).map((n) => datos.canonico(n));
   return [...new Set(ids)].filter((id) => datos.juegoConocido(id));

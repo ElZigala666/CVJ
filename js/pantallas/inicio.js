@@ -19,7 +19,7 @@ import { abrirHoja } from '../hoja.js';
 import { imagenPlataforma } from '../portadas.js';
 import {
   esc, cabecera, portada, notaConLetra, avatar, iconoRecomendacion, avatarPerfil, nombrePerfil, avatarInsignia,
-  tiempoRelativo, conservarScroll, aviso, estaRejugando,
+  tiempoRelativo, conservarScroll, aviso, estaRejugando, pintarHtml,
 } from '../ui.js';
 
 const PESTANAS = [
@@ -60,9 +60,11 @@ let pestana = 'mejor'; // se recuerda mientras la app está abierta
 
 export function render(el) {
   const pintar = () => {
-    conservarScroll(el, () => { el.innerHTML = html(); });
+    conservarScroll(el, () => { pintarHtml(el, html()); });
     // "¡Completado!" de los demás: una vez, al entrar (aunque sea días después).
-    import('../celebracion.js').then((m) => { if (el.isConnected) m.revisarCelebraciones(); });
+    // Solo si se ve (las pestañas visitadas siguen montadas, ocultas, y se actualizan solas).
+    if (el.hidden) return;
+    import('../celebracion.js').then((m) => { if (el.isConnected && !el.hidden) m.revisarCelebraciones(); });
     // Quién gana la porra de un evento: una vez, al haber resultados.
     if (datos.datosFrescos()) eventos.celebrarPorra();
   };
@@ -104,7 +106,7 @@ export function render(el) {
     eventos.actualizarCuentas(el, ahora.getTime());
   }, 60_000);
   // Tirar hacia abajo para refrescar (la app instalada no tiene el del navegador).
-  const quitarGesto = tirarParaRefrescar(() => datos.refrescar());
+  const quitarGesto = tirarParaRefrescar(() => datos.refrescar(), () => !el.hidden);
   return () => {
     desuscribir();
     el.removeEventListener('click', alPulsar);

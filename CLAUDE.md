@@ -27,7 +27,13 @@ español (código, comentarios, commits, interfaz).
 - `css/tokens.css` (variables), `css/app.css` (todo, móvil), `css/escritorio.css` (solo
   dentro de media queries anchas; no puede alterar el móvil).
 - `js/app.js`: arranque, rutas por hash (`#inicio`, `#juego/123`...), barra inferior,
-  carga perezosa de pantallas.
+  carga perezosa de pantallas. Las 4 pestañas principales ya visitadas siguen montadas
+  (ocultas, `.pantalla[hidden]`) y volver es instantáneo; lo demás se desmonta al salir.
+  Lo que haga una pantalla oculta (títulos, celebraciones, gestos en window) mira `el.hidden`.
+- Repintar: `pintarHtml(el, html)` (`js/ui.js`) en vez de `innerHTML` en lo que se actualiza
+  con los datos: si el HTML es igual no toca nada; si cambia, solo los nodos afectados
+  (clave: `data-k`, `href`, `id` o `src`; las imágenes no se recrean). `data-propio`: su
+  contenido lo pinta otro código.
 - `js/datos.js`: datos del grupo en memoria + caché IndexedDB, refresco por "huellas",
   escrituras optimistas con reversión. `js/metricas.js`: perfiles, tier list, rankings,
   comparar, horas (`sumarHoras`, `desgloseDe`, estimaciones), memoizado por versión.

@@ -2,8 +2,8 @@
 // nativa: la pantalla actual y la vecina se mueven SIGUIENDO EL DEDO; al soltar, si se ha
 // pasado de un tercio del ancho o el gesto es rápido, termina hacia la vecina; si no, vuelve.
 // En la primera y la última, un rebote elástico. Solo transform (nada de layout).
-//   · La vecina es la foto de la última vez que se vio (app.js la guarda al salir de cada
-//     pestaña) o, si aún no hay, un esqueleto: nunca sale en blanco.
+//   · La vecina es una copia de la pestaña tal como está (las visitadas siguen montadas en
+//     app.js) o, si aún no se ha visitado, un esqueleto: nunca sale en blanco.
 //   · Las subpestañas y chips (Rankings, historial del perfil...) ya no se cambian deslizando.
 //   · Prioridad del scroll: si el gesto empieza en algo que se desliza en horizontal (filas
 //     con scroll, carruseles, chips, deslizadores, campos de texto) o en texto
@@ -49,9 +49,10 @@ const ESQUELETO = `
 
 /**
  * @param {HTMLElement} vista  #vista
- * @param {{ fotos: Map<string, Node>, indicador: (desde: string, hacia: string|null, p: number) => void, indicadorQuieto: () => void }} op
+ * @param {{ foto: (ruta: string) => Node|null, indicador: (desde: string, hacia: string|null, p: number) => void, indicadorQuieto: () => void }} op
+ *   foto: la vecina tal como está (si sigue montada) o su última foto; null = esqueleto.
  */
-export function iniciarDeslizar(vista, { fotos, indicador, indicadorQuieto }) {
+export function iniciarDeslizar(vista, { foto: fotoDe, indicador, indicadorQuieto }) {
   let g = null;        // el gesto en curso
   let capa = null;     // la pestaña vecina
   let capaRuta = null;
@@ -71,8 +72,8 @@ export function iniciarDeslizar(vista, { fotos, indicador, indicadorQuieto }) {
     capa.setAttribute('aria-hidden', 'true');
     const dentro = document.createElement('div');
     dentro.className = 'desliz-app';
-    const foto = fotos.get(ruta);
-    if (foto) dentro.appendChild(foto.cloneNode(true));
+    const foto = fotoDe(ruta);
+    if (foto) dentro.appendChild(foto);
     else dentro.innerHTML = ESQUELETO;
     capa.appendChild(dentro);
     document.body.appendChild(capa);

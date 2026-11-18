@@ -7,7 +7,7 @@ import * as datos from '../datos.js';
 import * as metricas from '../metricas.js';
 import { usuarioActual } from '../sesion.js';
 import { LETRAS, rangoTier, formatearNota, notaALetra as notaLetra } from '../notas.js';
-import { esc, avatar, portada, chipLetra, cabeceraAtras, estadoVacio, tiempoRelativo, aviso, vueltasDe, estaRejugando, notaConLetra } from '../ui.js';
+import { esc, avatar, portada, chipLetra, cabeceraAtras, estadoVacio, tiempoRelativo, aviso, vueltasDe, estaRejugando, notaConLetra, pintarHtml } from '../ui.js';
 import * as social from '../social.js';
 import * as insignias from '../insignias.js';
 import { abrirHoja } from '../hoja.js';
@@ -105,7 +105,7 @@ function renderPerfil(el, id, alSalir) {
       el.innerHTML = `
         ${cabeceraAtras('Perfil')}
         ${estadoVacio({ icono: 'perfil', titulo: 'Este perfil no existe', texto: 'Puede que esa persona ya no esté en el grupo.' })}`;
-      document.title = 'CVJ · Perfil';
+      if (!el.hidden) document.title = 'CVJ · Perfil';
       return;
     }
     // Si estaba escribiendo en un buscador, que siga el foco tras repintar.
@@ -113,7 +113,7 @@ function renderPerfil(el, id, alSalir) {
     const enFiltro = el.contains(activo) && activo.matches?.('[data-filtro-texto]') ? activo.closest('[data-filtro]').dataset.filtro : null;
     const cursor = enFiltro ? activo.selectionStart : null;
 
-    document.title = `CVJ · ${esMio ? 'Perfil' : u.nombre}`;
+    if (!el.hidden) document.title = `CVJ · ${esMio ? 'Perfil' : u.nombre}`;
     const p = metricas.perfil(id);
     const bib = metricas.biblioteca(id);
     const tiempo = metricas.tiempo(id);
@@ -137,7 +137,7 @@ function renderPerfil(el, id, alSalir) {
     const falta = (texto, foco) => `<button type="button" class="perfil-falta" data-accion="editar-perfil" data-foco="${foco}">${icono('mas', { tam: 16, color: 'currentColor' })}<span>${texto}</span></button>`;
     const conPerfil = 'perfil_datos' in u;
 
-    el.innerHTML = `
+    pintarHtml(el, `
       <section class="perfil">
         <header class="perfil-cabecera">
           ${capasCabecera(cab, accDueno)}
@@ -238,7 +238,7 @@ function renderPerfil(el, id, alSalir) {
         <div class="perfil-principal">
         <section class="perfil-seccion">
           <h2 class="seccion-titulo">Historial</h2>
-          <div data-ref="historial" data-deslizar="[data-pestana]"></div>
+          <div data-ref="historial" data-propio></div>
         </section>
 
         ${bloqueResenas(id)}
@@ -258,7 +258,7 @@ function renderPerfil(el, id, alSalir) {
               <h2 class="seccion-titulo">Biblioteca</h2>
               <span class="seccion-extra">${bib.horas ? `${bib.horas} h` : ''}</span>
             </div>
-            <div data-ref="biblioteca"></div>
+            <div data-ref="biblioteca" data-propio></div>
           </section>` : ''}
 
         <section class="perfil-seccion">
@@ -266,7 +266,7 @@ function renderPerfil(el, id, alSalir) {
           ${bloqueBibliotecas(u, esMio, vinculado, bib)}
         </section>
         </div>
-      </section>`;
+      </section>`);
     pintarHistorial(u, p);
     // La biblioteca queda por debajo de lo que se ve: la primera vez se pinta justo después
     // del primer fotograma, para que el cambio de pestaña no espere a cientos de portadas.
@@ -319,16 +319,16 @@ function renderPerfil(el, id, alSalir) {
     const cont = el.querySelector('[data-ref="historial"]');
     if (!cont) return;
     if (!p.jugados && !p.pendientes) {
-      cont.innerHTML = `
+      pintarHtml(cont, `
         <div class="historial-vacio">
           ${icono('valorar', { tam: 28, color: 'var(--acento)', trazo: 'var(--superficie)' })}
           <p>${esMio ? 'Tu historial se irá llenando con los juegos que valores.' : `${esc(u.nombre)} todavía no tiene juegos en su historial.`}</p>
           ${esMio ? '<a class="boton-secundario" href="#valorar">Valorar un juego</a>' : ''}
-        </div>`;
+        </div>`);
       return;
     }
     const activa = pestanaRecordada.get(id);
-    cont.innerHTML = `
+    pintarHtml(cont, `
       <div class="pestanas pestanas-historial" role="tablist" aria-label="Historial">
         ${PESTANAS.map((x) => `
           <button type="button" role="tab" class="pestana${x.id === activa ? ' activa' : ''}" aria-selected="${x.id === activa}" data-pestana="${x.id}">
@@ -336,7 +336,7 @@ function renderPerfil(el, id, alSalir) {
           </button>`).join('')}
       </div>
       ${barraFiltro('hist', fHist)}
-      <div data-ref="rejilla-hist">${rejillaHistorial(u, p)}</div>`;
+      <div data-ref="rejilla-hist">${rejillaHistorial(u, p)}</div>`);
   };
 
   // ----- Biblioteca de PlayStation -------------------------------------------
@@ -377,7 +377,7 @@ function renderPerfil(el, id, alSalir) {
     const sinId = filtrar(bib.sinIdentificar.filter((x) => !x.probado), fBib, datosBiblioteca);
     const nSinId = bib.sinIdentificar.filter((x) => !x.probado).length;
     const nDup = esMio ? metricas.posiblesDuplicados(id).length : 0;
-    cont.innerHTML = `
+    pintarHtml(cont, `
       <p class="bib-recuento">
         <span><strong>${bib.misJuegos.length}</strong> en Mis juegos</span>
         <span><strong>${bib.probados.length}</strong> probados</span>
@@ -414,7 +414,7 @@ function renderPerfil(el, id, alSalir) {
           <ul class="bib-ocultos">
             ${bib.ocultos.map((x) => `
               <li><span>${esc(x.nombre)}</span><button type="button" class="boton-secundario boton-pequeno" data-mostrar="${esc(x.clave)}">Volver a mostrar</button></li>`).join('')}
-          </ul>` : ''}` : ''}`;
+          </ul>` : ''}` : ''}`);
   };
 
   // ----- Ocultar de mi biblioteca (menú ⋮, pulsación larga o clic derecho) ---

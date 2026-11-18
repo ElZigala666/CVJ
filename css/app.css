@@ -3295,3 +3295,14 @@ body.apariencia-abierta > #app, body.apariencia-abierta > #barra { visibility: h
 .hoja { background: var(--fondo); box-shadow: 0 -10px 40px rgba(0, 0, 0, .25); }
 #aviso, #aviso-version { box-shadow: var(--sombra-flotante); }
 .tirar-indicador { background: var(--flotante); box-shadow: var(--sombra-flotante); }
+
+/* Pestañas montadas en segundo plano: ocultas de verdad; al volver, sin animación de entrada.
+   Lo que cambia al actualizar, un fundido corto en su sitio (nunca la pantalla entera). */
+.pantalla[hidden] { display: none !important; }
+.pantalla.vuelta { animation: none !important; }
+.cambio-suave { animation: cambio-suave 220ms ease-out; }
+@keyframes cambio-suave { from { opacity: .35; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .cambio-suave { animation: none; } }
+/* Lo que se mueve al deslizar entre pestañas no ensancha la página: si lo hiciera, el móvil
+   recoloca el viewport y la barra fija desaparece un instante. */
+#app { overflow-x: clip; }

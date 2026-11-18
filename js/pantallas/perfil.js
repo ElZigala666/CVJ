@@ -375,7 +375,7 @@ function renderPerfil(el, id, alSalir) {
       : itemBiblioteca(x, i, esMio));
     const lista2 = metricas.agruparColecciones(id, lista, (x) => x.igdbId);
     return `<div class="rejilla">${lista2.map((x, i) => (x.esColeccion
-      ? itemColeccionBib(x, i, esMio)
+      ? itemColeccionBib(x, i, esMio, id)
       : item(x, i))).join('')}</div>`;
   };
 
@@ -757,7 +757,7 @@ function itemRejilla(v, i, horas, conMenu = false) {
     <div class="bib-celda"${v.esColeccion ? '' : ` data-sel="${j.igdb_id}"`}>
       <a class="rejilla-item" href="${metricas.rutaDe(j)}" data-precarga="${esc(j.cover_id ?? '')}" aria-label="${esc(j.nombre)}${v.esColeccion ? ' (coleccion)' : ''}${n ? `, ${n}` : ''}${h ? `, ${h}` : ''}">
         ${portada(j, { clase: 'portada-rejilla', titulo: 'arriba', prioridad: i < 6 })}
-        ${v.esColeccion ? `<span class="sello-coleccion">Colección · ${datos.juegosDeColeccion(v.coleccion_id).length}</span>` : ''}
+        ${v.esColeccion ? `<span class="sello-coleccion">${esc(metricas.etiquetaColeccion(v.coleccion_id, v.usuario_id))}</span>` : ''}
         ${!v.esColeccion && estaRejugando(v) ? '<span class="sello-rejugando">Rejugando</span>' : !v.esColeccion && vueltasDe(v) > 1 ? `<span class="sello-vueltas">×${vueltasDe(v)}</span>` : ''}
         ${n || h ? `<span class="rejilla-nota">${n ? `${n}${chipLetra(notaLetra(v.nota), 'mini')}` : ''}${h ? `<span class="rejilla-horas">${h}</span>` : ''}</span>` : ''}
       </a>
@@ -766,7 +766,7 @@ function itemRejilla(v, i, horas, conMenu = false) {
 }
 
 /** Biblioteca: tarjeta de una colección con los juegos que junta (los que no tienen valoración propia). */
-function itemColeccionBib(x, i, esMio) {
+function itemColeccionBib(x, i, esMio, uid) {
   const horas = metricas.textoAprox(x.horas, x.horasEstimadas);
   const v = x.valoracion;
   const n = v?.nota != null ? formatearNota(v.nota) : null;
@@ -774,7 +774,7 @@ function itemColeccionBib(x, i, esMio) {
     <div class="bib-celda" data-bib-celda="${esc(x.clave)}">
       <a class="rejilla-item" href="#coleccion/${esc(x.coleccion.id)}" data-precarga="${esc(x.juego.cover_id ?? '')}" aria-label="${esc(x.coleccion.nombre)} (coleccion)${horas ? `, ${horas}` : ''}">
         ${portada(x.juego, { clase: 'portada-rejilla', titulo: 'arriba', prioridad: i < 6 })}
-        <span class="sello-coleccion">Colección · ${x.hijos.length}</span>
+        <span class="sello-coleccion">${esc(metricas.etiquetaColeccion(x.coleccion.id, uid))}</span>
         <span class="rejilla-nota">
           ${n ? `${n}${chipLetra(notaLetra(v.nota), 'mini')}` : ''}
           ${horas ? `<span class="rejilla-horas">${horas}</span>` : (n ? '' : '<span class="rejilla-horas">Sin horas</span>')}

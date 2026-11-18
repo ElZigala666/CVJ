@@ -15,7 +15,14 @@ import { colorDominante, hexAHsl } from '../color-dominante.js';
 import { elegirJuegos } from '../colecciones-ui.js';
 import { bloqueColumnas } from '../columnas-ui.js';
 
-export function render(el, { params }) {
+export function render(el, ctx) {
+  const { params } = ctx;
+  // #saga/{id}/editar: el editor del admin (js/pantallas/editar-grupo.js).
+  if (params[1] === 'editar') {
+    let limpiar = null; let fuera = false;
+    import('./editar-grupo.js').then((m) => { if (!fuera) limpiar = m.render(el, ctx, 'saga'); });
+    return () => { fuera = true; limpiar?.(); };
+  }
   const id = params[0];
   const yo = usuarioActual();
   const esAdmin = () => !!datos.usuario(yo?.id)?.es_admin;
@@ -126,7 +133,7 @@ export function render(el, { params }) {
                   </div>
                 </div>` : '<button type="button" class="enlace-discreto peligro-texto" data-accion="pedir-ocultar">Ocultar saga</button>'}
               <button type="button" class="boton-principal" data-accion="editar">Hecho</button>`
-            : `<button type="button" class="enlace-discreto" data-accion="editar">Editar saga (admin)</button>
+            : `<a class="enlace-discreto" href="#saga/${esc(id)}/editar">Editar saga (admin)</a>
                <p class="ajustes-nota">Sale sola de IGDB. Si se equivoca, aquí puedes renombrarla, quitar o añadir juegos, fusionarla u ocultarla.</p>`}
           </section>` : ''}
       </section>`;

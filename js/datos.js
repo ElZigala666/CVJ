@@ -1792,7 +1792,9 @@ export function anadirAColeccion(coleccionId, ids, onError) {
   const lista = [...new Set(ids.map((x) => canonico(x)))].filter((j) => indices.coleccionDeJuego.get(j) !== coleccionId);
   if (!lista.length) return Promise.resolve(true);
   const faltan = juegosQueFaltan(lista);
-  const max = juegosDeColeccion(coleccionId).length;
+  // Al final de verdad: tras el mayor "orden" (si se quitó alguno, quedan huecos y contar
+  // los juegos daría un número ya usado: dos juegos en el mismo puesto).
+  const max = ordenMaximo(coleccionId);
   const filas = lista.map((j, i) => ({ juego_id: j, coleccion_id: coleccionId, orden: max + i + 1, creado_en: ahora }));
   return escribirOptimista(
     (s) => {
@@ -1834,9 +1836,13 @@ export function ordenarColeccion(coleccionId, ids, onError) {
   );
 }
 
+/** El mayor "orden" de una colección (0 si está vacía). */
+const ordenMaximo = (coleccionId) => Math.max(0, ...(estado.coleccionesJuegos ?? []).filter((x) => x.coleccion_id === coleccionId).map((x) => Number(x.orden) || 0));
+
 /** Junta la colección "origen" dentro de "destino" (sus juegos van al final). */
 export function fusionarColecciones(destino, origen, onError) {
-  const max = juegosDeColeccion(destino).length;
+  // Como en el servidor (fusionar_colecciones): tras el mayor orden del destino.
+  const max = ordenMaximo(destino) + 1;
   return escribirOptimista(
     (s) => {
       s.coleccionesJuegos = (s.coleccionesJuegos ?? []).map((x) => (x.coleccion_id === origen ? { ...x, coleccion_id: destino, orden: max + x.orden } : x));

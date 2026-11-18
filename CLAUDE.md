@@ -44,6 +44,12 @@ español (código, comentarios, commits, interfaz).
 - `js/hoja-valorar.js` valorar (estado, nota, plataformas, reseña, cuenta en ranking).
 - `js/horas-ui.js` desglose de horas con control manual; `js/estimaciones.js` automático.
 - `js/fusiones.js` "¿Es el mismo juego?"; `js/colecciones-ui.js`; `js/menu-juego.js`.
+  `js/pantallas/editar-grupo.js`: editor de admin de una colección (#coleccion/{id}/editar) o
+  saga (#saga/{id}/editar): nombre, portada, buscador para añadir varios (los que ya están,
+  marcados), arrastrar para ordenar (tirador; en móvil, pulsación larga) con ↑/↓, "Por fecha" /
+  "Por nombre", quitar con Deshacer, fusionar y eliminar u ocultar. Las sagas, en orden de salida.
+  Etiqueta de una colección: `metricas.etiquetaColeccion(id, uid?)` ("Colección · 14 juegos" o
+  "Colección · 6 de 14 jugados"), con los datos enteros, nunca con lo filtrado en pantalla.
 - `js/seleccion.js` selección múltiple; `js/deslizar.js` deslizar entre las 4 pestañas
   principales siguiendo el dedo (vecina = foto que guarda app.js al salir, o esqueleto;
   indicador de la barra; las subpestañas ya no se deslizan; lo que tiene scroll horizontal
@@ -147,7 +153,8 @@ español (código, comentarios, commits, interfaz).
 - `valoraciones` (usuario, juego): `estado` jugando/completado/abandonado/pendiente,
   `nota` 0-10, `recomendado`, `resena`, `plataformas[]`, `cuenta_ranking`, `vueltas`,
   `rejugando`, `jugando_desde`. Se quedan en la versión jugada; cuentan en el principal.
-- `colecciones` + `colecciones_juegos` + `valoraciones_coleccion`: juegos que cuentan
+- `colecciones` + `colecciones_juegos` (`orden`: lo nuevo va tras el MAYOR orden, no tras el
+  número de juegos) + `valoraciones_coleccion`: juegos que cuentan
   como UNO (FIFA/EA FC): nota, horas y tarjeta únicas. Solo el admin las crea.
 - `sagas` + `sagas_juegos` (`manual`, `excluido`) + `sagas_usuario`: juegos independientes
   que se ven juntos (Persona, Zelda), generadas desde IGDB; no se valoran.

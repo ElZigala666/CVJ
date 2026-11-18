@@ -896,6 +896,37 @@ export function statsColeccion(coleccionId) {
  * una tarjeta de la colección (en el sitio del primero). Los que tienen valoración propia
  * siguen sueltos. → items y { esColeccion, coleccion, juego, hijos, horas, valoracion, clave }
  */
+/**
+ * Juegos de una colección que ha jugado alguien: los de su biblioteca (sin ocultar) y los que
+ * ha valorado sueltos. Con los datos enteros (nunca con lo filtrado en pantalla).
+ */
+export function jugadosDeColeccion(uid, coleccionId) {
+  const ids = new Set(datos.juegosDeColeccion(coleccionId));
+  const jugados = new Set();
+  for (const f of datos.bibliotecaDe(uid)) {
+    if (f.oculto) continue;
+    const g = datos.igdbDeBiblioteca(f);
+    if (g != null && ids.has(datos.canonico(g))) jugados.add(datos.canonico(g));
+  }
+  for (const id of ids) if (datos.miValoracion(uid, id)) jugados.add(id);
+  return { jugados: jugados.size, total: ids.size };
+}
+
+/**
+ * La etiqueta de una colección: "Colección · 14 juegos" o, en el perfil de alguien,
+ * "Colección · 3 de 14 jugados". Sin juegos cargados (aún), solo "Colección": nunca un
+ * número a medias.
+ */
+export function etiquetaColeccion(coleccionId, uid = null) {
+  const total = datos.juegosDeColeccion(coleccionId).length;
+  if (!total) return 'Colección';
+  if (uid) {
+    const { jugados } = jugadosDeColeccion(uid, coleccionId);
+    if (jugados && jugados < total) return `Colección · ${jugados} de ${total} jugados`;
+  }
+  return `Colección · ${total} ${total === 1 ? 'juego' : 'juegos'}`;
+}
+
 export function agruparColecciones(uid, items, idDe) {
   if (!datos.hayColecciones() || !datos.colecciones().length) return items;
   const salida = [];

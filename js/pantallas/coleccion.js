@@ -23,7 +23,14 @@ import * as social from '../social.js';
 
 const ESTADO_COLECCION = { jugando: 'La sigue', abandonado: 'La dejó', pendiente: 'Pendiente' };
 
-export function render(el, { params }) {
+export function render(el, ctx) {
+  const { params } = ctx;
+  // #coleccion/{id}/editar: el editor del admin (js/pantallas/editar-grupo.js).
+  if (params[1] === 'editar') {
+    let limpiar = null; let fuera = false;
+    import('./editar-grupo.js').then((m) => { if (!fuera) limpiar = m.render(el, ctx, 'coleccion'); });
+    return () => { fuera = true; limpiar?.(); };
+  }
   const id = params[0];
   const yo = usuarioActual();
   const vista = { editando: false, confirmarBorrar: false };
@@ -91,7 +98,7 @@ export function render(el, { params }) {
           </div>
         </div>` : sg.es_online ? '<div class="ficha-online"><span class="etiqueta-gris">Sin final (online, competitivo...)</span></div>' : ''}
       ${!datos.usuario(yo?.id)?.es_admin ? '' : `<div class="coleccion-editar-fila">
-        <button type="button" class="boton-secundario boton-pequeno" data-accion="editar" aria-pressed="${vista.editando}">${vista.editando ? 'Hecho' : 'Editar colección'}</button>
+        <a class="boton-secundario boton-pequeno" href="#coleccion/${esc(sg.id)}/editar">Editar colección</a>
       </div>`}`;
   }
 

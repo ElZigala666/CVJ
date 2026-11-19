@@ -1,8 +1,9 @@
 // Pantallas 07a (Ranking del grupo) y 07b (Comparar), y la Tier list y las Estadísticas de
-// cualquiera (con la fila de personas para cambiar sin salir; la tier list, también "Grupo").
+// cualquiera (con la fila de personas para cambiar sin salir, y "Grupo": la tier list con la
+// nota media de todos y las estadísticas del grupo).
 //   #rankings
 //   #rankings/tiers/{id|grupo}
-//   #rankings/estadisticas/{id}
+//   #rankings/estadisticas/{id|grupo}
 //   #rankings/comparar/{idA}/{idB}
 import { icono } from '../icons.js';
 import * as datos from '../datos.js';
@@ -12,7 +13,7 @@ import { formatearNota, notaALetra } from '../notas.js';
 import { esc, avatar, avatarInsignia, portada, notaConLetra, estadoVacio, pintarHtml } from '../ui.js';
 import { reemplazarRuta } from '../navegacion.js';
 import { abrirHoja } from '../hoja.js';
-import { chipsUsuarios, htmlTiers, htmlTiersGrupo, htmlEstadisticas } from '../vistas-perfil.js';
+import { chipsUsuarios, htmlTiers, htmlTiersGrupo, htmlEstadisticas, htmlEstadisticasGrupo, clicEstadisticas, observarGraficos } from '../vistas-perfil.js';
 
 const MODOS = [
   ['grupo', 'Ranking'],
@@ -41,9 +42,11 @@ export function render(el, { params }) {
         </div>
         <div data-ref="contenido">${modo === 'grupo' ? grupo() : modo === 'comparar' ? comparar(params) : porPersona(modo, quien)}</div>
       </section>`);
+    if (modo === 'estadisticas') observarGraficos(el);
   };
 
   el.addEventListener('click', (e) => {
+    if (clicEstadisticas(e)) return;
     const chip = e.target.closest('[data-usuario]');
     if (chip && (modo === 'tiers' || modo === 'estadisticas')) {
       if (chip.dataset.usuario !== quien) reemplazarRuta(`#rankings/${modo}/${chip.dataset.usuario}`);
@@ -69,10 +72,11 @@ export function render(el, { params }) {
 
 /** Tier list o estadísticas de alguien (o la tier list del grupo), con la fila de personas. */
 function porPersona(modo, quien) {
-  const grupo = modo === 'tiers';
-  const id = quien === 'grupo' && grupo ? 'grupo' : (datos.usuario(quien) ? quien : usuarioActual()?.id);
-  const cuerpo = id === 'grupo' ? htmlTiersGrupo() : modo === 'tiers' ? htmlTiers(id) : `<div class="perfil-stats">${htmlEstadisticas(id)}</div>`;
-  return `${chipsUsuarios(id, { grupo })}${cuerpo}`;
+  const id = quien === 'grupo' ? 'grupo' : (datos.usuario(quien) ? quien : usuarioActual()?.id);
+  const cuerpo = modo === 'tiers'
+    ? (id === 'grupo' ? htmlTiersGrupo() : htmlTiers(id))
+    : `<div class="perfil-stats">${id === 'grupo' ? htmlEstadisticasGrupo() : htmlEstadisticas(id)}</div>`;
+  return `${chipsUsuarios(id, { grupo: true })}${cuerpo}`;
 }
 
 // ---------------------------------------------------------------------------

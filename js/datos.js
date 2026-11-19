@@ -42,7 +42,7 @@ const COLUMNAS_USUARIO = 'id, nombre, inicial, color, acento, creado_en';
 const COLUMNAS_ENTRADA = 'id, columna_id, usuario_id, juego_id, coleccion_id, saga_id, titulo, subtitulo, palabras, estado, publicada_en, creado_en, actualizado_en';
 const PAGINA = 1000;
 const SIN_USUARIO = '00000000-0000-0000-0000-000000000000';
-const COLUMNAS_JUEGO = 'igdb_id, nombre, slug, cover_id, anio, plataformas, desarrolladora, generos, actualizado_en, color_dominante, es_online, es_online_manual, relaciones, ttb_historia, ttb_extras, ttb_completo, mostrar_como, arte_id';
+const COLUMNAS_JUEGO = 'igdb_id, nombre, slug, cover_id, anio, plataformas, desarrolladora, generos, actualizado_en, color_dominante, es_online, es_online_manual, relaciones, ttb_historia, ttb_extras, ttb_completo, mostrar_como, arte_id, temas, modos, perspectivas, desarrolladoras, franquicia';
 
 /**
  * Las tablas que se cargan: k = dónde va en estado, t = tabla, orden = columnas para
@@ -55,7 +55,8 @@ const TABLAS = [
     alt: `${COLUMNAS_USUARIO}, foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas, estimar_horas, apariencia, perfil_datos, social_visto_en, insignias_visto_en, exorcizado` },
   { k: 'valoraciones', t: 'valoraciones', orden: ['id'], esencial: true },
   // v: con arte_id (cabecera del perfil): la caché de antes se vuelve a pedir una vez.
-  { k: 'juegos', t: 'juegos', orden: ['igdb_id'], esencial: true, sel: COLUMNAS_JUEGO, alt: '*', v: '2' },
+  // v3: con la clasificación (temas, modos, perspectivas...; migración 045).
+  { k: 'juegos', t: 'juegos', orden: ['igdb_id'], esencial: true, sel: COLUMNAS_JUEGO, alt: '*', v: '3' },
   { k: 'actividad', t: 'actividad', esencial: true, q: () => `order=creado_en.desc&limit=${LIMITE_ACTIVIDAD}`, unaPagina: true },
   { k: 'biblioteca', t: 'biblioteca', orden: ['id'] },
   { k: 'psnIgdb', t: 'psn_igdb', orden: ['psn_title_id'] },
@@ -294,6 +295,32 @@ function avisar() {
   avisarSocial();
 }
 
+// ---------------------------------------------------------------------------
+// Actividad de un año de alguien (el mapa de calor de sus estadísticas): se pide al verla
+// (la actividad que se carga al arrancar son solo las últimas filas del grupo) y se guarda
+// mientras la app está abierta. → null mientras llega.
+// ---------------------------------------------------------------------------
+const actividadesAnuales = new Map();
+export function actividadAnual(uid) {
+  const x = actividadesAnuales.get(uid);
+  if (x && (x.filas || Date.now() - x.pedido < 60000)) return x.filas ?? null;
+  const desde = new Date(Date.now() - 371 * 86400000).toISOString();
+  const pedido = { filas: null, pedido: Date.now() };
+  actividadesAnuales.set(uid, pedido);
+  (async () => {
+    const filas = [];
+    for (let desdeFila = 0; desdeFila < 20000; desdeFila += PAGINA) {
+      const trozo = await api(`/rest/v1/actividad?select=id,tipo,juego_id,coleccion_id,creado_en&usuario_id=eq.${encodeURIComponent(uid)}&creado_en=gte.${encodeURIComponent(desde)}&order=creado_en.asc,id.asc&offset=${desdeFila}&limit=${PAGINA}`);
+      filas.push(...(trozo ?? []));
+      if (!trozo || trozo.length < PAGINA) break;
+    }
+    pedido.filas = filas;
+    version++;
+    avisar();
+  })().catch((e) => console.warn('[actividad anual]', e.message));
+  return null;
+}
+
 // Reacciones, respuestas y lecturas: lo que se escribe desde aquí solo avisa a quien lo
 // pinta (js/social.js cambia las tiras en su sitio), sin repintar la pantalla entera.
 const oyentesSocial = new Set();
@@ -485,13 +512,18 @@ export function marcarCelebracionesVistas(usuarioId, actividadIds) {
 // Horas estimadas con el tiempo para terminar de IGDB
 // ---------------------------------------------------------------------------
 /** El tiempo para terminar del juego principal o, si no tiene, el de alguna versión. */
+// Tiempos imposibles (IGDB tiene datos basura: "73 266 h" de historia): no se usan.
+export const MAX_TTB = { historia: 300, extras: 600, completo: 1500 };
 export function tiempoParaTerminar(igdbId) {
   const id = canonico(igdbId);
+  // Un juego sin final no tiene "tiempo para terminar".
+  if (esOnline(id)) return null;
   for (const v of [id, ...aliasDe(id)]) {
     const j = juego(v);
     if (j && (j.ttb_historia != null || j.ttb_extras != null || j.ttb_completo != null)) {
-      const n = (x) => (x != null ? Number(x) : null);
-      return { historia: n(j.ttb_historia), extras: n(j.ttb_extras), completo: n(j.ttb_completo) };
+      const n = (x, k) => (x != null && Number(x) > 0 && Number(x) <= MAX_TTB[k] ? Number(x) : null);
+      const t = { historia: n(j.ttb_historia, 'historia'), extras: n(j.ttb_extras, 'extras'), completo: n(j.ttb_completo, 'completo') };
+      return t.historia == null && t.extras == null && t.completo == null ? null : t;
     }
   }
   return null;

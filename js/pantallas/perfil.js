@@ -26,7 +26,7 @@ import { entrarSeleccion } from '../seleccion.js';
 import { imagenPlataforma } from '../portadas.js';
 import { perfilDe, cabeceraEfectiva, capasCabecera } from '../perfil-personal.js';
 import { padrino } from '../propuestas.js';
-import { htmlTiers, htmlEstadisticas, htmlColumna } from '../vistas-perfil.js';
+import { htmlTiers, htmlEstadisticas, htmlColumna, clicEstadisticas, observarGraficos } from '../vistas-perfil.js';
 
 // Pestañas del perfil (la de Columna, solo si tiene). La última elegida se recuerda aquí.
 const PESTANAS_PERFIL = [
@@ -249,6 +249,7 @@ function renderPerfil(el, id, alSalir, pedida = null) {
         </div>
       </section>`);
     if (pestana === 'historial') pintarHistorial(u, p);
+    if (pestana === 'estadisticas') observarGraficos(el);
     // La biblioteca, la primera vez, justo después del primer fotograma (cientos de portadas).
     if (pestana === 'biblioteca' && hayBiblioteca) {
       if (primeraPintada) requestAnimationFrame(() => setTimeout(() => { if (el.isConnected) pintarBiblioteca(metricas.biblioteca(id)); }, 0));
@@ -526,6 +527,7 @@ function renderPerfil(el, id, alSalir, pedida = null) {
   };
 
   el.addEventListener('click', (e) => {
+    if (clicEstadisticas(e)) return;
     const pp = e.target.closest('[data-ppestana]');
     if (pp) { cambiarPestana(pp.dataset.ppestana); return; }
     if (e.target.closest('[data-accion="insignias"]')) { insignias.abrirColeccion(id); return; }

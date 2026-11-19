@@ -11,7 +11,8 @@ español (código, comentarios, commits, interfaz).
   código personal (se guarda su SHA-256 en `usuarios.codigo_hash`) y la sesión vive en
   localStorage. RLS abierto a `anon` en casi todo (es un grupo de confianza).
 - **Edge Functions** (Deno, `supabase/functions/*`, siempre `verify_jwt = false`):
-  - `igdb`: proxy de IGDB (buscar, fichas, sagas, tiempo para terminar, emparejar PSN).
+  - `igdb`: proxy de IGDB (buscar, fichas, sagas, tiempo para terminar, emparejar PSN) y
+    clasificación (acción `clasificar`, cron `cvj-clasificar` cada hora: los de `temas` null).
   - `psn`: PlayStation no oficial (cada uno pega su NPSSO); trofeos y horas.
   - `xbox`: OpenXBL por gamertag con la clave del grupo (cupo en `openxbl_uso`).
   - `steam`: inicio de sesión oficial (OpenID 2.0) + GetOwnedGames.
@@ -86,8 +87,21 @@ español (código, comentarios, commits, interfaz).
   escritorio, datos a la izquierda (fijos) y pestañas a la derecha. El contenido de Tier list,
   Estadísticas y Columna sale de `js/vistas-perfil.js` (también lo usan `#columna/{id}` y
   Rankings). Rankings: Ranking · Tier list · Estadísticas · Comparar; `#rankings/tiers/{id|grupo}`
-  y `#rankings/estadisticas/{id}` con la fila de personas; "Grupo" = tier list con la nota
-  media de todos (`metricas.tierListGrupo()`, desde 1 nota).
+  y `#rankings/estadisticas/{id|grupo}` con la fila de personas; "Grupo" = tier list con la nota
+  media de todos (`metricas.tierListGrupo()`, desde 1 nota) y las estadísticas del grupo.
+- Estadísticas (`htmlEstadisticas` / `htmlEstadisticasGrupo` de `js/vistas-perfil.js`): resumen
+  compacto, revelaciones (placer culpable, más duro/blando, década, estudio, saga, especialidad),
+  ADN de jugador (radar de los 8 géneros más jugados del grupo, raíz del reparto, "Comparar con"),
+  géneros favoritos (por juegos / horas / nota, con portadas), anillos de temas, modos y
+  perspectiva, "Tu año en juegos" (mapa de calor; la actividad del año se pide aparte:
+  `datos.actividadAnual(uid)`) y plataformas y horas. Grupo: juego que más une, ADN, géneros,
+  especialistas (el que más parte de lo suyo dedica a ese género), curiosidades, anillos. Con
+  pocos datos (menos de 5 juegos con ese dato) la sección no sale. Tocar un trozo abre sus juegos
+  (`clicEstadisticas`, que llaman perfil y Rankings; `observarGraficos` anima al entrar en
+  pantalla). Datos en `js/clasificacion.js` (agrupa etiquetas finas: `AGRUPAR`; regla de
+  colecciones, versiones, horas totales y `cuentaEnRanking`); SVG a mano en `js/graficos.js`
+  (colores `--s0..--s6` derivados del acento en `.graf`). En escritorio, las columnas dependen del
+  ancho del contenedor (`@container`), no de la ventana.
 - `js/insignias.js`: catálogo de insignias (condiciones), medallas SVG, cálculo memorizado
   por versión de datos, guardado de cambios tras cada refresco, avisos y vitrina del perfil.
 - `js/cementerio.js`: vidas y muertes (`historia(uid)`), récords, epitafios, reanimaciones
@@ -144,6 +158,10 @@ español (código, comentarios, commits, interfaz).
   'u-gonzalo'` abre la app como ese expulsado; códigos GONZA2, NACHO2, RUBEN2), los eventos
   (`prueba-eventos.json`, también excluido: copia del evento real con sus juegos) y las propuestas (abiertas, una aparcada, Mateo entró por una, una rechazada;
   `window.__propuestas`) salen en cualquier escenario menos `vacio`; `window.__fallar = true` simula sin red).
+  `localStorage['prueba.escenario'] = 'real'`: las tablas reales desde `prueba-real.json` (excluido
+  de git; copia de solo lectura sin códigos ni tokens) para comprobar números con datos reales;
+  entra como el admin o `localStorage['prueba.yo']`. Las capturas del panel salen recortadas en
+  móvil emulado: mejor un iframe de 390 px en escritorio.
 - `herramientas/`: restaurar copia (`RESTAURAR.md`, `restaurar-copia.sh`), pruebas de
   PSN/Xbox/buscador, generar iconos y hash de código.
 - `cvj-diseno/`: diseño original de referencia (no se publica).
@@ -161,7 +179,10 @@ español (código, comentarios, commits, interfaz).
   consulta de contenedor en `.cab-capa` enseña la que más se parece a la forma real),
   `umbral_probados`, `estimar_horas`, `plataformas_ocultas`.
 - `juegos` (PK `igdb_id`): caché de IGDB + `es_online`(_manual) = sin final,
-  `relaciones` (jsonb de IGDB), `ttb_*` tiempo para terminar, `mostrar_como` (versión
+  `relaciones` (jsonb de IGDB), `ttb_*` tiempo para terminar (sin imposibles: > 300 h historia,
+  600 extras, 1500 completo; migración 046), `generos`, `temas`, `modos`, `perspectivas`,
+  `desarrolladoras`, `franquicia` (traducidos en la función; `temas` null = sin clasificar;
+  migración 045), `mostrar_como` (versión
   cuya portada/nombre se enseña), `arte_id`/`arte_tipo` arte horizontal de IGDB (artwork o
   captura; `t_1080p`; acción "arte", cron cada hora) y `artes` (todas las apaisadas, acción
   "artes", al editar la cabecera).
@@ -280,7 +301,8 @@ español (código, comentarios, commits, interfaz).
   - Posible duplicado Steam/Xbox: solo aviso (no cambia el total); el usuario decide en
     `horas_ajustes` (excluir línea o "son partidas distintas").
   - Estimadas: la automática se retira sola si hay horas reales o extra; la elegida a mano
-    no la toca el automático; borrar = `descartada`.
+    no la toca el automático; borrar = `descartada`. Nunca en juegos sin final ni con tiempos
+    imposibles (`datos.MAX_TTB`).
 - **Colecciones vs sagas**: colección = un solo juego a efectos de nota y horas (la crea el
   admin); saga = agrupación visual de juegos que se valoran por separado (automática).
 - **Regla única de las colecciones**: si un juego está en una colección, NUNCA sale suelto.

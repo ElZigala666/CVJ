@@ -44,6 +44,7 @@ export function tamPara(anchoCss) {
 
 // Ancho CSS de cada tipo de contenedor (el mismo que en css/app.css).
 export const ANCHOS = {
+  'portada-mini': 22,
   'portada-hoja': 42,
   'portada-actividad': 44,
   'portada-lista': 54,

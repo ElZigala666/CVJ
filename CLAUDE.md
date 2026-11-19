@@ -19,7 +19,7 @@ español (código, comentarios, commits, interfaz).
     (expulsar, exorcizar, levantar, readmitir, vetar, permitir → `admin_vida()`), las
     apelaciones (`apelaciones` lista con texto, `apelacion_aceptar`, `apelacion_rechazar` →
     `admin_apelacion()`) y las propuestas (aparcar, reabrir, rechazar → `admin_propuesta()`; `crear` con `propuesta_id`
-    la acepta y enlaza a la persona). Comprueba
+    la acepta y enlaza a la persona) y `whatsapp` (ver/guardar el número del Dictador). Comprueba
     `es_admin` de quien llama. La app la llama con `js/admin-api.js`.
 
 ## Mapa de archivos
@@ -37,7 +37,9 @@ español (código, comentarios, commits, interfaz).
 - `js/datos.js`: datos del grupo en memoria + caché IndexedDB, refresco por "huellas",
   escrituras optimistas con reversión. `js/metricas.js`: perfiles, tier list, rankings,
   comparar, horas (`sumarHoras`, `desgloseDe`, estimaciones), memoizado por versión.
-- `js/notas.js` escala S-F. `js/sesion.js` + `js/codigo.js` login. `js/supabase.js`
+- `js/notas.js` escala S-F. `js/sesion.js` + `js/codigo.js` login (por `entrar(hash)`: el
+  hash no se puede leer con la clave pública; la sesión guarda también el hash, el id del
+  dispositivo `cvj.dispositivo` y manda `latido()` al abrir y cada 20 min). `js/supabase.js`
   cliente (solo para escribir). `js/config.js` URL y clave pública.
 - `js/ui.js` piezas HTML; `js/icons.js` iconos propios rellenos; `js/hoja.js` hoja
   inferior genérica; `js/portadas.js`, `js/color-dominante.js`.
@@ -89,7 +91,11 @@ español (código, comentarios, commits, interfaz).
 - `js/apelaciones.js`: apelaciones de los expulsados (aviso de Inicio y hoja del admin con
   Aceptar/Rechazar, sección de Gestionar grupo, "Ha apelado N veces", filas de actividad).
   `js/pantallas/difunto.js`: lo que ve un expulsado en vez del login (su lápida y Apelar);
-  `sesion.js` guarda `cvj.difunto` ({id, hash}) y, si lo aceptan, entra solo con ese hash.
+  `sesion.js` guarda `cvj.difunto` ({id, hash}); al expulsarle NO se borra su identidad del
+  dispositivo y, si vuelve, entra solo (con el hash o con `entrar_dispositivo()`).
+- `js/llamada.js` + `js/pantallas/llamada.js` (#llamada/{token}, con o sin sesión): enlaces de
+  confirmación de reanimar y proponer (hoja con Compartir/Copiar y texto listo, página con
+  "Aceptar" sin pedir datos, botón "Escribir al Dictador" por wa.me con mensajes graciosos).
 - `js/eventos.js`: eventos destacados (galas: TGA, Summer Game Fest, Directs...): activos,
   banner de Inicio (cuenta atrás; se cierra por persona en localStorage hasta que sube
   `aviso_version`), categorías incluidas, voto/pronóstico, resúmenes del grupo, veredicto de
@@ -200,6 +206,21 @@ español (código, comentarios, commits, interfaz).
   padrino / Mal padrino). Solo lectura desde la app: `proponer()` (máx. 2 abiertas por
   persona; el que propone vota a favor solo; un rechazado no vuelve hasta 30 días),
   `votar_propuesta()` y `admin_propuesta()`. Salen en la actividad desde `propuestas`.
+- Confirmación del interesado (migración 043): reanimar y proponer quedan PENDIENTES hasta
+  que el interesado acepta en su enlace (`enlaces`, PRIVADA: token de un uso; 72 h reanimar,
+  7 días proponer; caducan en `completar_reanimaciones()`). Reanimaciones: pendiente →
+  en_curso (aceptó con su código o desde un dispositivo que le reconoce: 12 h de veto) |
+  sin_codigo (solo vuelve si el admin aprueba: "Permitir" + código nuevo) | caducada ("no
+  respondió a la llamada"); `caduca_en`, `respondida_en`, `termina_en` solo desde que responde.
+  Propuestas: esperando → abierta (ya se vota; el aviso a todos sale entonces) | caducada.
+  Antiengaño en `aceptar_enlace()`: no desde el navegador con la sesión de alguien activo ni
+  desde un dispositivo (30 días) o IP (7 días, hash; en IPv6 su /64) de alguien activo
+  (`accesos`, PRIVADA, la llena `latido()`). Reconocido = dispositivo donde entró con su
+  código (`accesos.verificado`). El WhatsApp del Dictador en `ajustes_privados` (solo sale en
+  `ver_enlace()` / `estado_difunto()`). `usuarios`: anon no lee `codigo_hash` ni cambia
+  id/codigo_hash/es_admin/activo/exorcizado/propuesta_id/creado_en ni inserta: **una columna
+  nueva en usuarios necesita su `grant select (col)` (y `grant update (col)` si la cambia la
+  app)**, o la carga de datos falla.
 - Apelaciones (migración 038): `apelaciones` (pública: usuario, estado pendiente/aceptada/
   rechazada, `exorcizado`, fechas) y `apelaciones_textos` (PRIVADA, sin acceso anon: texto ≤ 500
   y respuesta ≤ 300; la lee el admin por la función `admin` y el difunto con su código vía

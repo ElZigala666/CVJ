@@ -161,6 +161,20 @@ export function tierList(uid) {
   });
 }
 
+/**
+ * Tier list del grupo: cada juego (o colección, regla única) con la nota media de todos los
+ * que le han puesto nota que cuenta en los rankings (desde 1 nota). { filas, total }
+ */
+export function tierListGrupo() {
+  return memoizar('tiersGrupo', () => {
+    const filas = Object.fromEntries(LETRAS.map((l) => [l, []]));
+    const lista = juegosDelGrupo().filter((x) => x.votos >= 1 && x.media != null)
+      .sort((a, b) => b.media - a.media || b.votos - a.votos || a.juego.nombre.localeCompare(b.juego.nombre, 'es'));
+    for (const x of lista) filas[notaALetra(x.media)].push(x);
+    return { filas, total: lista.length };
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Estadísticas
 // ---------------------------------------------------------------------------

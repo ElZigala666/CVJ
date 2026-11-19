@@ -19,8 +19,8 @@ const RUTAS = {
   valorar: buscar, // el botón central abre Buscar en modo valorar
   elegir: buscar,  // #elegir/{psnTitleId}: "¿Qué juego es?" (emparejar con PSN)
   rankings: () => import('./pantallas/rankings.js'),          // #rankings y #rankings/comparar/{a}/{b}
-  perfil: () => import('./pantallas/perfil.js'),              // #perfil, #perfil/{id} y #perfil/{id}/tiers
-  estadisticas: () => import('./pantallas/estadisticas.js'),  // #estadisticas/{id}
+  perfil: () => import('./pantallas/perfil.js'),              // #perfil, #perfil/{id} y #perfil/{id}/{tiers,estadisticas,biblioteca,columna}
+  estadisticas: () => import('./pantallas/estadisticas.js'),  // #estadisticas/{id}: ruta antigua, abre el perfil en Estadísticas
   juego: () => import('./pantallas/juego.js'),
   revisar: () => import('./pantallas/revisar.js'),            // #revisar: "Revisa tu biblioteca"
   duplicados: () => import('./pantallas/duplicados.js'),      // #duplicados: horas que pueden repetirse entre Steam y Xbox

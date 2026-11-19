@@ -78,6 +78,16 @@ español (código, comentarios, commits, interfaz).
   `js/perfil-editar.js`, `js/foto-perfil.js`, `js/acento.js` (paleta de colores de
   usuario), `js/selector-color.js`.
 - `js/columnas-ui.js`: piezas de columnas (formato del cuerpo, tarjetas).
+- Perfil en pestañas (`js/pantallas/perfil.js`): bajo la cabecera (foto, nombre, bio, estado,
+  datos, top 3, insignias compactas y "Columnista de …"), una barra fija al bajar: Historial ·
+  Tier list · Estadísticas · Biblioteca · Columna (si tiene). Cambia ahí mismo, sin navegar; la
+  última se recuerda (`localStorage` "cvj.perfil.pestana"). Rutas: `#perfil/{id}/{tiers|
+  estadisticas|biblioteca|columna}`; `#estadisticas/{id}` lleva a la de Estadísticas. En
+  escritorio, datos a la izquierda (fijos) y pestañas a la derecha. El contenido de Tier list,
+  Estadísticas y Columna sale de `js/vistas-perfil.js` (también lo usan `#columna/{id}` y
+  Rankings). Rankings: Ranking · Tier list · Estadísticas · Comparar; `#rankings/tiers/{id|grupo}`
+  y `#rankings/estadisticas/{id}` con la fila de personas; "Grupo" = tier list con la nota
+  media de todos (`metricas.tierListGrupo()`, desde 1 nota).
 - `js/insignias.js`: catálogo de insignias (condiciones), medallas SVG, cálculo memorizado
   por versión de datos, guardado de cambios tras cada refresco, avisos y vitrina del perfil.
 - `js/cementerio.js`: vidas y muertes (`historia(uid)`), récords, epitafios, reanimaciones
@@ -119,8 +129,8 @@ español (código, comentarios, commits, interfaz).
   En Inicio ya no van avisos sueltos (solo el del Dictador con Vetar / Permitir ya).
 - `js/social.js`: reacciones y respuestas (tira bajo reseñas y entradas, menú, hilo y
   filas de actividad).
-- `js/pantallas/`: `inicio`, `buscar`, `juego`, `perfil` (+ tier list), `rankings`
-  (+ comparar), `estadisticas`, `coleccion`, `saga`, `revisar`, `duplicados`, `entrada`
+- `js/pantallas/`: `inicio`, `buscar`, `juego`, `perfil`, `rankings`
+  (+ comparar), `estadisticas` (ruta antigua → perfil), `coleccion`, `saga`, `revisar`, `duplicados`, `entrada`
   (login), `escribir` (editor de columna), `lectura` (#entrada/{id}), `columna`,
   `columnas` (todas; en móvil se llega desde Inicio, en escritorio desde la barra lateral),
   `cementerio` y `propuestas` (desde el final de "El grupo" en Inicio).

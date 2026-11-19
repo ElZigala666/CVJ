@@ -1,12 +1,14 @@
-// Pantallas 06 (Perfil) y 08 (Tier list).
-//   #perfil            el mío
-//   #perfil/{id}       el de otro (o el mío)
-//   #perfil/{id}/tiers su tier list
+// Pantalla 06 (Perfil), con pestañas: Historial · Tier list · Estadísticas · Biblioteca ·
+// Columna (si tiene). El contenido se cambia ahí mismo (sin navegar) y se recuerda la última.
+//   #perfil                         el mío
+//   #perfil/{id}                    el de otro (o el mío)
+//   #perfil/{id}/{pestaña}          en esa pestaña: tiers, estadisticas, biblioteca, columna
+//   (#estadisticas/{id}, ruta antigua, lleva a #perfil/{id}/estadisticas)
 import { icono } from '../icons.js';
 import * as datos from '../datos.js';
 import * as metricas from '../metricas.js';
 import { usuarioActual } from '../sesion.js';
-import { LETRAS, rangoTier, formatearNota, notaALetra as notaLetra } from '../notas.js';
+import { formatearNota, notaALetra as notaLetra } from '../notas.js';
 import { esc, avatar, portada, chipLetra, cabeceraAtras, estadoVacio, tiempoRelativo, aviso, estaRejugando, marcaRejugado, notaConLetra, pintarHtml } from '../ui.js';
 import * as social from '../social.js';
 import * as insignias from '../insignias.js';
@@ -16,7 +18,7 @@ import { iconoFuente, plataformaParaValorar } from '../plataformas-ui.js';
 import { cuentasDe } from '../cuentas-ui.js';
 import { abrirValorar } from '../hoja-valorar.js';
 import { textoHoras } from '../metricas.js';
-import { volver, rutaPerfil } from '../navegacion.js';
+import { volver } from '../navegacion.js';
 import { abrirAjustes } from '../ajustes.js';
 import { abrirMenuJuego, abrirMenuColeccion } from '../menu-juego.js';
 import { logoColumna } from '../columnas-ui.js';
@@ -24,6 +26,19 @@ import { entrarSeleccion } from '../seleccion.js';
 import { imagenPlataforma } from '../portadas.js';
 import { perfilDe, cabeceraEfectiva, capasCabecera } from '../perfil-personal.js';
 import { padrino } from '../propuestas.js';
+import { htmlTiers, htmlEstadisticas, htmlColumna } from '../vistas-perfil.js';
+
+// Pestañas del perfil (la de Columna, solo si tiene). La última elegida se recuerda aquí.
+const PESTANAS_PERFIL = [
+  { id: 'historial', nombre: 'Historial' },
+  { id: 'tiers', nombre: 'Tier list' },
+  { id: 'estadisticas', nombre: 'Estadísticas' },
+  { id: 'biblioteca', nombre: 'Biblioteca' },
+  { id: 'columna', nombre: 'Columna' },
+];
+const CLAVE_PESTANA = 'cvj.perfil.pestana';
+const pestanaGuardada = () => { try { return localStorage.getItem(CLAVE_PESTANA) || 'historial'; } catch { return 'historial'; } };
+const guardarPestana = (p) => { try { localStorage.setItem(CLAVE_PESTANA, p); } catch { /* modo privado */ } };
 
 const PESTANAS = [
   { id: 'jugando', nombre: 'Jugando' },
@@ -89,16 +104,17 @@ function barraFiltro(clave, f, extra = '') {
 export function render(el, { params, alSalir }) {
   const yo = usuarioActual();
   const id = params[0] || yo?.id;
-  if (params[1] === 'tiers') return renderTiers(el, id);
-  return renderPerfil(el, id, alSalir);
+  const pedida = PESTANAS_PERFIL.some((x) => x.id === params[1]) ? params[1] : null;
+  return renderPerfil(el, id, alSalir, pedida);
 }
 
 // ---------------------------------------------------------------------------
 // Perfil (el mío y el de los demás se ven igual; solo el dueño puede ocultar)
 // ---------------------------------------------------------------------------
-function renderPerfil(el, id, alSalir) {
+function renderPerfil(el, id, alSalir, pedida = null) {
   const yo = usuarioActual();
   const esMio = id === yo?.id;
+  let pestana = pedida ?? pestanaGuardada();
   const fHist = filtroDe(`${id}:hist`, 'nota');
   const fBib = filtroDe(`${id}:bib`, 'horas');
   const vista = { sinIdentificar: false, probados: false, ocultos: false, abiertos: new Set() };
@@ -141,6 +157,9 @@ function renderPerfil(el, id, alSalir) {
     const meta = p.jugados ? `${p.jugados} ${p.jugados === 1 ? 'juego valorado' : 'juegos valorados'}` : (unido ? `Se unió ${unido.startsWith('hace') ? unido : `el ${unido}`}` : '');
     const falta = (texto, foco) => `<button type="button" class="perfil-falta" data-accion="editar-perfil" data-foco="${foco}">${icono('mas', { tam: 16, color: 'currentColor' })}<span>${texto}</span></button>`;
     const conPerfil = 'perfil_datos' in u;
+    const col = datos.columnaDe(id) ?? null;
+    const pestanas = PESTANAS_PERFIL.filter((x) => x.id !== 'columna' || col);
+    if (!pestanas.some((x) => x.id === pestana)) pestana = 'historial';
 
     pintarHtml(el, `
       <section class="perfil">
@@ -167,6 +186,7 @@ function renderPerfil(el, id, alSalir) {
               ${meta ? `<span>${esc(meta)}</span>` : ''}
             </div>
             ${padrino(u.id) ? `<a class="perfil-padrino" href="#perfil/${esc(padrino(u.id).id)}">Entró por propuesta de <strong>${esc(padrino(u.id).nombre)}</strong></a>` : ''}
+            ${col ? `<button type="button" class="perfil-columnista" data-ppestana="columna">${logoColumna(col, 18)}<span>Columnista de ${esc(col.nombre)}</span></button>` : ''}
           </div>
           ${u.activo === false ? `<a class="perfil-difunto" href="#cementerio">${icono(u.exorcizado ? 'sello' : 'lapida', { tam: 18, color: 'currentColor' })}<span>${u.exorcizado ? 'Exorcizado. No volverá.' : 'Descansa en el cementerio'} · <strong>Ver su lápida</strong></span></a>` : ''}
           ${mia.bio ? `<p class="perfil-bio">${esc(mia.bio)}</p>` : esMio && conPerfil ? falta('Añade una biografía', 'bio') : ''}
@@ -206,31 +226,11 @@ function renderPerfil(el, id, alSalir) {
                   </a>`).join('')}
               </div>
             </div>` : ''}
+          <div class="perfil-insignias-compactas">${insignias.vitrinaHtml(u, esMio)}</div>
           ${esMio && conPerfil && (mia.bio || mia.estado || mia.plataforma) ? '<button type="button" class="enlace-discreto perfil-editar-enlace" data-accion="editar-perfil">Editar perfil</button>' : ''}
         </div>
 
-        ${insignias.vitrinaHtml(u, esMio)}
-
         ${esMio ? '' : `<a class="boton-principal enlace perfil-comparar" href="#rankings/comparar/${esc(yo.id)}/${esc(id)}">${icono('rankings', { tam: 20, color: 'currentColor' })}<span>Comparar conmigo</span></a>`}
-
-        <div class="enlaces-perfil">
-          <a class="enlace-fila" href="#perfil/${esc(id)}/tiers">
-            <span class="icono-tiers" aria-hidden="true"><span data-tier="S"></span><span data-tier="B"></span><span data-tier="D"></span></span>
-            <span class="enlace-fila-texto">${esMio ? 'Mi tier list' : `Tier list de ${esc(u.nombre)}`}</span>
-            ${icono('adelante', { tam: 18, color: 'var(--texto-2)' })}
-          </a>
-          ${datos.columnaDe(id) ? `
-          <a class="enlace-fila enlace-columna" href="#columna/${esc(datos.columnaDe(id).id)}">
-            ${logoColumna(datos.columnaDe(id), 28)}
-            <span class="enlace-fila-texto">${esc(datos.columnaDe(id).nombre)}<small>${datos.entradasPublicadas(datos.columnaDe(id).id).length} entradas${esMio ? ' · escribir' : ''}</small></span>
-            ${icono('adelante', { tam: 18, color: 'var(--texto-2)' })}
-          </a>` : ''}
-          <a class="enlace-fila" href="#estadisticas/${esc(id)}">
-            ${icono('rankings', { tam: 22, color: 'var(--acento)' })}
-            <span class="enlace-fila-texto">Estadísticas</span>
-            ${icono('adelante', { tam: 18, color: 'var(--texto-2)' })}
-          </a>
-        </div>
 
         ${esMio && bib.porRevisar.length ? `
           <a class="aviso-revisar en-perfil" href="#revisar">
@@ -241,41 +241,16 @@ function renderPerfil(el, id, alSalir) {
 
         </div>
         <div class="perfil-principal">
-        <section class="perfil-seccion">
-          <h2 class="seccion-titulo">Historial</h2>
-          <div data-ref="historial" data-propio></div>
-        </section>
-
-        ${bloqueResenas(id)}
-
-        ${p.online.length ? `
-          <section class="perfil-seccion">
-            <div class="seccion-cab">
-              <h2 class="seccion-titulo">Juegos sin final</h2>
-              <span class="seccion-extra">${p.online.length}</span>
-            </div>
-            <div class="rejilla" data-lista>${p.online.map((v, i) => itemRejilla(v, i, horasItem(v) ?? undefined, esMio)).join('')}</div>
-          </section>` : ''}
-
-        ${hayBiblioteca ? `
-          <section class="perfil-seccion">
-            <div class="seccion-cab">
-              <h2 class="seccion-titulo">Biblioteca</h2>
-              <span class="seccion-extra">${bib.horas ? `${bib.horas} h` : ''}</span>
-            </div>
-            <div data-ref="biblioteca" data-propio></div>
-          </section>` : ''}
-
-        <section class="perfil-seccion">
-          <h2 class="seccion-titulo">Bibliotecas</h2>
-          ${bloqueBibliotecas(u, esMio, vinculado, bib)}
-        </section>
+          <div class="perfil-pestanas" role="tablist" aria-label="Perfil">
+            ${pestanas.map((x) => `
+              <button type="button" role="tab" class="perfil-pestana${x.id === pestana ? ' activa' : ''}" aria-selected="${x.id === pestana}" data-ppestana="${x.id}">${x.nombre}</button>`).join('')}
+          </div>
+          <div class="perfil-panel" data-ref="panel" data-k="panel-${pestana}">${panel(u, p, bib, vinculado, hayBiblioteca, col)}</div>
         </div>
       </section>`);
-    pintarHistorial(u, p);
-    // La biblioteca queda por debajo de lo que se ve: la primera vez se pinta justo después
-    // del primer fotograma, para que el cambio de pestaña no espere a cientos de portadas.
-    if (hayBiblioteca) {
+    if (pestana === 'historial') pintarHistorial(u, p);
+    // La biblioteca, la primera vez, justo después del primer fotograma (cientos de portadas).
+    if (pestana === 'biblioteca' && hayBiblioteca) {
       if (primeraPintada) requestAnimationFrame(() => setTimeout(() => { if (el.isConnected) pintarBiblioteca(metricas.biblioteca(id)); }, 0));
       else pintarBiblioteca(bib);
     }
@@ -286,6 +261,51 @@ function renderPerfil(el, id, alSalir) {
       const inp = el.querySelector(`[data-filtro="${enFiltro}"] [data-filtro-texto]`);
       if (inp) { inp.focus(); try { inp.setSelectionRange(cursor, cursor); } catch { /* nada */ } }
     }
+  };
+
+  /** El contenido de la pestaña elegida. */
+  const panel = (u, p, bib, vinculado, hayBiblioteca, col) => {
+    if (pestana === 'tiers') return htmlTiers(id);
+    if (pestana === 'estadisticas') return `<div class="perfil-stats">${htmlEstadisticas(id)}</div>`;
+    if (pestana === 'columna' && col) return htmlColumna(col, yo, { embebida: true });
+    if (pestana === 'biblioteca') {
+      return `
+        ${hayBiblioteca ? `
+          <section class="perfil-seccion">
+            <div class="seccion-cab">
+              <h2 class="seccion-titulo">Biblioteca</h2>
+              <span class="seccion-extra">${bib.horas ? `${bib.horas} h` : ''}</span>
+            </div>
+            <div data-ref="biblioteca" data-propio></div>
+          </section>` : ''}
+        <section class="perfil-seccion">
+          <h2 class="seccion-titulo">Bibliotecas</h2>
+          ${bloqueBibliotecas(u, esMio, vinculado, bib)}
+        </section>`;
+    }
+    return `
+      <section class="perfil-seccion">
+        <div data-ref="historial" data-propio></div>
+      </section>
+      ${bloqueResenas(id)}
+      ${p.online.length ? `
+        <section class="perfil-seccion">
+          <div class="seccion-cab">
+            <h2 class="seccion-titulo">Juegos sin final</h2>
+            <span class="seccion-extra">${p.online.length}</span>
+          </div>
+          <div class="rejilla" data-lista>${p.online.map((v, i) => itemRejilla(v, i, horasItem(v) ?? undefined, esMio)).join('')}</div>
+        </section>` : ''}`;
+  };
+
+  /** Cambiar de pestaña: ahí mismo (sin navegar), recordada, y la barra a la vista. */
+  const cambiarPestana = (nueva) => {
+    if (nueva === pestana) return;
+    pestana = nueva;
+    guardarPestana(nueva);
+    pintar();
+    const barra = el.querySelector('.perfil-pestanas');
+    if (barra && barra.getBoundingClientRect().top < 0) barra.scrollIntoView({ block: 'start' });
   };
 
   // ----- Historial ----------------------------------------------------------
@@ -506,6 +526,8 @@ function renderPerfil(el, id, alSalir) {
   };
 
   el.addEventListener('click', (e) => {
+    const pp = e.target.closest('[data-ppestana]');
+    if (pp) { cambiarPestana(pp.dataset.ppestana); return; }
     if (e.target.closest('[data-accion="insignias"]')) { insignias.abrirColeccion(id); return; }
     if (e.target.closest('[data-accion="ver-resenas"]')) {
       if (resenasAbiertas.has(id)) resenasAbiertas.delete(id); else resenasAbiertas.add(id);
@@ -782,55 +804,4 @@ function itemColeccionBib(x, i, esMio, uid) {
       </a>
       ${esMio ? `<button type="button" class="bib-menu" data-bib-menu="${esc(x.clave)}" aria-label="Opciones de ${esc(x.coleccion.nombre)}">${icono('opciones', { tam: 18, color: '#FFFFFF' })}</button>` : ''}
     </div>`;
-}
-
-// ---------------------------------------------------------------------------
-// Tier list
-// ---------------------------------------------------------------------------
-/** "9.0–10" → "9–10" (como en el diseño). */
-const rangoCorto = (l) => rangoTier(l).replace(/^(\d+)\.0–/, '$1–');
-
-function renderTiers(el, id) {
-  const pintar = () => {
-    const u = datos.usuario(id);
-    if (!u) {
-      el.innerHTML = `${cabeceraAtras('Tier list')}${estadoVacio({ icono: 'perfil', titulo: 'Este perfil no existe', texto: 'Puede que esa persona ya no esté en el grupo.' })}`;
-      return;
-    }
-    const t = metricas.tierList(id);
-    document.title = `CVJ · Tier list de ${u.nombre}`;
-    let n = 0;
-    el.innerHTML = `
-      ${cabeceraAtras('Tier list', `${u.nombre} · ${t.total} ${t.total === 1 ? 'juego' : 'juegos'}, según sus notas`)}
-      <div class="tiers" data-lista>
-        ${LETRAS.map((l) => `
-          <div class="tier-fila">
-            <div class="tier-letra" data-tier="${l}">
-              <span class="tier-letra-l">${l}</span>
-              <span class="tier-rango">${rangoCorto(l)}</span>
-            </div>
-            <div class="tier-juegos">
-              ${t.filas[l].length
-                ? t.filas[l].map((v) => {
-                    const j = v.esColeccion ? datos.comoJuego(datos.coleccion(v.coleccion_id)) : datos.juegoConocido(v.juego_id);
-                    if (!j) return '';
-                    const h = v.esColeccion ? metricas.horasColeccion(id, v.coleccion_id).total : metricas.horasDe(id, v.juego_id);
-                    return `
-                      <a class="tier-item${v.esColeccion ? ' es-coleccion' : ''}"${v.esColeccion ? '' : ` data-sel="${j.igdb_id}"`} href="${metricas.rutaDe(j)}" data-precarga="${esc(j.cover_id ?? '')}" aria-label="${esc(j.nombre)}${v.esColeccion ? ' (coleccion)' : ''}, ${formatearNota(v.nota)}">
-                        ${portada(j, { clase: 'portada-tier', titulo: 'arriba', prioridad: n++ < 12 })}
-                        ${v.esColeccion ? '<span class="sello-coleccion mini">Colección</span>' : ''}
-                        <span class="tier-nota">${formatearNota(v.nota)}${h ? `<small class="tier-horas">${esc(metricas.textoAprox(h, v.esColeccion ? metricas.horasColeccion(id, v.coleccion_id).estimadas : metricas.estimadasDe(id, v.juego_id)))}</small>` : ''}</span>
-                      </a>`;
-                  }).join('')
-                : '<span class="tier-vacio">Ningún juego en este tier</span>'}
-            </div>
-          </div>`).join('')}
-      </div>`;
-  };
-  el.addEventListener('click', (e) => {
-    if (e.target.closest('[data-accion="atras"]')) volver(rutaPerfil(id));
-  });
-  const desuscribir = datos.suscribir(pintar);
-  pintar();
-  return desuscribir;
 }

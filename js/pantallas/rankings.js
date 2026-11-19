@@ -1,5 +1,8 @@
-// Pantallas 07a (Ranking del grupo) y 07b (Comparar).
+// Pantallas 07a (Ranking del grupo) y 07b (Comparar), y la Tier list y las Estadísticas de
+// cualquiera (con la fila de personas para cambiar sin salir; la tier list, también "Grupo").
 //   #rankings
+//   #rankings/tiers/{id|grupo}
+//   #rankings/estadisticas/{id}
 //   #rankings/comparar/{idA}/{idB}
 import { icono } from '../icons.js';
 import * as datos from '../datos.js';
@@ -9,32 +12,47 @@ import { formatearNota, notaALetra } from '../notas.js';
 import { esc, avatar, avatarInsignia, portada, notaConLetra, estadoVacio, pintarHtml } from '../ui.js';
 import { reemplazarRuta } from '../navegacion.js';
 import { abrirHoja } from '../hoja.js';
+import { chipsUsuarios, htmlTiers, htmlTiersGrupo, htmlEstadisticas } from '../vistas-perfil.js';
+
+const MODOS = [
+  ['grupo', 'Ranking'],
+  ['tiers', 'Tier list'],
+  ['estadisticas', 'Estadísticas'],
+  ['comparar', 'Comparar'],
+];
 
 let orden = 'nota'; // se recuerda mientras la app está abierta
 const MIN_COMUNES = 3;
 
 export function render(el, { params }) {
-  const modo = params[0] === 'comparar' ? 'comparar' : 'grupo';
+  const modo = MODOS.some(([m]) => m === params[0]) ? params[0] : 'grupo';
+  const yo = usuarioActual();
+  // Tier list: "grupo" por defecto; estadísticas: las mías.
+  const quien = params[1] || (modo === 'tiers' ? 'grupo' : yo?.id);
 
   const pintar = () => {
     pintarHtml(el, `
       <section class="rankings">
         <div class="rankings-cab">
           <h1 class="titulo-pantalla">Rankings</h1>
-          <div class="segmentado" role="tablist" aria-label="Rankings">
-            <button type="button" role="tab" data-modo="grupo" class="${modo === 'grupo' ? 'activo' : ''}" aria-selected="${modo === 'grupo'}">Ranking del grupo</button>
-            <button type="button" role="tab" data-modo="comparar" class="${modo === 'comparar' ? 'activo' : ''}" aria-selected="${modo === 'comparar'}">Comparar</button>
+          <div class="segmentado segmentado-4" role="tablist" aria-label="Rankings">
+            ${MODOS.map(([m, n]) => `<button type="button" role="tab" data-modo="${m}" class="${modo === m ? 'activo' : ''}" aria-selected="${modo === m}">${n}</button>`).join('')}
           </div>
         </div>
-        <div data-ref="contenido">${modo === 'grupo' ? grupo() : comparar(params)}</div>
+        <div data-ref="contenido">${modo === 'grupo' ? grupo() : modo === 'comparar' ? comparar(params) : porPersona(modo, quien)}</div>
       </section>`);
   };
 
   el.addEventListener('click', (e) => {
+    const chip = e.target.closest('[data-usuario]');
+    if (chip && (modo === 'tiers' || modo === 'estadisticas')) {
+      if (chip.dataset.usuario !== quien) reemplazarRuta(`#rankings/${modo}/${chip.dataset.usuario}`);
+      return;
+    }
     const b = e.target.closest('[data-modo], [data-orden], [data-lado]');
     if (!b) return;
     if (b.dataset.modo && b.dataset.modo !== modo) {
-      reemplazarRuta(b.dataset.modo === 'grupo' ? '#rankings' : '#rankings/comparar');
+      reemplazarRuta(b.dataset.modo === 'grupo' ? '#rankings' : `#rankings/${b.dataset.modo}`);
     } else if (b.dataset.orden && b.dataset.orden !== orden) {
       orden = b.dataset.orden;
       el.querySelector('[data-ref="contenido"]').innerHTML = grupo();
@@ -45,7 +63,16 @@ export function render(el, { params }) {
 
   const desuscribir = datos.suscribir(pintar);
   pintar();
+  el.querySelector('.chip-usuario.activo')?.scrollIntoView({ block: 'nearest', inline: 'center' });
   return desuscribir;
+}
+
+/** Tier list o estadísticas de alguien (o la tier list del grupo), con la fila de personas. */
+function porPersona(modo, quien) {
+  const grupo = modo === 'tiers';
+  const id = quien === 'grupo' && grupo ? 'grupo' : (datos.usuario(quien) ? quien : usuarioActual()?.id);
+  const cuerpo = id === 'grupo' ? htmlTiersGrupo() : modo === 'tiers' ? htmlTiers(id) : `<div class="perfil-stats">${htmlEstadisticas(id)}</div>`;
+  return `${chipsUsuarios(id, { grupo })}${cuerpo}`;
 }
 
 // ---------------------------------------------------------------------------

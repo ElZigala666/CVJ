@@ -192,6 +192,10 @@ a, button, label[for], summary, [role="button"], .chip, .pestana { cursor: point
   .perfil-principal .perfil-seccion { padding: 0; }
   .perfil .rejilla { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 14px; }
   .perfil-principal .pestanas { padding: 0; }
+  .perfil-principal { margin-top: 0; }
+  .perfil-pestanas { padding: 10px 0; margin: -10px 0 0; }
+  .perfil-panel { padding-top: 20px; }
+  .perfil-panel .tiers-sub { margin: 0; }
 
   /* Tier list y estadísticas, centradas */
   .tiers { padding-left: 0; padding-right: 0; }
@@ -374,3 +378,9 @@ body:has(#vista .entrada, #vista .difunto) #aviso { left: 50%; }
 
 /* Editor de colección / saga: centrado. */
 .edg { max-width: 760px; margin: 0 auto; padding-top: 32px; }
+
+/* Perfil entre 1024 y 1279: datos más estrechos para que las pestañas tengan sitio */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .perfil { grid-template-columns: 300px minmax(0, 1fr); column-gap: 28px; }
+  .pantalla:has(> .perfil) { padding-left: 28px; padding-right: 28px; }
+}

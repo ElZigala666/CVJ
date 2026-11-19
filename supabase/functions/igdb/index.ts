@@ -855,7 +855,12 @@ async function actualizarTiempos(limite = 500) {
     .order("ttb_en", { ascending: true, nullsFirst: true }).limit(limite);
   if (error) throw new Error("tiempos: " + error.message);
   const ids = (data ?? []).map((x) => Number(x.igdb_id));
-  const horas = (seg: unknown) => (Number(seg) > 0 ? Math.round((Number(seg) / 3600) * 10) / 10 : null);
+  // Los tiempos imposibles (datos basura de IGDB: "73 266 h" de historia) no se guardan.
+  const MAX = { historia: 300, extras: 600, completo: 1500 };
+  const horas = (seg: unknown, k: keyof typeof MAX) => {
+    const h = Number(seg) > 0 ? Math.round((Number(seg) / 3600) * 10) / 10 : null;
+    return h != null && h <= MAX[k] ? h : null;
+  };
   const ahora = new Date().toISOString();
   let conDatos = 0;
   for (let i = 0; i < ids.length; i += 200) {
@@ -869,7 +874,7 @@ async function actualizarTiempos(limite = 500) {
     }
     for (const [id, t] of porJuego) {
       const { error: e } = await sb.from("juegos").update({
-        ttb_historia: horas(t.hastily), ttb_extras: horas(t.normally), ttb_completo: horas(t.completely), ttb_en: ahora,
+        ttb_historia: horas(t.hastily, "historia"), ttb_extras: horas(t.normally, "extras"), ttb_completo: horas(t.completely, "completo"), ttb_en: ahora,
       }).eq("igdb_id", id);
       if (e) throw new Error("tiempos: " + e.message);
       conDatos++;

@@ -39,7 +39,7 @@ let refrescoAplazado = false;
 // ---------------------------------------------------------------------------
 const firma = (s) => JSON.stringify([s.usuarios, s.valoraciones, s.juegos, s.actividad, s.biblioteca, s.psnIgdb, s.alias, s.rechazadas, s.sugRechazadas, s.servicios, s.cuentas, s.horasExtra, s.avisos, s.coleccionesG, s.coleccionesJuegos, s.valColecciones, s.sagas, s.sagasJuegos, s.columnas, s.entradas, s.lecturas, s.horasAjustes, s.horasEstimadas, s.celebracionesVistas, s.reacciones, s.comentarios, s.insignias, s.insigniasGrupo, s.vidas, s.reanimaciones, s.velas, s.propuestas, s.propuestasVotos]);
 const COLUMNAS_USUARIO = 'id, nombre, inicial, color, acento, creado_en';
-const COLUMNAS_ENTRADA = 'id, columna_id, usuario_id, juego_id, coleccion_id, saga_id, titulo, subtitulo, palabras, estado, publicada_en, creado_en, actualizado_en';
+const COLUMNAS_ENTRADA = 'id, columna_id, usuario_id, juego_id, coleccion_id, saga_id, titulo, subtitulo, palabras, estado, publicada_en, creado_en, actualizado_en, replica_de, portada';
 const PAGINA = 1000;
 const SIN_USUARIO = '00000000-0000-0000-0000-000000000000';
 const COLUMNAS_JUEGO = 'igdb_id, nombre, slug, cover_id, anio, plataformas, desarrolladora, generos, actualizado_en, color_dominante, es_online, es_online_manual, relaciones, ttb_historia, ttb_extras, ttb_completo, mostrar_como, arte_id, temas, modos, perspectivas, desarrolladoras, franquicia';
@@ -92,6 +92,8 @@ const TABLAS = [
   // Propuestas de nuevos miembros (migración 037) y sus votos.
   { k: 'propuestas', t: 'propuestas', orden: ['creado_en', 'id'] },
   { k: 'propuestasVotos', t: 'propuestas_votos', orden: ['propuesta_id', 'usuario_id'] },
+  // Encuestas de las entradas de columnas (migración 047): un voto por persona y entrada.
+  { k: 'encuestasVotos', t: 'encuestas_votos', orden: ['entrada_id', 'usuario_id'] },
   // Apelaciones de los expulsados (migración 038): lo público; el texto, solo el admin.
   { k: 'apelaciones', t: 'apelaciones', orden: ['creado_en', 'id'] },
   // Eventos destacados (migración 039): galas, sus categorías, nominados y lo que elige cada uno.
@@ -811,6 +813,8 @@ export async function guardarEntrada(e) {
   const meta = {
     id: e.id, columna_id: e.columna_id, usuario_id: e.usuario_id,
     juego_id: e.juego_id ?? null, coleccion_id: e.coleccion_id ?? null, saga_id: e.saga_id ?? null,
+    replica_de: e.replica_de ?? antes?.replica_de ?? null,
+    portada: e.portada === undefined ? (antes?.portada ?? null) : (e.portada || null),
     titulo: String(e.titulo ?? '').slice(0, 200), subtitulo: String(e.subtitulo ?? '').trim().slice(0, 300) || null,
     palabras: e.palabras ?? 0, estado: e.estado ?? antes?.estado ?? 'borrador',
     publicada_en: e.estado === 'publicada' ? (antes?.publicada_en ?? ahora) : (e.estado === 'borrador' ? null : antes?.publicada_en ?? null),
@@ -846,15 +850,45 @@ export function despublicarEntrada(id, onError) {
   );
 }
 
-/** Marca una entrada como leída (quita el aviso "Nuevo en …" de Inicio). Sin avisos. */
-export function marcarLeida(usuarioId, entradaId) {
-  if (!usuarioId || leida(usuarioId, entradaId)) return;
-  const fila = { usuario_id: usuarioId, entrada_id: entradaId, leida_en: new Date().toISOString() };
+/**
+ * Marca una entrada como leída (quita el aviso "Nuevo en …" de Inicio). Sin avisos.
+ * alFinal: llegó al final del texto (si ya estaba leída sin llegar, se apunta ahora).
+ */
+export function marcarLeida(usuarioId, entradaId, { alFinal = false } = {}) {
+  if (!usuarioId) return;
+  const ya = (estado.lecturas ?? []).find((l) => l.usuario_id === usuarioId && l.entrada_id === entradaId);
+  if (ya) {
+    if (!alFinal || ya.al_final) return;
+    escribirSocial(
+      (s) => { s.lecturas = (s.lecturas ?? []).map((l) => (l === ya ? { ...l, al_final: true } : l)); },
+      async (sb) => { comprobar(await sb.from('lecturas').update({ al_final: true }).eq('usuario_id', usuarioId).eq('entrada_id', entradaId)); },
+    );
+    return;
+  }
+  const fila = { usuario_id: usuarioId, entrada_id: entradaId, leida_en: new Date().toISOString(), al_final: !!alFinal };
   escribirSocial(
     (s) => { s.lecturas = [...(s.lecturas ?? []), fila]; },
     async (sb) => { comprobar(await sb.from('lecturas').upsert(fila, { onConflict: 'usuario_id,entrada_id', ignoreDuplicates: true })); },
   );
 }
+
+// Encuestas de las entradas (bloque :::encuesta del texto).
+export const votosEncuesta = (entradaId) => (estado.encuestasVotos ?? []).filter((v) => v.entrada_id === entradaId);
+/** Votar (o cambiar el voto; null = quitarlo). */
+export function votarEncuesta(usuarioId, entradaId, opcion, onError) {
+  const fila = { entrada_id: entradaId, usuario_id: usuarioId, opcion, creado_en: new Date().toISOString() };
+  return escribirOptimista(
+    (s) => { s.encuestasVotos = [...(s.encuestasVotos ?? []).filter((v) => !(v.entrada_id === entradaId && v.usuario_id === usuarioId)), ...(opcion == null ? [] : [fila])]; },
+    async (sb) => {
+      if (opcion == null) comprobar(await sb.from('encuestas_votos').delete().eq('entrada_id', entradaId).eq('usuario_id', usuarioId));
+      else comprobar(await sb.from('encuestas_votos').upsert(fila, { onConflict: 'entrada_id,usuario_id' }));
+    },
+    onError,
+    'No se ha podido guardar tu voto. Se ha deshecho el cambio.',
+  );
+}
+/** Réplicas publicadas de una entrada. */
+export const replicasDe = (entradaId) => entradasPublicadas().filter((e) => e.replica_de === entradaId);
 
 // ---------------------------------------------------------------------------
 // Reacciones y respuestas (a reseñas y a entradas de columnas)
@@ -1353,6 +1387,7 @@ async function escribirOptimista(aplicar, guardar, onError, mensajeError = 'No s
     eventos: estado.eventos, eventosCategorias: estado.eventosCategorias, eventosNominados: estado.eventosNominados,
     eventosElecciones: estado.eventosElecciones, eventosVotado: estado.eventosVotado,
     notificaciones: estado.notificaciones,
+    encuestasVotos: estado.encuestasVotos,
   };
   escriturasEnCurso++;
   aplicar(estado);

@@ -3,6 +3,9 @@
 // de lectura, portada del tema y barra de progreso arriba. Al final: "Leído por",
 // reacciones y respuestas. Cuenta como leída al llegar al final del texto (y llevar un
 // poco leyendo) o tras un rato razonable con la entrada a la vista, no solo por abrirla.
+// Para el lector: seguir donde lo dejó (posición por entrada), tamaño de letra (3, se
+// recuerda), índice, spoilers y encuesta. Para el autor: sus números. Réplicas.
+// cabeceraEntrada / clicContenido / tamLetra los usa también la vista previa del editor.
 import { icono } from '../icons.js';
 import * as datos from '../datos.js';
 import { usuarioActual } from '../sesion.js';
@@ -10,7 +13,67 @@ import { esc, portada, avatar, avatarPerfil, nombrePerfil } from '../ui.js';
 import { abrirHoja } from '../hoja.js';
 import * as social from '../social.js';
 import { volver } from '../navegacion.js';
-import { markdown, textoLectura, logoColumna, minutosLectura, nombreColumna, esLegado } from '../columnas-ui.js';
+import { markdown, textoLectura, logoColumna, minutosLectura, nombreColumna, esLegado, filaEntrada } from '../columnas-ui.js';
+import { aviso } from '../ui.js';
+
+// ---- Tamaño de letra (se recuerda) y posición de lectura (por entrada) --------------
+const TAMANOS = ['peq', 'normal', 'grande'];
+export const tamLetra = () => { try { const t = localStorage.getItem('cvj.lectura.letra'); return TAMANOS.includes(t) ? t : 'normal'; } catch { return 'normal'; } };
+const guardarTam = (t) => { try { localStorage.setItem('cvj.lectura.letra', t); } catch { /* nada */ } };
+const CLAVE_POS = 'cvj.lectura.pos';
+const leerPosiciones = () => { try { return JSON.parse(localStorage.getItem(CLAVE_POS) || '{}') || {}; } catch { return {}; } };
+/** Por dónde va alguien en una entrada (0-1), o null. */
+export const posicionLectura = (id) => { const p = leerPosiciones()[id]; return typeof p?.f === 'number' ? p.f : null; };
+function guardarPosicion(id, f) {
+  const todas = leerPosiciones();
+  if (f == null || f >= 0.97 || f < 0.03) delete todas[id]; else todas[id] = { f: Math.round(f * 1000) / 1000, ts: Date.now() };
+  // Solo las 60 más recientes.
+  const lista = Object.entries(todas).sort((a, b) => b[1].ts - a[1].ts).slice(0, 60);
+  try { localStorage.setItem(CLAVE_POS, JSON.stringify(Object.fromEntries(lista))); } catch { /* nada */ }
+}
+
+/**
+ * Lo de arriba de una entrada (igual en la lectura y en la vista previa del editor): portada,
+ * "Réplica a …", tema, título, subtítulo y firma.
+ */
+export function cabeceraEntrada(e) {
+  const autor = datos.usuario(e.usuario_id);
+  const tema = temaDe(e);
+  const orig = e.replica_de ? datos.entrada(e.replica_de) : null;
+  return `
+    ${e.portada ? `<figure class="lectura-portada"><img src="${esc(e.portada)}" alt="" decoding="async"></figure>` : ''}
+    ${orig ? `<a class="lectura-replica" href="#entrada/${esc(orig.id)}">${icono('comentario', { tam: 16, color: 'currentColor', trazo: 'var(--fondo)' })}<span>Réplica a <strong>«${esc(orig.titulo || 'Sin título')}»</strong>, de ${esc(datos.usuario(orig.usuario_id)?.nombre ?? '')}</span></a>` : ''}
+    ${tema ? `<a class="lectura-tema" href="${tema.ruta}">${tema.juego ? portada(tema.juego, { clase: 'portada-lectura' }) : ''}<span>Sobre <strong>${esc(tema.nombre)}</strong></span></a>` : ''}
+    <h1 class="lectura-titulo">${esc(e.titulo || 'Sin título')}</h1>
+    ${e.subtitulo ? `<p class="lectura-subtitulo">${esc(e.subtitulo)}</p>` : ''}
+    <div class="lectura-firma">
+      ${avatar(autor, 36)}
+      <div>
+        <strong>${esc(autor?.nombre ?? '')}</strong>
+        <span>${e.publicada_en || e.estado === 'publicada' ? `${esc(FECHA.format(new Date(e.publicada_en ?? e.actualizado_en)))} · ` : ''}${esc(textoLectura(e.palabras))}</span>
+      </div>
+    </div>`;
+}
+
+/**
+ * Clics dentro del texto (lectura y vista previa): destapar un spoiler, ir a un intertítulo
+ * del índice. Devuelve true si era suyo.
+ */
+export function clicContenido(ev, cont, { spoilers }) {
+  const sp = ev.target.closest('[data-spoiler-ver]');
+  if (sp && cont?.contains(sp)) {
+    const n = Number(sp.dataset.spoilerVer);
+    spoilers.add(n);
+    sp.closest('.col-spoiler')?.classList.add('visto');
+    return true;
+  }
+  const ir = ev.target.closest('[data-ir]');
+  if (ir && cont?.contains(ir)) {
+    cont.querySelector(`#${CSS.escape(ir.dataset.ir)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return true;
+  }
+  return false;
+}
 
 const FECHA = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
 const FECHA_HORA = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -69,6 +132,10 @@ export function render(el, { params }) {
   const yo = usuarioActual();
   let cuerpo = null;
   let fallo = false;
+  const spoilers = new Set();
+  let cambiarVoto = false;
+  let tam = tamLetra();
+  let ofrecido = false; // "Seguir donde lo dejaste", una vez
 
   const pintar = () => {
     const e = datos.entrada(id);
@@ -82,8 +149,10 @@ export function render(el, { params }) {
       return;
     }
     const autor = datos.usuario(e.usuario_id);
-    const tema = temaDe(e);
     const mia = e.usuario_id === yo?.id;
+    const miCol = yo ? datos.columnaDe(yo.id) : null;
+    const puedoReplicar = !mia && miCol && !esLegado(miCol) && e.estado === 'publicada';
+    const replicas = datos.replicasDe(e.id);
     document.title = `CVJ · ${e.titulo || nombreColumna(col)}`;
     el.innerHTML = `
       <div class="lectura-progreso" aria-hidden="true"><span data-ref="progreso"></span></div>
@@ -91,37 +160,76 @@ export function render(el, { params }) {
         <header class="lectura-barra">
           <button type="button" class="boton-cuadrado" data-accion="atras" aria-label="Volver">${icono('atras', { tam: 20, color: 'var(--texto)' })}</button>
           <a class="lectura-cabecera-col" href="#columna/${esc(col.id)}">${logoColumna(col, 32)}<span>${esc(nombreColumna(col))}</span></a>
-          ${mia ? `<a class="boton-secundario boton-pequeno" href="#escribir/${esc(e.id)}">Editar</a>` : '<span></span>'}
+          <span class="lectura-barra-der">
+            <button type="button" class="boton-cuadrado lectura-letra" data-accion="letra" aria-label="Tamaño de letra: ${tam === 'peq' ? 'pequeña' : tam === 'grande' ? 'grande' : 'normal'}"><span class="aa-${tam}">Aa</span></button>
+            ${mia ? `<a class="boton-secundario boton-pequeno" href="#escribir/${esc(e.id)}">Editar</a>` : ''}
+          </span>
         </header>
-        <article class="lectura-articulo">
+        <article class="lectura-articulo tam-${tam}">
           ${e.estado !== 'publicada' ? '<p class="lectura-borrador">Borrador: solo lo ves tú</p>' : ''}
-          ${tema ? `<a class="lectura-tema" href="${tema.ruta}">${tema.juego ? portada(tema.juego, { clase: 'portada-lectura' }) : ''}<span>Sobre <strong>${esc(tema.nombre)}</strong></span></a>` : ''}
-          <h1 class="lectura-titulo">${esc(e.titulo || 'Sin título')}</h1>
-          ${e.subtitulo ? `<p class="lectura-subtitulo">${esc(e.subtitulo)}</p>` : ''}
-          <div class="lectura-firma">
-            ${avatar(autor, 36)}
-            <div>
-              <strong>${esc(autor?.nombre ?? '')}</strong>
-              <span>${esc(FECHA.format(new Date(e.publicada_en ?? e.actualizado_en)))} · ${esc(textoLectura(e.palabras))}</span>
-            </div>
-          </div>
-          <div class="lectura-cuerpo" data-ref="cuerpo">${cuerpo != null ? markdown(cuerpo) : fallo
+          ${cabeceraEntrada(e)}
+          <div class="lectura-cuerpo" data-ref="cuerpo">${cuerpo != null ? markdown(cuerpo, { autorId: e.usuario_id, entradaId: e.id, yoId: yo?.id, spoilers, cambiarVoto }) : fallo
             ? '<p class="vacio-texto">No se ha podido cargar el texto. Revisa la conexión.</p>'
             : '<div class="sk sk-linea" style="width:92%;height:16px"></div><div class="sk sk-linea" style="width:86%;height:16px"></div><div class="sk sk-linea" style="width:90%;height:16px"></div>'}</div>
           ${cuerpo != null && e.estado === 'publicada' ? `
+            ${!mia && yo && datos.leida(yo.id, e.id) ? `<p class="lectura-leida">${icono('hecho', { tam: 16, color: 'currentColor' })}Leída</p>` : ''}
             <section class="lectura-social">
               ${leidoPor(e)}
               ${social.tira('entrada', e.id, { visibles: 5 })}
-            </section>` : ''}
+            </section>
+            ${mia ? numerosAutor(e, cuerpo) : ''}
+            ${replicas.length ? `
+              <section class="lectura-replicas">
+                <h2 class="lectura-replicas-titulo">Réplicas</h2>
+                ${replicas.map((r) => filaEntrada(r, yo?.id)).join('')}
+              </section>` : ''}` : ''}
           ${cuerpo != null ? `
             <footer class="lectura-fin">
               ${logoColumna(col, 44)}
               <div><strong>${esc(nombreColumna(col))}</strong><span>${esLegado(col) ? `Su autor descansa en el <a href="#cementerio">cementerio</a>` : `por ${esc(autor?.nombre ?? '')}`}</span></div>
               <a class="boton-secundario boton-pequeno" href="#columna/${esc(col.id)}">Más de la columna</a>
-            </footer>` : ''}
+            </footer>
+            ${puedoReplicar ? `<a class="boton-secundario neutro con-icono lectura-replicar" href="#escribir/nueva/replica/${esc(e.id)}">${logoColumna(miCol, 22)}<span>Escribir una réplica</span></a>` : ''}` : ''}
         </article>
       </section>`;
     progreso();
+    ofrecerSeguir();
+  };
+
+  // ---- Seguir donde lo dejaste ---------------------------------------------------------
+  const total = () => {
+    const art = el.querySelector('.lectura-articulo');
+    return art ? Math.max(1, art.getBoundingClientRect().height - window.innerHeight + 80) : 1;
+  };
+  const ofrecerSeguir = () => {
+    if (ofrecido || cuerpo == null) return;
+    ofrecido = true;
+    const f = posicionLectura(id);
+    if (f == null || f < 0.05 || f > 0.95 || window.scrollY > 200) return;
+    const chip = document.createElement('div');
+    chip.className = 'lectura-seguir';
+    chip.innerHTML = `<button type="button" data-seguir>${icono('adelante', { tam: 16, color: 'currentColor' })}<span>Seguir donde lo dejaste · ${Math.round(f * 100)}%</span></button><button type="button" class="lectura-seguir-x" data-seguir-no aria-label="Empezar desde el principio">${icono('cerrar', { tam: 14, color: 'currentColor' })}</button>`;
+    el.appendChild(chip);
+    const quitar = () => { chip.classList.add('saliendo'); setTimeout(() => chip.remove(), 200); };
+    chip.addEventListener('click', (ev) => {
+      if (ev.target.closest('[data-seguir]')) {
+        const art = el.querySelector('.lectura-articulo');
+        const arriba = art.getBoundingClientRect().top + window.scrollY;
+        window.scrollTo({ top: arriba + f * total(), behavior: 'smooth' });
+      }
+      quitar();
+    });
+    setTimeout(() => { if (chip.isConnected) quitar(); }, 12000);
+  };
+  let relojPos = 0;
+  const apuntarPosicion = () => {
+    if (cuerpo == null || datos.entrada(id)?.usuario_id === yo?.id) return;
+    clearTimeout(relojPos);
+    relojPos = setTimeout(() => {
+      const art = el.querySelector('.lectura-articulo');
+      if (!art) return;
+      guardarPosicion(id, Math.min(1, Math.max(0, -art.getBoundingClientRect().top / total())));
+    }, 600);
   };
 
   // Barra de progreso de lectura.
@@ -136,6 +244,7 @@ export function render(el, { params }) {
     const c = el.querySelector('[data-ref="cuerpo"]');
     if (cuerpo != null && c && c.getBoundingClientRect().bottom <= window.innerHeight * 1.05) finAlcanzado = true;
     contar();
+    apuntarPosicion();
   };
 
   // ---- ¿Leída de verdad? ----------------------------------------------------------
@@ -148,10 +257,15 @@ export function render(el, { params }) {
   const umbral = () => Math.min(150000, Math.max(20000, minutosLectura(datos.entrada(id)?.palabras) * 60000 * 0.5));
   const contar = () => {
     const e = datos.entrada(id);
-    if (contada || cuerpo == null || !yo || !e || e.estado !== 'publicada' || e.usuario_id === yo.id || datos.leida(yo.id, id)) return;
+    if (contada || cuerpo == null || !yo || !e || e.estado !== 'publicada' || e.usuario_id === yo.id) return;
+    // Ya leída (antes): solo falta apuntar si ha llegado al final.
+    if (datos.leida(yo.id, id)) {
+      if (finAlcanzado && aLaVista >= 4000) { contada = true; datos.marcarLeida(yo.id, id, { alFinal: true }); }
+      return;
+    }
     if ((finAlcanzado && aLaVista >= 8000) || aLaVista >= umbral()) {
       contada = true;
-      datos.marcarLeida(yo.id, id);
+      datos.marcarLeida(yo.id, id, { alFinal: finAlcanzado });
     }
   };
   const relojLectura = setInterval(() => {
@@ -163,6 +277,25 @@ export function render(el, { params }) {
   window.addEventListener('scroll', progreso, { passive: true });
 
   el.addEventListener('click', (e) => {
+    if (clicContenido(e, el.querySelector('[data-ref="cuerpo"]'), { spoilers })) return;
+    const voto = e.target.closest('[data-votar-encuesta]');
+    if (voto && yo) {
+      cambiarVoto = false;
+      datos.votarEncuesta(yo.id, id, Number(voto.dataset.votarEncuesta), aviso);
+      return;
+    }
+    if (e.target.closest('[data-votar-cambiar]')) { cambiarVoto = true; pintar(); return; }
+    if (e.target.closest('[data-accion="letra"]')) {
+      // Mantener el sitio: lo que se leía sigue a la vista al cambiar de tamaño.
+      const art = el.querySelector('.lectura-articulo');
+      const f = art ? -art.getBoundingClientRect().top / total() : 0;
+      tam = TAMANOS[(TAMANOS.indexOf(tam) + 1) % TAMANOS.length];
+      guardarTam(tam);
+      pintar();
+      const art2 = el.querySelector('.lectura-articulo');
+      if (art2 && f > 0) window.scrollTo(0, art2.getBoundingClientRect().top + window.scrollY + f * total());
+      return;
+    }
     if (e.target.closest('[data-accion="leidos"]')) {
       const en = datos.entrada(id);
       if (en) abrirLeidos(en, en.usuario_id === yo?.id);
@@ -187,5 +320,29 @@ export function render(el, { params }) {
 
   const desuscribir = datos.suscribir(() => { if (cuerpo != null || fallo) pintar(); });
   pintar();
-  return () => { desuscribir(); quitarSocial(); clearInterval(relojLectura); window.removeEventListener('scroll', progreso); };
+  return () => { desuscribir(); quitarSocial(); clearInterval(relojLectura); clearTimeout(relojPos); window.removeEventListener('scroll', progreso); };
+}
+
+/** Los números de una entrada, para su autor: lecturas, hasta el final, reacciones, encuesta y réplicas. */
+function numerosAutor(e, cuerpo) {
+  const ls = datos.lecturasDe(e.id).filter((l) => l.usuario_id !== e.usuario_id && datos.usuario(l.usuario_id));
+  const alFinal = ls.filter((l) => l.al_final).length;
+  const reac = datos.reaccionesDe('entrada', e.id).length;
+  const resp = datos.comentariosDe('entrada', e.id).length;
+  const hayEncuesta = /^:::encuesta\s*$/m.test(cuerpo);
+  const votos = hayEncuesta ? datos.votosEncuesta(e.id).length : 0;
+  const replicas = datos.replicasDe(e.id).length;
+  const cifra = (n, t) => `<div class="lectura-num"><b>${n}</b><span>${t}</span></div>`;
+  return `
+    <section class="lectura-numeros">
+      <h2 class="lectura-numeros-titulo">Tus números</h2>
+      <div class="lectura-numeros-cifras">
+        ${cifra(ls.length, ls.length === 1 ? 'lectura' : 'lecturas')}
+        ${cifra(alFinal, 'llegaron al final')}
+        ${cifra(reac, reac === 1 ? 'reacción' : 'reacciones')}
+        ${cifra(resp, resp === 1 ? 'respuesta' : 'respuestas')}
+        ${hayEncuesta ? cifra(votos, votos === 1 ? 'voto en la encuesta' : 'votos en la encuesta') : ''}
+        ${cifra(replicas, replicas === 1 ? 'réplica' : 'réplicas')}
+      </div>
+    </section>`;
 }

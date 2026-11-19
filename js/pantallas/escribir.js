@@ -8,12 +8,18 @@
 //    al salir (también con el gesto de atrás) y al cerrar o cambiar de app. Si ya está
 //    publicada, en la base solo al pulsar "Actualizar".
 //  - Formato, pegar e imágenes pasan por el historial del navegador: "Deshacer" funciona.
+//  - "Insertar" (spoiler, juego, mención, capturas, cita destacada, veredicto, encuesta,
+//    portada) y los atajos "#" (juego) y "@" (persona): js/columnas-insertar.js. Todo acaba en
+//    texto; la vista previa usa el mismo markdown() que la lectura.
+//  - #escribir/nueva/replica/{id}: réplica a la entrada de otro columnista.
 import { icono } from '../icons.js';
 import * as datos from '../datos.js';
 import { usuarioActual } from '../sesion.js';
 import { esc, portada, aviso, avatar } from '../ui.js';
 import { volver, corregirRuta, reemplazarRuta } from '../navegacion.js';
-import { markdown, palabras, textoLectura, imagenRedimensionada, logoColumna, limpiarTexto, MAX_LINEAS_EN_BLANCO } from '../columnas-ui.js';
+import { markdown, palabras, textoLectura, imagenRedimensionada, logoColumna, limpiarTexto, MAX_LINEAS_EN_BLANCO, nombreColumna } from '../columnas-ui.js';
+import * as ins from '../columnas-insertar.js';
+import { tamLetra, cabeceraEntrada, clicContenido } from './lectura.js';
 
 const MAX = 100000;
 const CADA_BD_MS = 4000;
@@ -57,6 +63,13 @@ export function render(el, ctx) {
   return () => { hecho = true; quitar(); clearInterval(reloj); limpiar?.(); };
 }
 
+/** "Réplica a «título», de Fulano" (texto con HTML escapado). */
+function textoReplica(origId) {
+  const o = datos.entrada(origId);
+  if (!o) return 'Réplica a otra entrada';
+  return `Réplica a <strong>«${esc(o.titulo || 'Sin título')}»</strong>, de ${esc(datos.usuario(o.usuario_id)?.nombre ?? '')}`;
+}
+
 function editor(el, { params }) {
   const yo = usuarioActual();
   const col = yo ? datos.columnaDe(yo.id) : null;
@@ -75,14 +88,20 @@ function editor(el, { params }) {
     el.innerHTML = `<div class="vacio"><h2 class="vacio-titulo">No se encuentra esa entrada</h2><a class="boton-secundario" href="#inicio">Volver</a></div>`;
     return;
   }
+  // Réplica: a la entrada de otro columnista (mismo tema que la original).
+  const original = nueva && params[1] === 'replica' ? datos.entrada(params[2]) : null;
   const tema = previa
     ? { juego_id: previa.juego_id, coleccion_id: previa.coleccion_id, saga_id: previa.saga_id }
     : soloLocal ? { juego_id: null, coleccion_id: null, saga_id: null, ...loc.tema }
-      : { juego_id: params[1] === 'juego' ? Number(params[2]) : null, coleccion_id: params[1] === 'coleccion' ? params[2] : null, saga_id: params[1] === 'saga' ? params[2] : null };
+      : original ? { juego_id: original.juego_id, coleccion_id: original.coleccion_id, saga_id: original.saga_id }
+        : { juego_id: params[1] === 'juego' ? Number(params[2]) : null, coleccion_id: params[1] === 'coleccion' ? params[2] : null, saga_id: params[1] === 'saga' ? params[2] : null };
+  const replicaDe = previa?.replica_de ?? (soloLocal ? loc.replica_de : null) ?? original?.id ?? null;
   const s = {
     titulo: previa?.titulo ?? '', subtitulo: previa?.subtitulo ?? '', cuerpo: '',
+    portada: previa?.portada ?? (soloLocal ? loc.portada : null) ?? null,
     estado: previa?.estado ?? 'borrador', vista: false, guardado: 'nuevo', cargando: !!previa, fallo: false,
   };
+  const spoilersPrevia = new Set();
   // Versiones: cada cambio suma uno; se sabe qué hay ya en el móvil y qué en la base.
   let cambios = 0;
   let enLocal = 0;
@@ -110,12 +129,15 @@ function editor(el, { params }) {
       </header>
       <div class="editor-columna">${logoColumna(col, 28)}<span>${esc(col.nombre)}</span></div>
       <div class="editor-tema">${temaHtml()}</div>
+      ${replicaDe ? `<div class="editor-tema editor-replica">${icono('comentario', { tam: 18, color: 'var(--acento)', trazo: 'var(--fondo)' })}<span>${textoReplica(replicaDe)}</span></div>` : ''}
+      <div class="editor-portada" data-ref="portada"></div>
       <div data-ref="escribir">
         <textarea class="editor-titulo" data-ref="titulo" rows="1" maxlength="200" placeholder="Título" enterkeyhint="next"></textarea>
         <textarea class="editor-subtitulo" data-ref="subtitulo" rows="1" maxlength="300" placeholder="Subtítulo (opcional)" enterkeyhint="next"></textarea>
         <textarea class="editor-cuerpo" data-ref="cuerpo" maxlength="${MAX}" autocapitalize="sentences" spellcheck="true" placeholder="Escribe aquí. Sin prisa: se guarda solo.&#10;&#10;**negrita**, *cursiva*, ## intertítulo, > cita, - lista"></textarea>
       </div>
       <div class="editor-previa" data-ref="vista-previa" style="${col.color ? `--col:${esc(col.color)}` : ''}" hidden></div>
+      <div data-ref="oferta"></div>
       <p class="editor-cuenta" data-ref="cuenta"></p>
       ${s.estado === 'publicada' || !nueva ? `
         <div class="editor-mas">
@@ -127,6 +149,7 @@ function editor(el, { params }) {
         <button type="button" data-f="deshacer" aria-label="Deshacer">${icono('deshacer', { tam: 20 })}</button>
         <button type="button" data-f="rehacer" aria-label="Rehacer">${icono('rehacer', { tam: 20 })}</button>
         <span class="editor-formato-sep" aria-hidden="true"></span>
+        <button type="button" class="editor-insertar" data-f="insertar" aria-label="Insertar">${icono('mas', { tam: 18 })}<span>Insertar</span></button>
         <button type="button" data-f="negrita" aria-label="Negrita"><b>B</b></button>
         <button type="button" data-f="cursiva" aria-label="Cursiva"><i>I</i></button>
         <button type="button" data-f="titulo" aria-label="Intertítulo">H</button>
@@ -134,6 +157,7 @@ function editor(el, { params }) {
         <button type="button" data-f="lista" aria-label="Lista">•</button>
         <button type="button" data-f="numerada" aria-label="Lista numerada">1.</button>
         <label aria-label="Imagen">${icono('imagen', { tam: 20, trazo: 'var(--superficie)' })}<input type="file" accept="image/*" data-ref="imagen" hidden></label>
+        <div class="editor-sug" data-ref="sug" role="listbox" aria-label="Sugerencias" hidden></div>
       </div>
     </section>`;
   const $ = (r) => el.querySelector(`[data-ref="${r}"]`);
@@ -167,6 +191,7 @@ function editor(el, { params }) {
       error: 'Sin red: guardado en el móvil',
     }[s.guardado] ?? '';
     $('estado').textContent = txt;
+    pintarOferta();
     const n = palabras(s.cuerpo);
     $('cuenta').innerHTML = s.fallo
       ? 'Revisa la conexión. <button type="button" class="enlace-discreto" data-accion="reintentar">Reintentar</button>'
@@ -177,7 +202,7 @@ function editor(el, { params }) {
   const guardarYa = () => {
     clearTimeout(relojLocal);
     if (cambios !== enLocal && !terminado) {
-      guardarLocal(id, { titulo: s.titulo, subtitulo: s.subtitulo, cuerpo: s.cuerpo, ts: Date.now(), tema, usuario_id: yo.id });
+      guardarLocal(id, { titulo: s.titulo, subtitulo: s.subtitulo, cuerpo: s.cuerpo, portada: s.portada, replica_de: replicaDe, ts: Date.now(), tema, usuario_id: yo.id });
       enLocal = cambios;
     }
     pintarEstado();
@@ -188,7 +213,7 @@ function editor(el, { params }) {
     const version = cambios;
     s.guardado = 'guardando'; pintarEstado();
     guardandoP = datos.guardarEntrada({
-      id, columna_id: col.id, usuario_id: yo.id, ...tema,
+      id, columna_id: col.id, usuario_id: yo.id, ...tema, replica_de: replicaDe, portada: s.portada,
       titulo: limpiarTexto(s.titulo, { unaLinea: true }), subtitulo: limpiarTexto(s.subtitulo, { unaLinea: true }),
       cuerpo: limpiarTexto(s.cuerpo), palabras: palabras(s.cuerpo),
       estado: estadoNuevo ?? s.estado,
@@ -390,12 +415,154 @@ function editor(el, { params }) {
       verCursor();
       return;
     }
+    if (f === 'insertar') { abrirInsertar(); return; }
     if (document.activeElement !== cuerpo) cuerpo.focus({ preventScroll: true });
     if (f === 'negrita') envolver('**');
     else if (f === 'cursiva') envolver('*');
     else prefijo(f);
     verCursor();
   });
+  // ---- Insertar ---------------------------------------------------------------------
+  // Dónde estaba el cursor al abrir una hoja (se pierde el foco al abrirla).
+  let marca = { a: 0, b: 0 };
+  const recordar = () => { marca = { a: cuerpo.selectionStart ?? cuerpo.value.length, b: cuerpo.selectionEnd ?? cuerpo.value.length }; };
+  /** Un bloque en sus propias líneas, separado por una línea en blanco (sin huecos de más). */
+  const insertarBloque = (texto, a = marca.a, b = marca.b, { seleccionar = null } = {}) => {
+    let v = cuerpo.value;
+    // Los bloques ::: no se anidan: si el cursor está dentro de uno, va justo después.
+    if (texto.startsWith(':::')) {
+      const lineas = v.slice(0, a).split('
+');
+      let abierto = false;
+      for (const l of lineas) { if (/^:::\S/.test(l.trim())) abierto = true; else if (/^:::\s*$/.test(l)) abierto = false; }
+      if (abierto) {
+        const cierre = v.slice(a).search(/^:::\s*$/m);
+        a = b = cierre < 0 ? v.length : a + cierre + v.slice(a + cierre).indexOf(':::') + 3;
+      }
+    }
+    v = cuerpo.value;
+    const antes = /\n*$/.exec(v.slice(0, a))[0].length;
+    const despues = /^\n*/.exec(v.slice(b))[0].length;
+    const pre = a > 0 ? '\n'.repeat(Math.max(0, 2 - antes)) : '';
+    const post = '\n'.repeat(Math.max(0, 2 - despues));
+    insertar(cuerpo, `${pre}${texto}${post}`, a, b);
+    if (seleccionar) {
+      const i = a + pre.length + texto.indexOf(seleccionar);
+      cuerpo.setSelectionRange(i, i + seleccionar.length);
+    }
+    verCursor();
+  };
+  const alFinal = (texto) => insertarBloque(texto, cuerpo.value.length, cuerpo.value.length);
+  const notaMia = () => (tema.juego_id ? datos.miValoracion(yo.id, tema.juego_id)?.nota ?? null : null);
+  const abrirVeredicto = () => ins.hojaVeredicto({ notaInicial: notaMia(), alHecho: alFinal });
+  const abrirInsertar = () => {
+    recordar();
+    document.activeElement?.blur?.();
+    ins.menuInsertar((tipo) => {
+      const v = cuerpo.value;
+      const sel = v.slice(marca.a, marca.b);
+      if (tipo === 'spoiler') {
+        const dentro = sel.trim() || 'Lo que pasa al final';
+        insertarBloque(`:::spoiler\n${dentro}\n:::`, marca.a, marca.b, { seleccionar: sel.trim() ? null : dentro });
+      } else if (tipo === 'destacada') {
+        const frase = sel.trim().replace(/\s*\n\s*/g, ' ') || 'Una frase que se quede';
+        insertarBloque(`>> ${frase}`, marca.a, marca.b, { seleccionar: sel.trim() ? null : frase });
+      } else if (tipo === 'juego') ins.elegirJuego({ alElegir: (j) => insertarBloque(`[[juego:${j.igdb_id}]]`) });
+      else if (tipo === 'capturas') ins.elegirImagenJuego({ juegoId: tema.juego_id, alElegir: (url) => insertarBloque(`![](${url})`) });
+      else if (tipo === 'mencion') ins.elegirPersona({ sinId: yo.id, alElegir: (u) => { if (u) { insertar(cuerpo, `@${u.nombre} `, marca.a, marca.b); verCursor(); } } });
+      else if (tipo === 'veredicto') abrirVeredicto();
+      else if (tipo === 'encuesta') {
+        if (/^:::encuesta\s*$/m.test(cuerpo.value)) { aviso('Ya hay una encuesta: solo se vota una por entrada'); return; }
+        ins.hojaEncuesta({ alHecho: alFinal });
+      } else if (tipo === 'portada') abrirPortada();
+    });
+  };
+
+  // ---- Portada de la entrada --------------------------------------------------------
+  const pintarPortada = () => {
+    $('portada').innerHTML = s.portada
+      ? `<button type="button" class="editor-portada-img" data-accion="portada"><img src="${esc(s.portada)}" alt=""><span>Cambiar portada</span></button>`
+      : `<button type="button" class="enlace-discreto editor-portada-poner" data-accion="portada">${icono('cabecera', { tam: 18, color: 'currentColor', trazo: 'var(--fondo)' })}<span>Añadir portada</span></button>`;
+  };
+  const abrirPortada = () => ins.hojaPortada({
+    juegoId: tema.juego_id, entradaId: id, actual: s.portada,
+    alElegir: (url) => { s.portada = url; pintarPortada(); alEscribir(); },
+  });
+
+  // ---- Veredicto: si la entrada va de un juego, se ofrece al final ---------------------
+  const pintarOferta = () => {
+    const o = $('oferta');
+    if (!o) return;
+    const ver = tema.juego_id && !s.vista && palabras(s.cuerpo) >= 40 && !/^:::veredicto\s*$/m.test(s.cuerpo);
+    const html = ver ? `
+      <div class="editor-oferta">
+        ${icono('trofeo', { tam: 20, color: 'var(--acento)', trazo: 'var(--fondo)' })}
+        <span><strong>¿Le pones veredicto?</strong><small>Nota, lo bueno, lo malo y una frase, al final.</small></span>
+        <button type="button" class="boton-secundario boton-pequeno" data-accion="veredicto">Añadir</button>
+      </div>` : '';
+    if (o.__html !== html) { o.innerHTML = html; o.__html = html; }
+  };
+
+  // ---- "#" busca un juego y "@" a alguien del grupo -----------------------------------
+  const sug = $('sug');
+  let ficha = null; // { tipo: '#'|'@', a, b, items }
+  let relojSug = null;
+  let controlSug = null;
+  const cerrarSug = () => { ficha = null; sug.hidden = true; sug.innerHTML = ''; clearTimeout(relojSug); controlSug?.abort(); };
+  const pintarSug = () => {
+    if (!ficha?.items.length) { sug.hidden = true; return; }
+    sug.hidden = false;
+    sug.innerHTML = ficha.items.map((x, i) => (ficha.tipo === '#'
+      ? `<button type="button" class="editor-sug-item" data-sug="${i}">${portada(x, { clase: 'portada-mini' })}<span>${esc(x.nombre)}${x.anio ? ` <small>${x.anio}</small>` : ''}</span></button>`
+      : `<button type="button" class="editor-sug-item" data-sug="${i}">${avatar(x, 22)}<span>${esc(x.nombre)}</span></button>`)).join('');
+  };
+  const revisarSug = () => {
+    const pos = cuerpo.selectionStart;
+    if (pos !== cuerpo.selectionEnd || s.vista) { cerrarSug(); return; }
+    const antes = cuerpo.value.slice(Math.max(0, pos - 40), pos);
+    const m = antes.match(/(^|[\s(«"])([#@])([^\s#@]{1,30})$/u);
+    if (!m) { cerrarSug(); return; }
+    const tipo = m[2];
+    const q = m[3];
+    const a = pos - q.length - 1;
+    if (tipo === '@') {
+      const items = ins.personas(q, yo.id);
+      ficha = { tipo, a, b: pos, items };
+      pintarSug();
+      return;
+    }
+    if (q.length < 2) { cerrarSug(); return; }
+    ficha = { tipo, a, b: pos, items: ins.juegosLocales(q, 5) };
+    pintarSug();
+    clearTimeout(relojSug);
+    controlSug?.abort();
+    relojSug = setTimeout(async () => {
+      controlSug = new AbortController();
+      try {
+        const { buscarJuegos } = await import('../igdb.js');
+        const fuera = await buscarJuegos(q, controlSug.signal);
+        if (!ficha || ficha.a !== a) return;
+        const ya = new Set(ficha.items.map((j) => Number(j.igdb_id)));
+        ficha.items = [...ficha.items, ...fuera.filter((j) => !ya.has(Number(j.igdb_id)) && !ya.has(datos.canonico(j.igdb_id)))].slice(0, 6);
+        pintarSug();
+      } catch { /* sin red: lo de aquí */ }
+    }, 450);
+  };
+  sug.addEventListener('pointerdown', (e) => e.preventDefault()); // no perder el foco (ni el teclado)
+  sug.addEventListener('mousedown', (e) => e.preventDefault());
+  sug.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-sug]');
+    if (!b || !ficha) return;
+    const { tipo, a, b: fin, items } = ficha;
+    const x = items[Number(b.dataset.sug)];
+    cerrarSug();
+    if (tipo === '@') { insertar(cuerpo, `@${x.nombre} `, a, fin); verCursor(); return; }
+    await ins.asegurarJuego(x);
+    insertarBloque(`[[juego:${x.igdb_id}]]`, a, fin);
+  });
+  cuerpo.addEventListener('input', revisarSug);
+  cuerpo.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== cuerpo) cerrarSug(); }, 150));
+
   $('imagen').addEventListener('change', async (e) => {
     const f = e.target.files?.[0];
     e.target.value = '';
@@ -421,18 +588,16 @@ function editor(el, { params }) {
   // ---- Vista previa: exactamente como se leerá ---------------------------------------
   let scrollEscribiendo = 0;
   const htmlPrevia = () => {
-    const autor = datos.usuario(yo.id) ?? yo;
-    const subt = s.subtitulo.trim();
+    const e = {
+      id, usuario_id: yo.id, ...tema, replica_de: replicaDe, portada: s.portada, estado: 'previa',
+      titulo: limpiarTexto(s.titulo, { unaLinea: true }), subtitulo: limpiarTexto(s.subtitulo.trim(), { unaLinea: true }) || null,
+      palabras: palabras(s.cuerpo), publicada_en: null, actualizado_en: new Date().toISOString(),
+    };
     return `
-      <article class="lectura-articulo">
+      <article class="lectura-articulo tam-${tamLetra()}">
         <p class="lectura-borrador">Vista previa</p>
-        <h1 class="lectura-titulo">${esc(limpiarTexto(s.titulo, { unaLinea: true }) || 'Sin título')}</h1>
-        ${subt ? `<p class="lectura-subtitulo">${esc(limpiarTexto(subt, { unaLinea: true }))}</p>` : ''}
-        <div class="lectura-firma">
-          ${avatar(autor, 36)}
-          <div><strong>${esc(autor?.nombre ?? '')}</strong><span>${esc(textoLectura(palabras(s.cuerpo)))}</span></div>
-        </div>
-        <div class="lectura-cuerpo">${markdown(limpiarTexto(s.cuerpo))}</div>
+        ${cabeceraEntrada(e)}
+        <div class="lectura-cuerpo">${markdown(limpiarTexto(s.cuerpo), { autorId: yo.id, previa: true, spoilers: spoilersPrevia })}</div>
       </article>`;
   };
   const cambiarVista = (ver) => {
@@ -440,7 +605,7 @@ function editor(el, { params }) {
     const b = el.querySelector('[data-accion="vista"]');
     b.setAttribute('aria-pressed', String(ver));
     b.textContent = ver ? 'Seguir escribiendo' : 'Vista previa';
-    if (ver) { scrollEscribiendo = window.scrollY; document.activeElement?.blur?.(); }
+    if (ver) { scrollEscribiendo = window.scrollY; document.activeElement?.blur?.(); cerrarSug(); }
     $('escribir').hidden = ver;
     barra.hidden = ver;
     $('cuenta').hidden = ver;
@@ -448,6 +613,7 @@ function editor(el, { params }) {
     p.hidden = !ver;
     p.innerHTML = ver ? htmlPrevia() : '';
     if (!ver) for (const t of campos) crecer(t);
+    pintarOferta();
     window.scrollTo(0, ver ? 0 : scrollEscribiendo);
   };
 
@@ -460,9 +626,12 @@ function editor(el, { params }) {
     volver(col ? `#columna/${col.id}` : '#inicio');
   };
   el.addEventListener('click', async (e) => {
+    if (s.vista && clicContenido(e, $('vista-previa'), { spoilers: spoilersPrevia })) return;
     const b = e.target.closest('[data-accion]');
     if (!b) return;
     const a = b.dataset.accion;
+    if (a === 'portada') { recordar(); abrirPortada(); return; }
+    if (a === 'veredicto') { abrirVeredicto(); return; }
     if (a === 'cerrar') salir();
     else if (a === 'vista') cambiarVista(!s.vista);
     else if (a === 'reintentar') cargar();
@@ -521,11 +690,13 @@ function editor(el, { params }) {
   // ---- Cargar: la base y, si es más reciente, lo guardado en el móvil ----------
   const poner = () => {
     titulo.value = s.titulo; subtitulo.value = s.subtitulo; cuerpo.value = s.cuerpo;
+    pintarPortada();
     for (const t of campos) { t.readOnly = s.cargando || s.fallo; crecer(t); }
     pintarEstado();
   };
   const usarLocal = (l) => {
     Object.assign(s, { titulo: l.titulo ?? '', subtitulo: l.subtitulo ?? '', cuerpo: l.cuerpo ?? '' });
+    if ('portada' in l) s.portada = l.portada ?? null;
     cambios = enLocal = 1; // pendiente de llegar a la base
     s.guardado = 'escribiendo';
   };

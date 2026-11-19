@@ -546,7 +546,7 @@ export function htmlColumna(col, yo, { embebida = false } = {}) {
     const t = temaDe(e);
     return `
       <a class="col-entrada${grande ? ' destacada' : ''}" href="#entrada/${esc(e.id)}">
-        ${t?.juego ? portada(t.juego, { clase: grande ? 'portada-col-grande' : 'portada-lista' }) : ''}
+        ${grande && e.portada ? `<img class="col-entrada-portada" src="${esc(e.portada)}" alt="" loading="lazy" decoding="async">` : t?.juego ? portada(t.juego, { clase: grande ? 'portada-col-grande' : 'portada-lista' }) : ''}
         <span class="col-entrada-texto">
           ${t ? `<small class="col-entrada-tema">${esc(t.nombre)}</small>` : ''}
           <strong>${esc(e.titulo || 'Sin título')}</strong>

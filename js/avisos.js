@@ -24,6 +24,7 @@ export const GRUPOS = [
   { id: 'lectura', nombre: 'Lecturas de tu columna', tipos: ['lectura'] },
   { id: 'insignia', nombre: 'Insignias', tipos: ['insignia', 'insignia_perdida'] },
   { id: 'entrada', nombre: 'Entradas nuevas en las columnas', tipos: ['entrada'] },
+  { id: 'mencion', nombre: 'Menciones y réplicas en las columnas', tipos: ['mencion', 'replica'] },
   { id: 'cementerio', nombre: 'Cementerio (muertes y vueltas)', tipos: ['muerte', 'reanimacion', 'reanimacion_respondida', 'reanimacion_caducada', 'vuelta'] },
   { id: 'propuesta', nombre: 'Propuestas de nuevos miembros', tipos: ['propuesta', 'propuesta_lista', 'propuesta_caducada'] },
   { id: 'completo', nombre: 'Juegos completados', tipos: ['completo'] },
@@ -34,7 +35,7 @@ const grupoDe = (tipo) => GRUPOS.find((g) => g.tipos.includes(tipo))?.id ?? tipo
 
 const ICONO = {
   reaccion: 'reaccionar', respuesta: 'comentario', lectura: 'leido', insignia: 'trofeo', insignia_perdida: 'trofeo',
-  entrada: 'columnas', muerte: 'lapida', reanimacion: 'rayo', vuelta: 'rayo', reanimacion_pronto: 'rayo',
+  entrada: 'columnas', mencion: 'columnas', replica: 'comentario', muerte: 'lapida', reanimacion: 'rayo', vuelta: 'rayo', reanimacion_pronto: 'rayo',
   reanimacion_respondida: 'rayo', reanimacion_sin_codigo: 'rayo', reanimacion_caducada: 'lapida', propuesta_lista: 'urna', propuesta_caducada: 'urna',
   propuesta: 'urna', propuesta_apoyo: 'urna', apelacion: 'sello', completo: 'completado',
   evento_resultados: 'trofeo', evento_cierra: 'trofeo',
@@ -95,6 +96,17 @@ export function describir(n) {
       const c = e ? datos.columna(e.columna_id) : null;
       titulo = `${b(quienes(A))} ha publicado ${e?.titulo ? `«${esc(e.titulo)}»` : 'una entrada nueva'}`;
       extra = c ? `En ${esc(c.nombre)}` : '';
+      break;
+    }
+    case 'mencion': {
+      const e = datos.entrada(d.entrada_id);
+      titulo = `${b(quienes(A))} te menciona en ${e?.titulo ? `«${esc(e.titulo)}»` : 'una entrada'}`;
+      break;
+    }
+    case 'replica': {
+      const e = datos.entrada(d.entrada_id);
+      titulo = `${b(quienes(A))} ha replicado a ${cosa({ entrada_id: d.original_id })}`;
+      extra = e?.titulo ? `«${esc(e.titulo)}»` : '';
       break;
     }
     case 'muerte': titulo = `${b(sujeto?.nombre ?? 'Alguien')} ha muerto${d.exorcismo ? ' (exorcizado)' : ''}`; extra = d.causa ? `Causa: ${esc(d.causa)}` : 'El Dictador no da explicaciones.'; break;

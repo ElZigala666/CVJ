@@ -79,7 +79,19 @@ español (código, comentarios, commits, interfaz).
   degradado o patrón, con máscara para fundirse con el fondo), `js/cabecera-editar.js`,
   `js/perfil-editar.js`, `js/foto-perfil.js`, `js/acento.js` (paleta de colores de
   usuario), `js/selector-color.js`.
-- `js/columnas-ui.js`: piezas de columnas (formato del cuerpo, tarjetas).
+- `js/columnas-ui.js`: piezas de columnas (tarjetas y `markdown(texto, ctx)`: el MISMO HTML en la
+  lectura y en la vista previa del editor). Además del Markdown ligero, bloques en sus líneas:
+  `:::spoiler … :::` (tapado: "Spoiler · toca para ver"), `[[juego:ID]]` (tarjeta con la nota del
+  autor y la del grupo), `>> frase` (cita destacada), `:::veredicto … :::` (`nota: 8.5` o una
+  letra, `+ bueno`, `- malo`, `= frase`), `:::encuesta … :::` (pregunta y `- opción`, 2-4; solo
+  la primera se vota) y `@Nombre` (mención); con 3 intertítulos o más, índice. Los `:::` no se
+  anidan. `js/columnas-insertar.js`: el menú "Insertar" del editor y sus hojas (juego, capturas y
+  arte de IGDB, spoiler, cita destacada, mención, veredicto, encuesta, portada) y la búsqueda
+  rápida de "#" (juegos) y "@" (personas). Lectura (`js/pantallas/lectura.js`): tamaño de letra
+  (3, `localStorage` "cvj.lectura.letra"), seguir donde lo dejaste ("cvj.lectura.pos"; en las
+  listas "Vas por el 40 %"), "Leída", réplicas ("Escribir una réplica" →
+  `#escribir/nueva/replica/{id}`) y, para el autor, "Tus números"; `cabeceraEntrada`,
+  `clicContenido` y `tamLetra` los comparte con la vista previa del editor.
 - Perfil en pestañas (`js/pantallas/perfil.js`): bajo la cabecera (foto, nombre, bio, estado,
   datos, top 3, insignias compactas y "Columnista de …"), una barra fija al bajar: Historial ·
   Tier list · Estadísticas · Biblioteca · Columna (si tiene). Cambia ahí mismo, sin navegar; la
@@ -216,8 +228,12 @@ español (código, comentarios, commits, interfaz).
   completo, `auto`, `descartada`), `horas_ajustes` (líneas excluidas, plataforma corregida,
   `distintas`).
 - `columnas` (una por columnista, creada por el admin) → `entradas` (borrador/publicada,
-  `cuerpo` texto ≤ 100 000, sobre juego/colección/saga) → `lecturas` (de todos; solo se
-  apuntan al leer de verdad: final del texto + unos segundos, o un rato a la vista).
+  `cuerpo` texto ≤ 100 000, sobre juego/colección/saga, `replica_de`, `portada` https; migración
+  047) → `lecturas` (de todos; solo se apuntan al leer de verdad: final del texto + unos
+  segundos, o un rato a la vista; `al_final` = llegó al final) y `encuestas_votos` (una por
+  persona y entrada: `opcion` 0-3; no va en `huellas()`: se pide en cada refresco). Avisos
+  `mencion` ("@Nombre" en una publicada, una vez por entrada) y `replica` (al autor de la
+  original), por disparador en `entradas`.
 - `reacciones` (una por usuario y objetivo: buena/mala/acuerdo/discrepo/wtf) y
   `comentarios` (respuestas ≤ 500): `objetivo` = valoracion | valoracion_coleccion |
   entrada + `objetivo_id`. Se borran solos con su reseña o entrada (trigger).

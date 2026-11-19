@@ -54,16 +54,22 @@ export const ESTADOS = [
   { id: 'pendiente', nombre: 'Pendiente', icono: 'pendiente' },
 ];
 export const nombreEstado = (id) => ESTADOS.find((e) => e.id === id)?.nombre ?? id;
-/** Veces que ha completado un juego (las valoraciones antiguas completadas cuentan 1). */
-export const vueltasDe = (v) => (v?.estado === 'completado' ? Math.max(1, Number(v.vueltas) || 1) : Number(v?.vueltas) || 0);
-/** ¿Lo completó y ha vuelto a jugarlo? */
+/** ¿Lo completó y lo está volviendo a jugar ahora? (estado "Rejugando") */
 export const estaRejugando = (v) => v?.estado === 'completado' && v.rejugando === true;
-/** El estado tal como se lee: "Rejugando", "Completado ×2", "Jugando"... */
+/** ¿Lo ha rejugado alguna vez? Una marca sí/no (sin contar vueltas). */
+export const esRejugado = (v) => v?.rejugado === true || estaRejugando(v);
+/** El estado tal como se lee: "Rejugando", "Completado", "Jugando"... */
 export function textoEstado(v) {
   if (v?.estado !== 'completado') return nombreEstado(v?.estado);
-  const n = vueltasDe(v);
-  if (estaRejugando(v)) return n > 1 ? `Rejugando · completado ×${n}` : 'Rejugando';
-  return n > 1 ? `Completado ×${n}` : 'Completado';
+  return estaRejugando(v) ? 'Rejugando' : 'Completado';
+}
+/**
+ * La marca de "Rejugado": un detalle sutil (un icono pequeño junto al estado) que dice
+ * "Rejugado" al pasar el ratón o al tocarlo. Nada si no lo ha rejugado.
+ */
+export function marcaRejugado(v, { tam = 13 } = {}) {
+  if (!esRejugado(v)) return '';
+  return `<span class="marca-rejugado" tabindex="0" role="img" aria-label="Rejugado" title="Rejugado" data-tip="Rejugado">${icono('recargar', { tam, color: 'currentColor' })}</span>`;
 }
 
 // ---------------------------------------------------------------------------

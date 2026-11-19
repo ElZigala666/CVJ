@@ -38,9 +38,8 @@ const VERBOS = {
   pendiente: 'añadió a pendientes',
   rejuega: 'ha vuelto a jugar a',
 };
-const ORDINAL = { 2: '2.ª', 3: '3.ª', 4: '4.ª', 5: '5.ª' };
 /** "completó", o "completó por 2.ª vez" si es otra vuelta. */
-const verboDe = (a) => (a.tipo === 'completo' && a.vuelta > 1 ? `completó por ${ORDINAL[a.vuelta] ?? `${a.vuelta}.ª`} vez` : VERBOS[a.tipo] ?? 'actualizó');
+const verboDe = (a) => (a.tipo === 'completo' && a.rejugado ? 'volvió a completar' : VERBOS[a.tipo] ?? 'actualizó');
 // Colecciones: una entrada por la colección, no una por cada juego.
 const VERBOS_COLECCION = {
   valoro: 'valoró la colección',

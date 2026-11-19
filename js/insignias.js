@@ -352,7 +352,8 @@ export function calcular() {
       cazatrofeos: platinos.size,
       opinologo: mias.filter((x) => x.resena?.trim()).length,
       'gatillo-facil': mias.filter((x) => x.estado === 'abandonado').length,
-      'otra-vuelta': mias.filter((x) => Number(x.vueltas) > 1 || x.rejugando).length,
+      // Juegos distintos con la marca de rejugado (no vueltas).
+      'otra-vuelta': mias.filter((x) => x.rejugado === true || x.rejugando === true).length,
       'saga-completa': sagas,
       arqueologo: jugadas.filter((x) => { const j = datos.juegoConocido(x.juego_id); return j?.anio && j.anio < 2000; }).length,
       'lo-vi-primero': primero.get(u.id).despuesDos,

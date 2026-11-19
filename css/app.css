@@ -2051,10 +2051,25 @@ body.seleccionando #barra { visibility: hidden; }
 /* Rejugar: pista bajo los estados y marcas en las listas */
 .estado-pista { margin: -6px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--texto-2); }
 .estado-pista[hidden] { display: none; }
-.sello-vueltas, .sello-rejugando {
+.sello-rejugando {
   position: absolute; left: 6px; top: 6px; z-index: 3; padding: 2px 7px; border-radius: 7px;
   font-size: 11px; font-weight: 700; line-height: 1.5; background: rgba(0, 0, 0, .62); color: #FFFFFF;
 }
+/* "Rejugado": un detalle sutil (icono pequeño); dice "Rejugado" al pasar el ratón o al tocarlo */
+.sello-rejugado {
+  position: absolute; left: 6px; top: 6px; z-index: 3; display: inline-flex; padding: 3px; border-radius: 50%;
+  background: rgba(0, 0, 0, .55); color: #FFFFFF; line-height: 0;
+}
+.marca-rejugado { position: relative; display: inline-flex; align-items: center; margin-left: 4px; color: var(--acento-texto); opacity: .85; cursor: default; outline: none; }
+.sello-rejugado .marca-rejugado { margin: 0; color: inherit; opacity: 1; }
+.marca-rejugado::after {
+  content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%);
+  padding: 3px 8px; border-radius: 6px; background: var(--flotante, #222); color: var(--texto); box-shadow: var(--sombra-flotante, none);
+  font-size: 11.5px; font-weight: 600; line-height: 1.4; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .15s;
+}
+.marca-rejugado:hover::after, .marca-rejugado:focus::after, .marca-rejugado:focus-visible::after { opacity: 1; }
+.rejugado-por { display: flex; align-items: center; gap: 6px; margin: 0 0 var(--esp-2); font-size: 12.5px; color: var(--texto-2); }
+.quitar-rejugado { align-self: flex-start; padding: 0; min-height: 0; font-size: 12px; }
 .sello-rejugando { background: var(--acento); color: var(--sobre-acento); }
 .tarjeta-rejugando { font-size: 11.5px; font-weight: 700; color: var(--acento-texto); }
 /* Actividad: la miniatura es siempre la portada entera (no se estira a la altura de la fila) */
@@ -3480,3 +3495,5 @@ body.reordenando { user-select: none; -webkit-user-select: none; cursor: grabbin
 .grupo-whatsapp .psn-input { flex: 1; min-width: 0; }
 .difunto .llamada-aceptar { width: 100%; }
 .llamada > .enlace-discreto { justify-self: center; }
+.ficha-explica { margin: 4px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--texto-2); }
+.saga-explica { display: block; font-size: 12.5px; line-height: 1.4; opacity: .85; }

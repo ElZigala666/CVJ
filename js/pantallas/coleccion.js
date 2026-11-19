@@ -89,6 +89,7 @@ export function render(el, ctx) {
     $('info').innerHTML = `
       <h1 class="ficha-titulo">${esc(sg.nombre)}</h1>
       <span class="ficha-meta">${esc(meta)}</span>
+      <p class="ficha-explica">Cuenta como un solo juego: una nota y las horas de todos sus juegos sumadas. La crea El Dictador.</p>
       ${admin ? `
         <div class="ficha-online">
           <span>Sin final (online, competitivo...)</span>

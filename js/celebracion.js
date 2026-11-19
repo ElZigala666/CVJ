@@ -39,7 +39,7 @@ const tarjeta = ({ a, u, j }) => `
     <span class="celebra-sello" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24"><path d="M5.5 12.5l4.2 4.2L18.5 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
   </div>
   <div class="celebra-texto">
-    <span class="celebra-quien">${avatar(u, 28)}<span><strong>${esc(u.nombre)}</strong> ha completado${a.vuelta > 1 ? ' otra vez' : ''}</span></span>
+    <span class="celebra-quien">${avatar(u, 28)}<span><strong>${esc(u.nombre)}</strong> ha completado${a.rejugado ? ' otra vez' : ''}</span></span>
     <strong class="celebra-juego">${esc(j.nombre)}</strong>
   </div>`;
 

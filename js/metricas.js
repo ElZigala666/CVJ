@@ -51,6 +51,30 @@ function porUsuario() {
 
 export const valoracionesDe = (uid) => porUsuario().get(uid) ?? [];
 
+/**
+ * REGLA ÚNICA DE LAS COLECCIONES: si un juego está en una colección, nunca sale suelto.
+ * Lo de un usuario para historial, tier list, estadísticas y comparar: sus valoraciones
+ * de juegos que no están en ninguna colección + UNA por cada colección en la que tenga
+ * algo (su valoración de la colección o, si no, la heredada de sus juegos: la del que tenga
+ * más horas o la más reciente; lleva desdeJuego). La ficha de cada juego sigue enseñando
+ * su nota propia (valoracionesDe / datos.miValoracion).
+ */
+export function itemsDe(uid) {
+  return memoizar(`items:${uid}`, () => [
+    ...valoracionesDe(uid).filter((v) => !datos.coleccionDeJuego(v.juego_id)),
+    ...valoracionesColeccionDeUsuario(uid),
+  ]);
+}
+/** Una por colección: la suya o la heredada de sus juegos (con la forma de las de colección). */
+export function valoracionesColeccionDeUsuario(uid) {
+  return memoizar(`colsDe:${uid}`, () => datos.colecciones()
+    .map((sg) => valoracionesColeccionEfectivas(sg.id).find((v) => v.usuario_id === uid))
+    .filter(Boolean)
+    .map((v) => ({ ...v, juego_id: null, esColeccion: true })));
+}
+/** La nota de una colección para un usuario (propia o heredada), o null. */
+export const valoracionColeccionDe = (uid, coleccionId) => valoracionesColeccionDeUsuario(uid).find((v) => v.coleccion_id === coleccionId) ?? null;
+
 /** Usuarios ordenados por nombre. */
 export function usuarios() {
   return memoizar('usuarios', () => [...datos.estado.usuarios].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')));
@@ -66,7 +90,9 @@ export const ESTADOS_HISTORIAL = ['jugando', 'completado', 'abandonado', 'pendie
 
 export function perfil(uid) {
   return memoizar(`perfil:${uid}`, () => {
-    const vals = valoracionesDe(uid);
+    // Regla única: los juegos de una colección van dentro de ella (una tarjeta por colección).
+    const vals = valoracionesDe(uid).filter((v) => !datos.coleccionDeJuego(v.juego_id));
+    const cols = valoracionesColeccionDeUsuario(uid);
     const historial = Object.fromEntries(ESTADOS_HISTORIAL.map((e) => [e, []]));
     const juegosOnline = [];
     for (const v of vals) {
@@ -87,22 +113,23 @@ export function perfil(uid) {
     }
     // Colecciones valoradas: una tarjeta más en su pestaña (La sigo → Jugando, La dejé → Abandonados).
     // Las colecciones online / sin final van con los juegos online.
-    for (const v of valoracionesColeccionComoItems(uid)) {
+    for (const v of cols) {
       if (datos.coleccionOnline(v.coleccion_id)) juegosOnline.push(v);
       else historial[v.estado]?.push(v);
     }
     juegosOnline.sort((a, b) => (nota(b) ?? -1) - (nota(a) ?? -1) || porFecha(a, b));
-    for (const e of ['abandonado']) {
+    for (const e of ['completado', 'abandonado']) {
       historial[e] = [...historial[e].filter(tieneNota).sort(porNota), ...historial[e].filter((v) => !tieneNota(v)).sort(porFecha)];
     }
     // Jugando y pendientes: lo más reciente primero.
     historial.jugando.sort(porFecha);
     historial.pendiente.sort(porFecha);
 
-    const jugados = vals.filter((v) => v.estado !== 'pendiente');
-    const media = mediaGrupo(vals.filter(cuentaEnRanking));
+    const todos = [...vals, ...cols];
+    const jugados = todos.filter((v) => v.estado !== 'pendiente');
+    const media = mediaGrupo(todos.filter(cuentaEnRanking));
     const conteoPlat = new Map();
-    for (const v of jugados) for (const pl of datos.plataformasDe(v)) conteoPlat.set(pl, (conteoPlat.get(pl) ?? 0) + 1);
+    for (const v of jugados.filter((x) => !x.esColeccion || x.desdeJuego)) for (const pl of datos.plataformasDe(v)) conteoPlat.set(pl, (conteoPlat.get(pl) ?? 0) + 1);
     const plataformas = [...conteoPlat.entries()].sort((a, b) => b[1] - a[1]).map(([nombre, n]) => ({ nombre, n }));
 
     return {
@@ -128,7 +155,7 @@ export function perfil(uid) {
 export function tierList(uid) {
   return memoizar(`tiers:${uid}`, () => {
     const filas = Object.fromEntries(LETRAS.map((l) => [l, []]));
-    const conNota = [...valoracionesDe(uid), ...valoracionesColeccionComoItems(uid)].filter((v) => tieneNota(v) && cuentaEnRanking(v)).sort(porNota);
+    const conNota = itemsDe(uid).filter((v) => tieneNota(v) && cuentaEnRanking(v)).sort(porNota);
     for (const v of conNota) filas[notaALetra(v.nota)].push(v);
     return { filas, total: conNota.length };
   });
@@ -141,13 +168,14 @@ export function estadisticas(uid) {
   return memoizar(`stats:${uid}`, () => {
     const p = perfil(uid);
     // Estadísticas de notas: solo las valoraciones que cuentan en la tier list y los rankings.
-    const vals = valoracionesDe(uid).filter(cuentaEnRanking);
+    const vals = itemsDe(uid).filter(cuentaEnRanking);
 
-    // "vs grupo": media de (mi nota − media de los DEMÁS en ese juego),
-    // solo en juegos que también tienen nota de al menos otra persona.
+    // "vs grupo": media de (mi nota − media de los DEMÁS en ese juego o colección),
+    // solo en los que también tienen nota de al menos otra persona.
     const difs = [];
     for (const v of vals.filter(tieneNota)) {
-      const otros = datos.valoracionesDeJuego(v.juego_id).filter((o) => o.usuario_id !== uid && usuarioValido(o) && tieneNota(o) && cuentaEnRanking(o));
+      const deTodos = v.esColeccion ? valoracionesColeccionEfectivas(v.coleccion_id) : datos.valoracionesDeJuego(v.juego_id);
+      const otros = deTodos.filter((o) => o.usuario_id !== uid && usuarioValido(o) && tieneNota(o) && cuentaEnRanking(o));
       if (!otros.length) continue;
       const mediaOtros = otros.reduce((a, o) => a + nota(o), 0) / otros.length;
       difs.push(nota(v) - mediaOtros);
@@ -281,24 +309,20 @@ export function ranking(orden) {
  */
 function comunes(idA, idB) {
   return memoizar(`comunes:${idA}:${idB}`, () => {
-    const conNota = (uid) => new Map(valoracionesDe(uid).filter(tieneNota).map((v) => [Number(v.juego_id), v]));
+    // Regla única: los juegos de una colección se comparan dentro de ella (una vez).
+    const conNota = (uid) => new Map(valoracionesDe(uid).filter((v) => tieneNota(v) && !datos.coleccionDeJuego(v.juego_id)).map((v) => [Number(v.juego_id), v]));
     const deA = conNota(idA);
     const deB = conNota(idB);
     const pares = [];
-    const sueltos = new Set();
     for (const [id, a] of deA) {
       if (!deB.has(id)) continue;
       const b = deB.get(id);
       pares.push({ juego: datos.juegoConocido(id), a, b, dif: Math.abs(nota(a) - nota(b)) });
-      sueltos.add(id);
     }
     for (const sg of datos.colecciones()) {
-      const ef = valoracionesColeccionEfectivas(sg.id);
-      const a = ef.find((v) => v.usuario_id === idA);
-      const b = ef.find((v) => v.usuario_id === idB);
+      const a = valoracionColeccionDe(idA, sg.id);
+      const b = valoracionColeccionDe(idB, sg.id);
       if (!a || !b || !tieneNota(a) || !tieneNota(b)) continue;
-      if (a.desdeJuego && b.desdeJuego) continue; // ninguno valoró la colección: van por juegos
-      if ((a.desdeJuego && sueltos.has(a.desdeJuego.juegoId)) || (b.desdeJuego && sueltos.has(b.desdeJuego.juegoId))) continue;
       pares.push({ juego: datos.comoJuego(sg), a, b, dif: Math.abs(nota(a) - nota(b)) });
     }
     return pares.filter((x) => x.juego);
@@ -892,11 +916,6 @@ export function statsColeccion(coleccionId) {
 }
 
 /**
- * Biblioteca: los juegos de una colección sin valoración propia del usuario se juntan en
- * una tarjeta de la colección (en el sitio del primero). Los que tienen valoración propia
- * siguen sueltos. → items y { esColeccion, coleccion, juego, hijos, horas, valoracion, clave }
- */
-/**
  * Juegos de una colección que ha jugado alguien: los de su biblioteca (sin ocultar) y los que
  * ha valorado sueltos. Con los datos enteros (nunca con lo filtrado en pantalla).
  */
@@ -927,18 +946,24 @@ export function etiquetaColeccion(coleccionId, uid = null) {
   return `Colección · ${total} ${total === 1 ? 'juego' : 'juegos'}`;
 }
 
+/**
+ * Biblioteca: los juegos de una colección se juntan SIEMPRE en una tarjeta de la colección
+ * (en el sitio del primero), tengan o no nota propia. La nota de la tarjeta, la suya de la
+ * colección o la heredada. → items y { esColeccion, coleccion, juego, hijos, horas, valoracion, clave }
+ */
 export function agruparColecciones(uid, items, idDe) {
   if (!datos.hayColecciones() || !datos.colecciones().length) return items;
   const salida = [];
   const bloques = new Map();
   for (const x of items) {
     const id = idDe(x);
-    const sg = id != null && !datos.miValoracion(uid, id) ? datos.coleccionDeJuego(id) : null;
+    // Regla única: aunque tenga nota propia, el juego va dentro de su colección.
+    const sg = id != null ? datos.coleccionDeJuego(id) : null;
     if (!sg) { salida.push(x); continue; }
     if (!bloques.has(sg.id)) {
       const b = {
         esColeccion: true, coleccion: sg, juego: datos.comoJuego(sg), hijos: [], clave: `coleccion:${sg.id}`,
-        horas: horasColeccion(uid, sg.id).total, horasEstimadas: horasColeccion(uid, sg.id).estimadas, valoracion: datos.miValoracionColeccion(uid, sg.id),
+        horas: horasColeccion(uid, sg.id).total, horasEstimadas: horasColeccion(uid, sg.id).estimadas, valoracion: valoracionColeccionDe(uid, sg.id),
       };
       bloques.set(sg.id, b);
       salida.push(b);

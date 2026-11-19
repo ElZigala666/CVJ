@@ -61,6 +61,7 @@ export function render(el, ctx) {
           <div class="saga-cab-texto">
             <span class="saga-antetitulo">${icono('saga', { tam: 16, color: 'currentColor' })} Saga</span>
             <h1 class="saga-titulo">${esc(sg.nombre)}</h1>
+            <span class="saga-explica">Juegos independientes que se ven juntos; cada uno se valora por separado. Se forma sola.</span>
             <span class="saga-meta">${r.juegos.length} juegos${anios.length ? ` · ${Math.min(...anios)}–${Math.max(...anios)}` : ''} · el grupo ha jugado ${r.jugados}</span>
           </div>
         </header>

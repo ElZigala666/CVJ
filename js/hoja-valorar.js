@@ -4,7 +4,7 @@ import { icono } from './icons.js';
 import * as datos from './datos.js';
 import { usuarioActual } from './sesion.js';
 import { notaALetra, letraANota, redondear, formatearNota, LETRAS } from './notas.js';
-import { esc, portada, aviso, ESTADOS, vueltasDe, estaRejugando } from './ui.js';
+import { esc, portada, aviso, ESTADOS, estaRejugando } from './ui.js';
 import { fichaJuego } from './igdb.js';
 import * as metricas from './metricas.js';
 import { plataformaParaValorar } from './plataformas-ui.js';
@@ -78,15 +78,13 @@ export function abrirValorar(igdbId, op = {}) {
     const v = sg ? datos.miValoracionColeccion(yo.id, sg.id) : null;
     return v ? { sg, v } : null;
   })();
-  // Ya completado: en vez de "Jugando" se ofrece "Rejugando" (no pierde el completado y, al
-  // volver a acabarlo, cuenta otra vuelta: "Completado ×2").
+  // Ya completado: en vez de "Jugando" se ofrece "Rejugando" (no pierde el completado y deja
+  // la marca "Rejugado", que también se puede poner o quitar a mano).
   const yaCompletado = !coleccion && !online && previa?.estado === 'completado';
   const rejugandoAntes = yaCompletado && estaRejugando(previa);
-  const vueltasAntes = yaCompletado ? vueltasDe(previa) : 0;
   const estados = coleccion ? ESTADOS_COLECCION : online ? ESTADOS_ONLINE : !yaCompletado ? ESTADOS : ESTADOS.map((e) => (
     e.id === 'jugando' ? { id: 'rejugando', nombre: 'Rejugando', icono: 'jugando' }
-      : e.id === 'completado' ? { ...e, nombre: rejugandoAntes ? `Completado ×${vueltasAntes + 1}` : vueltasAntes > 1 ? `Completado ×${vueltasAntes}` : 'Completado' }
-        : e));
+      : e));
   // ¿Ha vuelto a jugarlo hace poco? (la sincronización lo ve antes de que él lo marque)
   const jugadoHacePoco = yaCompletado && !rejugandoAntes && (metricas.bibliotecaDeJuego(id).get(yo.id)?.filas ?? [])
     .some((f) => f.ultima_vez && Date.now() - new Date(f.ultima_vez).getTime() < 3 * 86400000 && new Date(f.ultima_vez) > new Date(previa.actualizado_en ?? 0));
@@ -128,6 +126,8 @@ export function abrirValorar(igdbId, op = {}) {
     // ¿Cuenta en mi tier list y rankings? Por defecto sí, salvo en juegos sin final.
     cuenta: typeof previa?.cuenta_ranking === 'boolean' ? previa.cuenta_ranking : !online || (coleccion ? !coleccion.es_online : false),
     confirmandoQuitar: false,
+    // La marca "Rejugado" (sí/no). Elegir "Rejugando" la pone sola.
+    rejugado: previa?.rejugado === true || rejugandoAntes,
   };
 
   // -------------------------------------------------------------------------
@@ -202,6 +202,11 @@ export function abrirValorar(igdbId, op = {}) {
           </div>
         </div>
 
+        ${yaCompletado ? `
+        <label class="interruptor" data-bloque="rejugado">
+          <input type="checkbox" data-rejugado>
+          <span class="interruptor-texto"><strong>Lo he rejugado</strong><small>Una marca discreta en tu valoración. Se pone sola al elegir «Rejugando».</small></span>
+        </label>` : ''}
         <label class="interruptor" data-bloque="cuenta">
           <input type="checkbox" data-cuenta>
           <span class="interruptor-texto"><strong>Contar en mi tier list y rankings</strong><small>${online ? 'Es un juego sin final: por defecto no cuenta, pero puedes meterlo si quieres.' : 'Apágalo si no quieres que esta nota entre en tu tier list ni en los rankings del grupo.'}</small></span>
@@ -292,8 +297,8 @@ export function abrirValorar(igdbId, op = {}) {
     }
     const pistaEstado = $('[data-ref="pista-estado"]');
     if (pistaEstado) {
-      pistaEstado.textContent = s.estado === 'rejugando' ? (rejugandoAntes ? 'Sigue contando como completado. Cuando lo acabes otra vez, márcalo como completado y sumará una vuelta.' : 'Sigue contando como completado y además sale en «Jugando ahora».')
-        : s.estado === 'completado' && rejugandoAntes ? `Lo has vuelto a acabar: será tu vuelta número ${vueltasAntes + 1}.`
+      pistaEstado.textContent = s.estado === 'rejugando' ? (rejugandoAntes ? 'Sigue contando como completado. Cuando lo acabes, márcalo como completado.' : 'Sigue contando como completado y además sale en «Jugando ahora».')
+        : s.estado === 'completado' && rejugandoAntes ? 'Lo has vuelto a acabar. Queda marcado como rejugado.'
           : s.estado === 'completado' && jugadoHacePoco ? 'Has vuelto a jugarlo hace poco: si lo estás rejugando, márcalo.'
             : '';
       pistaEstado.hidden = !pistaEstado.textContent;
@@ -303,6 +308,13 @@ export function abrirValorar(igdbId, op = {}) {
     $('[data-bloque="rec"]').hidden = !conNota;
     const ck = $('[data-cuenta]');
     if (ck) ck.checked = s.cuenta;
+    const rj = $('[data-rejugado]');
+    if (rj) {
+      if (s.estado === 'rejugando') s.rejugado = true;
+      rj.checked = s.rejugado;
+      rj.disabled = s.estado === 'rejugando';
+      $('[data-bloque="rejugado"]').hidden = !['completado', 'rejugando'].includes(s.estado);
+    }
     $('[data-bloque="cuenta"]').hidden = !conNota;
     const bh = $('[data-bloque="horas"]');
     if (bh) bh.hidden = s.estado === 'pendiente';
@@ -388,6 +400,7 @@ export function abrirValorar(igdbId, op = {}) {
   });
   resena.addEventListener('input', pintarContador);
   $('[data-cuenta]')?.addEventListener('change', (e) => { s.cuenta = e.target.checked; });
+  $('[data-rejugado]')?.addEventListener('change', (e) => { s.rejugado = e.target.checked; });
   // Total de horas en vivo (sincronizadas + extra).
   const pintarTotalHoras = () => {
     const t = $('[data-ref="horas-total"]');
@@ -492,6 +505,7 @@ export function abrirValorar(igdbId, op = {}) {
       recomendado: conNota ? s.recomendado : null,
       plataformas: elegidas,
       cuentaRanking: s.cuenta,
+      ...(yaCompletado && ['completado', 'rejugando'].includes(s.estado) ? { rejugado: s.rejugado } : {}),
       resena: resena.value.slice(0, MAX_RESENA),
     }, aviso).then((ok) => {
       // Si el juego solo se conocía por Buscar, completar su ficha en la tabla.

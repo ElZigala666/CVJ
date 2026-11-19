@@ -157,8 +157,9 @@ español (código, comentarios, commits, interfaz).
   lo que el admin separó (no se vuelve a fusionar solo). `fusiones_rechazadas`: "son
   distintos" por usuario.
 - `valoraciones` (usuario, juego): `estado` jugando/completado/abandonado/pendiente,
-  `nota` 0-10, `recomendado`, `resena`, `plataformas[]`, `cuenta_ranking`, `vueltas`,
-  `rejugando`, `jugando_desde`. Se quedan en la versión jugada; cuentan en el principal.
+  `nota` 0-10, `recomendado`, `resena`, `plataformas[]`, `cuenta_ranking`, `rejugado`
+  (marca sí/no, migración 044: sin contador de vueltas), `rejugando` (estado "Rejugando":
+  sigue completado), `jugando_desde`. Se quedan en la versión jugada; cuentan en el principal.
 - `colecciones` + `colecciones_juegos` (`orden`: lo nuevo va tras el MAYOR orden, no tras el
   número de juegos) + `valoraciones_coleccion`: juegos que cuentan
   como UNO (FIFA/EA FC): nota, horas y tarjeta únicas. Solo el admin las crea.
@@ -268,8 +269,21 @@ español (código, comentarios, commits, interfaz).
     `horas_ajustes` (excluir línea o "son partidas distintas").
   - Estimadas: la automática se retira sola si hay horas reales o extra; la elegida a mano
     no la toca el automático; borrar = `descartada`.
-- **Colecciones vs sagas**: colección = un solo juego a efectos de nota y horas; saga =
-  agrupación visual de juegos que se valoran por separado.
+- **Colecciones vs sagas**: colección = un solo juego a efectos de nota y horas (la crea el
+  admin); saga = agrupación visual de juegos que se valoran por separado (automática).
+- **Regla única de las colecciones**: si un juego está en una colección, NUNCA sale suelto.
+  En el historial, la biblioteca, la tier list, las estadísticas, comparar y los rankings de
+  cualquiera va dentro de una sola tarjeta de la colección, aunque tenga nota propia
+  (`metricas.itemsDe(uid)`, `valoracionesColeccionDeUsuario`, `agruparColecciones`). Nota
+  de la tarjeta: la suya de la colección o, si no, la heredada de sus juegos (el de más horas
+  o el más reciente; `desdeJuego`). La ficha de la colección enseña sus notas y horas por
+  juego; la ficha de cada juego, su nota propia o heredada. Todo sale de los índices: añadir o
+  quitar un juego lo recoloca todo al momento. ("Jugando ahora" enseña el juego concreto.)
+- **Rejugado**: marca sí/no por usuario y juego (`valoraciones.rejugado`). Se pone al elegir
+  "Rejugando" o a mano en Valorar ("Lo he rejugado"); se quita ahí o con "No lo he rejugado"
+  en mi fila de la ficha. Se ve como un detalle sutil (`marcaRejugado()` de `js/ui.js`: icono
+  pequeño con "Rejugado" al tocar o pasar el ratón) y "Rejugado por …" en la ficha. Para todo
+  lo demás cuenta como su estado. La insignia "Otra vuelta" cuenta juegos con la marca.
 - **Fusiones**: automáticas (`fusionar_versiones()`): ediciones, ports, remasters y
   ampliados se funden en el original; remakes no; tampoco si el original es prólogo/demo/
   episodio. Ante la duda, tarjeta "¿Es el mismo juego?" (fusión manual o rechazo por

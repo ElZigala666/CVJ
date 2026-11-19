@@ -7,7 +7,7 @@ import { usuarioActual } from '../sesion.js';
 import { LETRAS } from '../notas.js';
 import {
   esc, portada, urlPortada, colorBloque, colorFondo, mejorCargada, notaConLetra,
-  iconoRecomendacion, avatar, avatarInsignia, avatarPerfil, nombrePerfil, nombreEstado, textoEstado, ESTADOS, aviso,
+  iconoRecomendacion, avatar, avatarInsignia, avatarPerfil, nombrePerfil, nombreEstado, textoEstado, marcaRejugado, esRejugado, ESTADOS, aviso,
 } from '../ui.js';
 import { yaCargada, tamPara, ANCHOS } from '../portadas.js';
 import { volver, reemplazarRuta } from '../navegacion.js';
@@ -223,6 +223,15 @@ export function render(el, { params }) {
     return corto || n;
   }
 
+  /** "Rejugado por Marcos y Mateo": discreto, encima de las filas del grupo. */
+  function rejugadoPor(filas) {
+    const n = filas.filter((v) => !v.heredada && esRejugado(v)).map((v) => datos.usuario(v.usuario_id)).filter(Boolean)
+      .map((u) => (u.id === yo?.id ? 'ti' : u.nombre));
+    if (!n.length) return '';
+    const lista = n.length === 1 ? n[0] : `${n.slice(0, -1).join(', ')} y ${n[n.length - 1]}`;
+    return `<p class="rejugado-por">${icono('recargar', { tam: 13, color: 'currentColor' })}<span>Rejugado por ${esc(lista)}</span></p>`;
+  }
+
   function filaGrupo(v) {
     const u = datos.usuario(v.usuario_id);
     if (!u) return '';
@@ -238,7 +247,8 @@ export function render(el, { params }) {
           ${avatarPerfil(u, 40)}
           <div class="grupo-quien">
             <span class="grupo-nombre">${nombrePerfil(u)}${u.id === yo?.id ? ' <span class="grupo-tu">(tú)</span>' : ''}</span>
-            <span class="grupo-estado">${icono(est?.icono ?? 'pendiente', { tam: 14, color: 'var(--acento)', grosor: 2.6 })}${esc(sub)}</span>
+            <span class="grupo-estado">${icono(est?.icono ?? 'pendiente', { tam: 14, color: 'var(--acento)', grosor: 2.6 })}${esc(sub)}${v.heredada ? '' : marcaRejugado(v)}</span>
+            ${u.id === yo?.id && !v.heredada && v.rejugado && !v.rejugando ? '<button type="button" class="enlace-discreto quitar-rejugado" data-no-rejugado>No lo he rejugado</button>' : ''}
           </div>
           ${derecha}
         </div>
@@ -328,6 +338,7 @@ export function render(el, { params }) {
             <h2 class="seccion-titulo">El grupo</h2>
             <span class="seccion-extra">${st.jugadores === 1 ? '1 lo ha jugado' : `${st.jugadores} lo han jugado`}</span>
           </div>
+          ${rejugadoPor(filas)}
           ${filas.map(filaGrupo).join('')}
           ${soloBiblioteca.map(([uid, b]) => filaBiblioteca(uid, b)).join('')}
           ${corregirEmparejamiento()}
@@ -492,6 +503,11 @@ export function render(el, { params }) {
 
   el.addEventListener('change', (e) => { if (yo) manejarHoras(e, yo.id); });
   el.addEventListener('click', (e) => {
+    if (yo && e.target.closest('[data-no-rejugado]')) {
+      datos.valoracionesEnLote(yo.id, [id], (antes) => (antes ? { rejugado: false } : null), aviso);
+      aviso('Quitada la marca de rejugado');
+      return;
+    }
     if (yo && manejarHoras(e, yo.id)) return;
     if (yo && clicFusion(e, yo.id)) return;
     if (e.target.closest('[data-anadir-coleccion]') && yo && esAdmin()) { anadirAColeccionUI(id, yo.id); return; }

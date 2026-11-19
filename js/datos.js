@@ -1384,15 +1384,11 @@ export function guardarValoracion(v, onError) {
   const ahora = new Date().toISOString();
   const pendiente = v.estado === 'pendiente';
   // "Rejugando" no es un estado aparte: sigue Completado (no se pierde) y vuelve a estar en
-  // juego. Al acabarlo otra vez, suma una vuelta ("Completado ×2").
-  const vueltasAntes = antes?.estado === 'completado' ? Math.max(1, Number(antes.vueltas) || 1) : Number(antes?.vueltas) || 0;
+  // juego. Deja la marca "Rejugado" (sí/no, sin contar vueltas), que se puede quitar a mano.
   const eraRejugando = antes?.estado === 'completado' && antes.rejugando === true;
   const rejugando = v.estado === 'rejugando';
   const estadoFinal = rejugando ? 'completado' : v.estado;
-  const vueltas = typeof v.vueltas === 'number' ? Math.max(estadoFinal === 'completado' ? 1 : 0, Math.round(v.vueltas))
-    : rejugando ? Math.max(1, vueltasAntes)
-    : estadoFinal === 'completado' ? (eraRejugando ? vueltasAntes + 1 : Math.max(1, vueltasAntes))
-    : vueltasAntes;
+  const rejugado = rejugando || (typeof v.rejugado === 'boolean' ? v.rejugado : antes?.rejugado === true || eraRejugando);
   const enJuego = estadoFinal === 'jugando' || rejugando;
   const estabaEnJuego = antes?.estado === 'jugando' || eraRejugando;
   const fila = {
@@ -1400,7 +1396,7 @@ export function guardarValoracion(v, onError) {
     usuario_id: v.usuarioId,
     juego_id: destino,
     estado: estadoFinal,
-    vueltas,
+    rejugado,
     rejugando,
     jugando_desde: enJuego ? (estabaEnJuego ? antes.jugando_desde ?? antes.actualizado_en ?? ahora : ahora) : null,
     nota: pendiente ? null : redondear(v.nota),
@@ -1431,11 +1427,11 @@ export function guardarValoracion(v, onError) {
     // al ordenar el catálogo de golpe (pendiente → completado, cambios en lote...).
     const desde = estabaEnJuego ? new Date(antes.jugando_desde ?? antes.actualizado_en ?? ahora).getTime() : null;
     const celebrar = tipo === 'completo' && desde != null && Date.now() - desde >= DIAS_PARA_CELEBRAR * 86400000;
-    const extra = tipo === 'completo' ? { vuelta: fila.vueltas > 1 ? fila.vueltas : null, celebrar } : {};
+    const extra = tipo === 'completo' ? { rejugado: eraRejugando, celebrar } : {};
     if (reciente) {
       // Mismo juego hace menos de 10 min: se actualiza esa entrada.
       // Si ahora solo cambia la nota o la reseña, se conserva lo que contaba (completó, empezó...).
-      act = { ...reciente, ...comun, tipo: tipo === 'valoro' ? reciente.tipo : tipo, ...(tipo === 'valoro' ? {} : { vuelta: extra.vuelta ?? null, celebrar: !!extra.celebrar }) };
+      act = { ...reciente, ...comun, tipo: tipo === 'valoro' ? reciente.tipo : tipo, ...(tipo === 'valoro' ? {} : { rejugado: !!extra.rejugado, celebrar: !!extra.celebrar }) };
       actualizarAct = true;
     } else {
       act = { id: crypto.randomUUID(), usuario_id: v.usuarioId, juego_id: id, tipo, ...comun, ...extra };
@@ -2059,13 +2055,11 @@ export function valoracionesEnLote(usuarioId, igdbIds, cambiar, onError) {
     };
     const fila = { ...base, ...cambios, actualizado_en: ahora };
     if (cambios.estado) {
-      // "Jugando" sobre uno ya completado = rejugarlo (no se pierde el completado); y
-      // "Completado" sobre uno que se estaba rejugando = otra vuelta.
-      const veces = previa?.estado === 'completado' ? Math.max(1, Number(previa.vueltas) || 1) : Number(previa?.vueltas) || 0;
+      // "Jugando" sobre uno ya completado = rejugarlo (no se pierde el completado y queda la
+      // marca "Rejugado"); "Completado" sobre uno que se estaba rejugando = vuelve a Completado.
       const eraRejugando = previa?.estado === 'completado' && previa.rejugando === true;
-      if (cambios.estado === 'jugando' && previa?.estado === 'completado') { fila.estado = 'completado'; fila.rejugando = true; fila.vueltas = veces; }
-      else if (cambios.estado === 'completado') { fila.rejugando = false; fila.vueltas = eraRejugando ? veces + 1 : Math.max(1, veces); }
-      else { fila.rejugando = false; fila.vueltas = veces; }
+      if (cambios.estado === 'jugando' && previa?.estado === 'completado') { fila.estado = 'completado'; fila.rejugando = true; fila.rejugado = true; }
+      else { fila.rejugando = false; if (eraRejugando) fila.rejugado = true; }
       const enJuego = fila.estado === 'jugando' || fila.rejugando;
       fila.jugando_desde = enJuego ? (previa?.jugando_desde && (previa.estado === 'jugando' || eraRejugando) ? previa.jugando_desde : ahora) : null;
     }

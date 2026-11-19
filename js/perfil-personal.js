@@ -137,8 +137,12 @@ export function cabeceraDe(u) {
   };
 }
 
-/** Proporciones (ancho / alto) de la cabecera: en móvil y en escritorio (la franja). */
-export const ASPECTO_CAB = { movil: 390 / 280, escritorio: 1200 / 340 };
+/**
+ * Proporciones (ancho / alto) de la cabecera: FIJAS, las mismas en css/app.css (móvil, 39:28,
+ * sin contar la zona segura de arriba) y css/escritorio.css (7:2 en todos los anchos). Los
+ * marcos del encuadre usan exactamente estas: lo que se encuadra es lo que se ve.
+ */
+export const ASPECTO_CAB = { movil: 39 / 28, escritorio: 7 / 2 };
 
 /** Lo que se pinta de verdad: si falta algo (sin favorito, sin arte, sin imagen), el degradado. */
 export function cabeceraEfectiva(u, c = cabeceraDe(u)) {
@@ -189,11 +193,11 @@ export function htmlPatron(acc, intensidad = 50, oscuro = oscuroAhora(), id = 'h
 /** Las capas de una cabecera (sin botones): para el perfil y para la vista previa. */
 export function capasCabecera(c, acc, id = 'hexpat') {
   let fondo;
-  // Imagen (propia o arte del juego): una capa por encuadre; la cabecera enseña la que más se
-  // parece a su forma (consulta de contenedor en app.css: estrecha = móvil, franja = escritorio).
+  // Imagen (propia o arte del juego): una capa por encuadre (móvil; en escritorio,
+  // css/escritorio.css enseña la otra). cab-tope: la franja de la barra de estado, difuminada.
   const url = c.tipo === 'juego' ? URL_ARTE(c.arte) : c.tipo === 'imagen' ? c.imagen : null;
   const capa = (cl, v) => `<div class="cab-fondo ${cl}" style="background-image:url('${esc(url)}');background-size:cover;background-position:${v.x}% ${v.y}%;transform:scale(${v.zoom});transform-origin:${v.x}% ${v.y}%"></div>`;
-  if (url) fondo = capa('cab-movil', c) + capa('cab-escritorio', c.esc ?? c);
+  if (url) fondo = `<div class="cab-tope" style="background-image:url('${esc(url)}')"></div>` + capa('cab-movil', c) + capa('cab-escritorio', c.esc ?? c);
   else if (c.tipo === 'patron') fondo = htmlPatron(acc, c.intensidad, undefined, id);
   else fondo = `<div class="cab-fondo" style="background:${cssDegradado(acc)}"></div>`;
   return `<div class="cab-capa">${fondo}<div class="cab-sombra"></div></div>`;

@@ -45,15 +45,15 @@ export function abrirEncuadreDoble({ url, aspectos, movil, escritorio, titulo = 
         <div class="encd-lienzo-caja">
           <div class="encd-lienzo" data-ref="lienzo">
             <img src="${esc(url)}" alt="" data-ref="img" draggable="false" crossorigin="anonymous">
-            <div class="encd-marco movil" data-ref="m-movil"><span>Móvil</span></div>
-            <div class="encd-marco escritorio" data-ref="m-escritorio"><span>Escritorio</span></div>
+            <div class="encd-marco movil" data-ref="m-movil"><i class="encd-difumina" aria-hidden="true"></i><span>Móvil</span></div>
+            <div class="encd-marco escritorio" data-ref="m-escritorio"><i class="encd-difumina" aria-hidden="true"></i><span>Escritorio</span></div>
           </div>
         </div>
-        <p class="ajustes-nota">Arrastra el marco para elegir qué se ve en cada formato.</p>
+        <p class="ajustes-nota">Arrastra el marco para elegir qué se ve en cada formato. Lo de abajo, sombreado, se difumina y lo tapan tu foto y tus datos: deja lo importante por encima de la raya.</p>
         <label class="encuadre-zoom"><span>Zoom</span><input type="range" class="deslizador" min="1" max="3" step="0.01" value="${v.movil.zoom}" data-ref="zoom" aria-label="Zoom"></label>
         <div class="encd-previas">
-          <figure class="encd-previa movil"><div class="encd-previa-marco" style="aspect-ratio:${aspectos.movil}"><div data-ref="p-movil"></div></div><figcaption>Móvil</figcaption></figure>
-          <figure class="encd-previa escritorio"><div class="encd-previa-marco" style="aspect-ratio:${aspectos.escritorio}"><div data-ref="p-escritorio"></div></div><figcaption>Escritorio</figcaption></figure>
+          <figure class="encd-previa movil"><div class="encd-previa-marco" style="aspect-ratio:${aspectos.movil}"><div class="encd-previa-capa"><div data-ref="p-movil"></div><div class="cab-sombra"></div></div></div><figcaption>Móvil</figcaption></figure>
+          <figure class="encd-previa escritorio"><div class="encd-previa-marco" style="aspect-ratio:${aspectos.escritorio}"><div class="encd-previa-capa"><div data-ref="p-escritorio"></div><div class="cab-sombra"></div></div></div><figcaption>Escritorio</figcaption></figure>
         </div>
         <button type="button" class="boton-principal" data-ref="guardar">Guardar encuadre</button>
       </div>`,

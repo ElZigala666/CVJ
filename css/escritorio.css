@@ -291,8 +291,8 @@ body.seleccionando #barra { visibility: visible; }
 @media (min-width: 1024px) {
   .pantalla:has(> .perfil) { max-width: none; padding-left: 48px; padding-right: 48px; }
   .perfil { grid-template-columns: 380px minmax(0, 1fr); column-gap: 56px; row-gap: 24px; padding-top: 0; }
-  .perfil-cabecera { grid-column: 1 / -1; grid-row: 1; height: 340px; margin: 0 -48px; }
-  .cab-barra { left: 48px; right: 16px; top: 16px; }
+  .perfil > .perfil-cabecera { grid-column: 1 / -1; grid-row: 1; margin: 0 -48px; }
+  .cab-barra { left: 48px; right: 150px; top: 16px; } /* a la derecha, la esquina de avisos */
   .perfil-lado { grid-column: 1; grid-row: 2; margin-top: -108px; padding-top: 8px; }
   .perfil.con-banner .perfil-lado { padding-top: 8px; }
   .perfil-principal { grid-column: 2; grid-row: 2; }
@@ -370,10 +370,18 @@ body:has(#vista .entrada, #vista .difunto) #aviso { left: 50%; }
 /* Sin barra inferior: ni indicador ni deslizar entre pestañas. */
 .barra-indicador { display: none; }
 
-/* Avisos: en la barra lateral, con su contador; la pantalla, centrada. */
-.barra-avisos { position: relative; }
-.barra-avisos .avisos-contador { top: 6px; right: 10px; }
-.cabecera-avisos { display: none; }
+/* Avisos: arriba a la derecha (con mi avatar), en todas las pantallas, como en la cabecera de
+   Inicio del móvil (que aquí no se ve: lo hace la esquina). La pantalla, centrada. */
+.esquina {
+  position: fixed; z-index: 20; top: 14px; right: 20px; display: flex; align-items: center; gap: 4px;
+  padding: 3px; border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--fondo) 72%, transparent); box-shadow: 0 0 0 1px var(--borde);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+.esquina[hidden] { display: none; }
+.esquina .cabecera-avisos:hover { background: var(--superficie-2); }
+.esquina .avisos-contador { top: 1px; right: -1px; }
+.cabecera .cabecera-derecha { visibility: hidden; }
 .avisos-pantalla { max-width: 760px; margin: 0 auto; padding-top: 32px; }
 
 /* Editor de colección / saga: centrado. */
@@ -383,6 +391,23 @@ body:has(#vista .entrada, #vista .difunto) #aviso { left: 50%; }
 @media (min-width: 1024px) and (max-width: 1279px) {
   .perfil { grid-template-columns: 300px minmax(0, 1fr); column-gap: 28px; }
   .pantalla:has(> .perfil) { padding-left: 28px; padding-right: 28px; }
+}
+
+/* ---------------- Cabecera del perfil: proporción fija de escritorio ----------------
+   La misma que el marco "Escritorio" del encuadre (ASPECTO_CAB, 7:2) en todos los anchos: lo
+   que se encuadra es lo que se ve. Muy ancho (más de 1680 px de cabecera = 480 de alto): no
+   crece más; se centra y se funde por los lados. */
+.cab-movil, .cab-tope { display: none; }
+.cab-escritorio { display: block; }
+.perfil > .perfil-cabecera::before { aspect-ratio: 7 / 2; }
+@media (min-width: 1960px) {
+  .perfil > .perfil-cabecera { width: 1680px; max-width: 100%; margin: 0 auto; justify-self: center; }
+  .perfil > .perfil-cabecera .cab-capa {
+    -webkit-mask-image: linear-gradient(180deg, #000 42%, rgba(0, 0, 0, .7) 60%, rgba(0, 0, 0, .3) 80%, transparent 100%), linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(180deg, #000 42%, rgba(0, 0, 0, .7) 60%, rgba(0, 0, 0, .3) 80%, transparent 100%), linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+    mask-composite: intersect;
+  }
 }
 
 /* ---------------- Estadísticas: más aire y gráficos en columnas ---------------- */

@@ -2536,12 +2536,22 @@ body.apariencia-abierta > #app, body.apariencia-abierta > #barra { visibility: h
    =========================================================================== */
 .perfil { padding-top: 0; }
 .perfil-cabecera { position: relative; height: calc(280px + env(safe-area-inset-top, 0px)); color: #FFFFFF; }
+/* Proporción FIJA (la misma que el marco "Móvil" del encuadre: ASPECTO_CAB de
+   js/perfil-personal.js): lo que se encuadra es lo que se ve. La franja de la barra de estado
+   (zona segura) va aparte, por encima, con la misma imagen difuminada. */
+.perfil > .perfil-cabecera { height: auto; padding-top: env(safe-area-inset-top, 0px); }
+.perfil > .perfil-cabecera::before { content: ""; display: block; aspect-ratio: 39 / 28; }
+/* Se desvanece por abajo (la misma máscara en las vistas previas del encuadre, contando
+   desde debajo de la zona segura). */
 .cab-capa {
+  --tope: env(safe-area-inset-top, 0px);
   position: absolute; inset: 0; overflow: hidden;
-  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 42%, rgba(0, 0, 0, .7) 60%, rgba(0, 0, 0, .3) 80%, transparent 100%);
-  mask-image: linear-gradient(180deg, #000 0%, #000 42%, rgba(0, 0, 0, .7) 60%, rgba(0, 0, 0, .3) 80%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 calc(var(--tope) + (100% - var(--tope)) * .42), rgba(0, 0, 0, .7) calc(var(--tope) + (100% - var(--tope)) * .6), rgba(0, 0, 0, .3) calc(var(--tope) + (100% - var(--tope)) * .8), transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 calc(var(--tope) + (100% - var(--tope)) * .42), rgba(0, 0, 0, .7) calc(var(--tope) + (100% - var(--tope)) * .6), rgba(0, 0, 0, .3) calc(var(--tope) + (100% - var(--tope)) * .8), transparent 100%);
 }
 .cab-fondo, .cab-patron { position: absolute; inset: 0; }
+.cab-fondo.cab-movil, .cab-fondo.cab-escritorio { top: var(--tope); }
+.cab-tope { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--tope) + 4px); background-size: cover; background-position: 50% 0; filter: blur(14px); transform: scale(1.25); }
 .cab-sombra { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, .28) 0%, rgba(0, 0, 0, 0) 26%); }
 .cab-barra { position: absolute; z-index: 2; left: 16px; right: 16px; top: calc(env(safe-area-inset-top, 0px) + 12px); display: flex; align-items: center; gap: 8px; }
 .cab-hueco { flex: 1; }
@@ -2591,6 +2601,7 @@ body.apariencia-abierta > #app, body.apariencia-abierta > #barra { visibility: h
 /* Editar cabecera (js/cabecera-editar.js) */
 .cabed { display: flex; flex-direction: column; gap: 16px; }
 .cabed-previa { height: 200px; margin: -18px -20px 0; }
+.cabed-previa .cab-capa { --tope: 0px; }
 .cabed-quien { position: absolute; z-index: 1; left: 20px; bottom: 6px; display: flex; align-items: center; gap: 12px; color: var(--texto); }
 .cabed-quien .avatar { box-shadow: 0 0 0 4px var(--fondo); }
 .cabed-quien strong { font: 700 18px var(--fuente-titulos); }
@@ -3338,6 +3349,7 @@ body.apariencia-abierta > #app, body.apariencia-abierta > #barra { visibility: h
   font: 800 11px/1 var(--fuente-texto); box-shadow: 0 0 0 2px var(--fondo); font-variant-numeric: tabular-nums;
 }
 .avisos-contador[hidden] { display: none; }
+.esquina { display: none; } /* solo en escritorio (css/escritorio.css) */
 
 /* Centro de avisos */
 .avisos-pantalla { display: grid; gap: var(--esp-3); padding: calc(env(safe-area-inset-top, 0px) + 14px) 0 var(--esp-6); }
@@ -3417,12 +3429,8 @@ body.apariencia-abierta > #app, body.apariencia-abierta > #barra { visibility: h
 /* Cabecera del perfil con imagen: dos encuadres (móvil y escritorio). Se ve el que más se
    parece a la forma real de la cabecera: estrecha y alta = móvil; franja ancha = escritorio
    (vale para tablets y tamaños intermedios sin tocar el móvil). */
-.cab-capa { container: cab / size; }
+/* (Se ve la capa móvil; en escritorio, css/escritorio.css enseña la de escritorio.) */
 .cab-escritorio { display: none; }
-@container cab (min-aspect-ratio: 12 / 5) {
-  .cab-movil { display: none; }
-  .cab-escritorio { display: block; }
-}
 
 /* Encuadre doble (cabecera del perfil): la imagen entera con los dos marcos y las vistas previas. */
 .encd { display: grid; gap: var(--esp-3); }
@@ -3435,7 +3443,27 @@ body.apariencia-abierta > #app, body.apariencia-abierta > #barra { visibility: h
 .encd-marco.activo span { background: var(--acento); color: var(--sobre-acento); }
 .encd-previas { display: grid; grid-template-columns: 1fr 2fr; gap: var(--esp-3); align-items: end; }
 .encd-previa { margin: 0; display: grid; gap: 4px; }
-.encd-previa-marco { position: relative; overflow: hidden; border-radius: 10px; background: var(--superficie-2); }
+.encd-previa-marco { position: relative; overflow: hidden; border-radius: 10px; }
+/* Vista previa = la cabecera de verdad: misma proporción, recorte, sombra de arriba y máscara. */
+.encd-previa-capa {
+  position: absolute; inset: 0; overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 42%, rgba(0, 0, 0, .7) 60%, rgba(0, 0, 0, .3) 80%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 42%, rgba(0, 0, 0, .7) 60%, rgba(0, 0, 0, .3) 80%, transparent 100%);
+}
+.encd-previa-capa .cab-sombra { z-index: 1; }
+/* Dentro del marco, la franja de abajo que se difumina (y que tapan la foto y los datos). */
+.encd-difumina {
+  position: absolute; inset: 0; border-radius: 4px; pointer-events: none;
+  background: linear-gradient(180deg, transparent 42%, rgba(0, 0, 0, .45) 52%, rgba(0, 0, 0, .7) 75%, rgba(0, 0, 0, .85) 100%);
+}
+.encd-difumina::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 42%; border-top: 1px dashed rgba(255, 255, 255, .8);
+}
+.encd-difumina::after {
+  content: "Se difumina"; position: absolute; right: 6px; top: calc(42% + 5px); padding: 1px 6px; border-radius: 6px;
+  font: 700 10px/1.4 var(--fuente-texto); color: #FFFFFF; background: rgba(0, 0, 0, .55);
+}
+.encd-marco:not(.activo) .encd-difumina { display: none; }
 .encd-previa figcaption { font-size: 12px; font-weight: 700; color: var(--texto-2); }
 
 /* Editor de eventos: la imagen entera y el punto de enfoque (centro del recorte). */

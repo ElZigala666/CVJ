@@ -71,7 +71,8 @@ español (código, comentarios, commits, interfaz).
   `js/apariencia.js`, nunca el mío) sobre MI fondo, fundido en 250 ms (temporizador, no rAF). `js/ajustes-apariencia.js` su
   pantalla (vista previa en vivo). `js/encuadre.js` arrastrar y zoom (fondo y cabecera).
 - `js/encuadre.js`: `abrirEncuadre` (un marco) y `abrirEncuadreDoble` (la imagen entera con los
-  marcos Móvil / Escritorio y su vista previa; lo usa la cabecera del perfil).
+  marcos Móvil / Escritorio, con la franja de abajo que se difumina sombreada, y vistas previas
+  con la misma máscara y sombra que la cabecera; lo usa la cabecera del perfil).
 - Prueba local: si el navegador sirve archivos viejos, es el service worker de `index.html`
   (registrado al abrir la raíz): quitarlo y vaciar `caches` en esa pestaña.
 - `js/perfil-personal.js` (datos y cabecera del perfil: arte del favorito, imagen,
@@ -135,7 +136,8 @@ español (código, comentarios, commits, interfaz).
   `js/pantallas/evento-editar.js` (#evento/{id}/editar, #evento/nuevo: solo admin; se llega
   desde Ajustes → Eventos).
 - `js/avisos.js`: notificaciones (un solo sistema de avisos): textos por tipo, botón con
-  contador (cabecera de Inicio en móvil, barra lateral en escritorio), abrir uno = ir al sitio
+  contador (cabecera de Inicio en móvil; en escritorio, la `.esquina` de `js/app.js`: arriba a la
+  derecha con mi avatar, en todas las pantallas; la barra lateral no lo lleva), abrir uno = ir al sitio
   exacto (`destino` + `datos.destacar`, resaltado con `.destacado-aviso`) y marcarlo leído,
   "Mientras no estabas" (al abrir la app o volver tras 5 min: carrusel con las 5 más
   importantes sin ver; sustituye a las capas de insignias y "¡Completado!") y Ajustes →
@@ -175,8 +177,10 @@ español (código, comentarios, commits, interfaz).
   fijo|auto, fondo, dia, noche, imagen:{url, desenfoque, velo, texto, x, y, zoom, medida}}`;
   lo de antes se migra solo al abrir), `perfil_datos` (bio, estado, plataforma, favorito,
   vitrina, insignias, `cabecera:{tipo, arte|imagen, x, y, zoom (encuadre MÓVIL), esc:{x, y, zoom}
-  (encuadre ESCRITORIO; sin él, el mismo foco), intensidad}`: se pintan las dos capas y una
-  consulta de contenedor en `.cab-capa` enseña la que más se parece a la forma real),
+  (encuadre ESCRITORIO; sin él, el mismo foco), intensidad}`: proporción FIJA, la de los marcos
+  del encuadre (`ASPECTO_CAB`): móvil 39:28 sin contar la zona segura (va aparte, difuminada:
+  `.cab-tope`), escritorio (≥ 768 px) 7:2 en todos los anchos (más de 1680 px: se centra y se
+  funde por los lados). Si cambia una, cambian las dos (CSS y `ASPECTO_CAB`)),
   `umbral_probados`, `estimar_horas`, `plataformas_ocultas`.
 - `juegos` (PK `igdb_id`): caché de IGDB + `es_online`(_manual) = sin final,
   `relaciones` (jsonb de IGDB), `ttb_*` tiempo para terminar (sin imposibles: > 300 h historia,

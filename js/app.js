@@ -2,7 +2,7 @@
 import { icono } from './icons.js';
 import { usuarioActual, salir, refrescarUsuario, difuntoGuardado, guardarDifunto, hashSesion, latido } from './sesion.js';
 import * as datos from './datos.js';
-import { aplicarAcento, SELECCIONABLE } from './ui.js';
+import { aplicarAcento, SELECCIONABLE, avatar } from './ui.js';
 import { iniciarInstalacion } from './instalar.js';
 import { iniciarApariencia, aplicarApariencia, olvidarApariencia, aparienciaActual, acentoVisitado, ACENTO_DEFECTO } from './apariencia.js';
 import { anotarNavegacion, corregirRuta } from './navegacion.js';
@@ -149,7 +149,7 @@ function pintarBarra() {
     const tab = `<a class="barra-tab" href="#${ruta}" data-ruta="${ruta}">${icono(ruta, { tam: 24 })}<span>${texto}</span></a>`;
     // Columnas: solo en la barra lateral de escritorio (en el móvil, desde Inicio).
     return ruta === 'rankings' ? `${tab}<a class="barra-tab barra-solo-escritorio" href="#columnas" data-ruta="columnas">${icono('columnas', { tam: 24 })}<span>Columnas</span></a>` : tab;
-  }).join('') + `<a class="barra-tab barra-solo-escritorio barra-avisos" href="#avisos" data-ruta="avisos">${icono('aviso', { tam: 22 })}<span>Avisos</span><b class="avisos-contador" data-avisos-contador hidden></b></a><a class="barra-tab barra-solo-escritorio barra-propuestas" href="#propuestas" data-ruta="propuestas">${icono('urna', { tam: 20 })}<span>Propuestas</span></a><a class="barra-tab barra-solo-escritorio barra-cementerio" href="#cementerio" data-ruta="cementerio">${icono('lapida', { tam: 20 })}<span>Cementerio</span></a>`;
+  }).join('') + `<a class="barra-tab barra-solo-escritorio barra-propuestas" href="#propuestas" data-ruta="propuestas">${icono('urna', { tam: 20 })}<span>Propuestas</span></a><a class="barra-tab barra-solo-escritorio barra-cementerio" href="#cementerio" data-ruta="cementerio">${icono('lapida', { tam: 20 })}<span>Cementerio</span></a>`;
 }
 
 // Buscador de la barra lateral (escritorio): lo que se escribe va al buscador de la app.
@@ -242,14 +242,24 @@ function irAlDestacado() {
   try { hay = sessionStorage.getItem('cvj.destacar'); } catch { /* nada */ }
   if (hay) import('./avisos.js').then((m) => m.destacarPendiente());
 }
-// El contador de avisos sin leer de la barra lateral (escritorio).
+// Esquina de arriba a la derecha (solo escritorio, css/escritorio.css): los avisos con su
+// contador y mi avatar, como la cabecera de Inicio en el móvil, en todas las pantallas.
+const esquina = document.createElement('div');
+esquina.className = 'esquina';
+esquina.hidden = true;
+document.body.appendChild(esquina);
 function pintarContadorAvisos() {
-  const b = barra.querySelector('[data-avisos-contador]');
-  if (!b) return;
-  const yo = usuarioActual()?.id;
-  const n = datos.notificaciones().filter((x) => x.usuario_id === yo && !x.leida).length;
-  b.hidden = !n;
-  b.textContent = n > 99 ? '99+' : String(n);
+  const yo = usuarioActual();
+  // Sin sesión (entrar, difunto, enlace de llamada sin sesión): nada.
+  esquina.hidden = !yo || !montada?.ruta;
+  if (esquina.hidden) { esquina.innerHTML = ''; esquina.__html = ''; return; }
+  const n = datos.notificaciones().filter((x) => x.usuario_id === yo.id && !x.leida).length;
+  const html = `
+    <a class="cabecera-avisos esquina-avisos" href="#avisos" data-ruta="avisos" aria-label="Avisos${n ? `: ${n} sin leer` : ''}">
+      ${icono('aviso', { tam: 24, color: 'currentColor' })}
+      ${n ? `<b class="avisos-contador">${n > 99 ? '99+' : n}</b>` : ''}
+    </a>${avatar(datos.usuario(yo.id) ?? yo, 40, '#perfil')}`;
+  if (esquina.__html !== html) { esquina.innerHTML = html; esquina.__html = html; }
 }
 
 let turnoMontar = 0;
@@ -277,6 +287,7 @@ async function montar(cargar, contexto, conBarra, scroll = 0) {
   if (!contexto?.ruta) olvidarPestanas(); // entrar, difunto: sin nada de la sesión anterior
   seleccion?.alCambiarPantalla();
   montada = { ruta: contexto?.ruta, params: contexto?.params };
+  pintarContadorAvisos();
   barra.hidden = !conBarra;
   document.body.classList.toggle('sin-barra', !conBarra);
 

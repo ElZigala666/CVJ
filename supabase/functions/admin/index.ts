@@ -27,6 +27,9 @@
 //   { "accion": "apelaciones", "admin_id" }  → { apelaciones: [{ ...apelacion, texto, respuesta }] }
 //   { "accion": "apelacion_aceptar", "admin_id", "apelacion_id" }
 //   { "accion": "apelacion_rechazar", "admin_id", "apelacion_id", "respuesta"? }
+// El WhatsApp del Dictador (migración 043, privado: solo sale en las páginas de enlace):
+//   { "accion": "whatsapp", "admin_id" }                → { numero }
+//   { "accion": "whatsapp", "admin_id", "numero": "" }  guardar (vacío = quitarlo)
 // =============================================================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -87,7 +90,7 @@ async function crear(c: Record<string, unknown>) {
     if (!UUID.test(propuesta)) throw new ErrorAdmin("parametros", "Esa propuesta no existe.", 404);
     const { data: p } = await sb.from("propuestas").select("estado").eq("id", propuesta).maybeSingle();
     if (!p) throw new ErrorAdmin("parametros", "Esa propuesta no existe.", 404);
-    if (p.estado !== "abierta" && p.estado !== "aparcada") throw new ErrorAdmin("decidida", "Esa propuesta ya está decidida.");
+    if (!["esperando", "abierta", "aparcada"].includes(p.estado)) throw new ErrorAdmin("decidida", "Esa propuesta ya está decidida.");
   }
   await hashLibre(hash);
   const { data, error } = await sb.from("usuarios")
@@ -184,6 +187,21 @@ async function apelacion(accion: string, c: Record<string, unknown>) {
   return { ok: true };
 }
 
+/** Ver o guardar el WhatsApp del Dictador (solo cifras, con prefijo de país). */
+async function whatsapp(c: Record<string, unknown>) {
+  if (c.numero === undefined) {
+    const { data, error } = await sb.from("ajustes_privados").select("valor").eq("clave", "whatsapp").maybeSingle();
+    if (error) throw new ErrorAdmin("bd", error.message, 500);
+    return { ok: true, numero: data?.valor ?? "" };
+  }
+  let n = String(c.numero ?? "").replace(/[^0-9]/g, "");
+  if (n && n.length === 9) n = "34" + n; // un móvil español sin prefijo
+  if (n && (n.length < 8 || n.length > 15)) throw new ErrorAdmin("parametros", "Ese número no parece un WhatsApp. Ponlo con el prefijo del país.");
+  const { error } = await sb.from("ajustes_privados").upsert({ clave: "whatsapp", valor: n, actualizado_en: new Date().toISOString() });
+  if (error) throw new ErrorAdmin("bd", error.message, 500);
+  return { ok: true, numero: n };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ ok: false, codigo: "parametros", error: "Usa POST" }, 405);
@@ -204,6 +222,7 @@ Deno.serve(async (req) => {
       case "apelaciones": return json(await apelaciones());
       case "apelacion_aceptar": return json(await apelacion("aceptar", c));
       case "apelacion_rechazar": return json(await apelacion("rechazar", c));
+      case "whatsapp": return json(await whatsapp(c));
       default: return json({ ok: false, codigo: "parametros", error: "Acción desconocida" }, 400);
     }
   } catch (e) {

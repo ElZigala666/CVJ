@@ -7,8 +7,9 @@ import { icono } from '../icons.js';
 import * as datos from '../datos.js';
 import { esc, avatar, aviso } from '../ui.js';
 import { abrirHoja } from '../hoja.js';
-import { fecha, fechaHora, duracion, DICTADOR } from '../cementerio.js';
-import { entrarConHash, guardarDifunto, olvidarDifunto, difuntoGuardado } from '../sesion.js';
+import { fecha, fechaHora, duracion, queda, DICTADOR } from '../cementerio.js';
+import { entrarConHash, entrarConDispositivo, guardarDifunto, olvidarDifunto, difuntoGuardado, dispositivo, usuarioActual } from '../sesion.js';
+import { botonWhatsapp } from '../llamada.js';
 import { hashCodigo, normalizarCodigo, LARGO_CODIGO } from '../codigo.js';
 
 const MAX = 500;
@@ -25,7 +26,7 @@ export function render(el, { difunto, alEntrar, alOtro }) {
   async function cargar() {
     if (cargando) return;
     cargando = true;
-    const r = await datos.estadoDifunto({ hash: d.hash, id: d.id });
+    const r = await datos.estadoDifunto({ hash: d.hash, id: d.id, dispositivo: dispositivo() });
     cargando = false;
     if (!el.isConnected) return;
     if (!r.ok && r.codigo === 'codigo') {
@@ -50,8 +51,15 @@ export function render(el, { difunto, alEntrar, alOtro }) {
         aviso('Has vuelto de entre los muertos. Pórtate bien.', 3600);
         alEntrar(u);
         return;
-      } catch { /* sin red: que meta su código */ }
+      } catch { /* sin red o código cambiado: probar con el dispositivo */ }
     }
+    // Sin código guardado, pero este dispositivo le reconoce (entró aquí con su código).
+    try {
+      const u = await entrarConDispositivo(d.id);
+      aviso('Has vuelto de entre los muertos. Pórtate bien.', 3600);
+      alEntrar(u);
+      return;
+    } catch { /* que meta su código */ }
     olvidarDifunto();
     el.innerHTML = `
       <section class="difunto">
@@ -98,8 +106,41 @@ export function render(el, { difunto, alEntrar, alOtro }) {
           ${e.rechazo.respuesta ? `<q class="difunto-respuesta">${esc(e.rechazo.respuesta)}</q>` : e.con_codigo ? '<span>Sin explicaciones.</span>' : ''}</p>
         </div>`;
     }
+    // Le están llamando (reanimación): aceptar aquí mismo.
+    const ll = e.llamada;
+    let llamada = '';
+    if (ll) {
+      const autor = ll.autor_admin ? DICTADOR : esc(ll.autor ?? 'Alguien');
+      if (ll.estado === 'pendiente') {
+        llamada = `
+          <div class="difunto-estado llamada-difunto" role="status">
+            ${icono('rayo', { tam: 20, color: 'currentColor' })}
+            <p><strong>${autor} está intentando reanimarte</strong><span>Si quieres volver, acepta antes del ${esc(fechaHora(ll.caduca_en))}. Después, ${DICTADOR} tiene 12 horas para vetarlo.</span></p>
+          </div>
+          ${e.reconocido ? '' : `
+            <label class="campo-titulo" for="dif-codigo">Tu código</label>
+            <input id="dif-codigo" class="psn-input llamada-codigo" maxlength="${LARGO_CODIGO + 4}" autocomplete="one-time-code" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="······">`}
+          <p class="psn-mensaje error" data-ref="error-llamada" hidden></p>
+          <button type="button" class="boton-principal llamada-aceptar" data-accion="aceptar">Aceptar</button>
+          ${e.reconocido ? '' : '<button type="button" class="enlace-discreto" data-accion="sin-codigo">No tengo mi código</button>'}`;
+      } else if (ll.estado === 'en_curso') {
+        llamada = `
+          <div class="difunto-estado espera" role="status">
+            ${icono('rayo', { tam: 20, color: 'currentColor' })}
+            <p><strong>Has respondido a la llamada</strong><span>Quedan ${esc(queda({ termina_en: ll.termina_en }))}. Si ${DICTADOR} no lo veta, entrarás solo.</span></p>
+          </div>`;
+      } else if (ll.estado === 'sin_codigo') {
+        llamada = `
+          <div class="difunto-estado espera" role="status">
+            ${icono('rayo', { tam: 20, color: 'currentColor' })}
+            <p><strong>Quieres volver, sin código</strong><span>Decide ${DICTADOR}. Si lo aprueba, te dará un código nuevo.</span></p>
+          </div>
+          ${botonWhatsapp(e.whatsapp, 'reanimacion')}`;
+      }
+    }
     let accion;
-    if (e.pendiente) accion = '';
+    if (ll?.estado === 'pendiente') accion = '';
+    else if (e.pendiente) accion = '';
     else if (e.puede_desde) accion = `<p class="difunto-espera">Podrás volver a apelar el ${esc(fechaHora(e.puede_desde))}.</p>`;
     else accion = `<button type="button" class="boton-principal con-icono" data-accion="apelar">${icono('urna', { tam: 18, color: 'currentColor' })}<span>Apelar</span></button>`;
 
@@ -121,6 +162,7 @@ export function render(el, { difunto, alEntrar, alOtro }) {
             ${n ? `<p class="lapida-muertes">Has apelado ${n} ${n === 1 ? 'vez' : 'veces'}</p>` : ''}
           </div>
         </article>
+        ${llamada}
         ${estado}
         <div class="difunto-acciones">
           ${accion}
@@ -135,7 +177,35 @@ export function render(el, { difunto, alEntrar, alOtro }) {
     if (b.dataset.accion === 'otro') otro();
     else if (b.dataset.accion === 'reintentar') cargar();
     else if (b.dataset.accion === 'apelar') hojaApelar();
+    else if (b.dataset.accion === 'aceptar') aceptarLlamada(false);
+    else if (b.dataset.accion === 'sin-codigo') aceptarLlamada(true);
   });
+
+  async function aceptarLlamada(sinCodigo) {
+    const error = el.querySelector('[data-ref="error-llamada"]');
+    const fallo = (m) => { if (error) { error.textContent = m; error.hidden = false; } };
+    let hash = d.hash;
+    if (!est?.reconocido && !sinCodigo) {
+      const cod = normalizarCodigo(el.querySelector('#dif-codigo')?.value ?? '');
+      if (cod.length !== LARGO_CODIGO) { fallo(`Escribe tu código (${LARGO_CODIGO} caracteres).`); return; }
+      hash = await hashCodigo(cod);
+    }
+    for (const x of el.querySelectorAll('button')) x.disabled = true;
+    const r = await datos.aceptarEnlace({ usuarioId: d.id, dispositivo: dispositivo(), sesionId: usuarioActual()?.id ?? null, hash: sinCodigo ? null : hash, sinCodigo });
+    for (const x of el.querySelectorAll('button')) x.disabled = false;
+    if (!r.ok) {
+      if (r.codigo === 'por_otro') {
+        fallo('Desde aquí no puedes aceptar por otro.');
+        if (est?.whatsapp) error?.insertAdjacentHTML('afterend', botonWhatsapp(est.whatsapp, 'por_otro'));
+        return;
+      }
+      fallo(r.error ?? 'No se ha podido.');
+      return;
+    }
+    if (hash && !sinCodigo && hash !== d.hash) { d = { id: d.id, hash }; guardarDifunto(d); }
+    aviso(sinCodigo ? 'Recibido en el más allá' : 'Has respondido a la llamada', 3000);
+    cargar();
+  }
 
   function hojaApelar() {
     const pideCodigo = !d.hash;

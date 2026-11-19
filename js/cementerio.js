@@ -174,7 +174,7 @@ export function quedaHoras(r, ahora = Date.now()) {
   return ms < HORA ? `${Math.max(1, Math.ceil(ms / MIN))} min` : `${Math.ceil(ms / HORA)} h`;
 }
 export const progreso = (r, ahora = Date.now()) => {
-  const t0 = new Date(r.empieza_en).getTime();
+  const t0 = new Date(r.respondida_en ?? r.empieza_en).getTime();
   const t1 = new Date(r.termina_en).getTime();
   return Math.min(1, Math.max(0, (ahora - t0) / Math.max(1, t1 - t0)));
 };
@@ -213,45 +213,55 @@ export function accesoGrupo() {
 }
 
 /**
- * Reanimaciones en curso, en Inicio. Para todos: quién lo intenta y cuánto queda. Para el
- * admin, destacado y con "Vetar" y "Permitir ya".
+ * En Inicio, solo para el Dictador (que actúa): las reanimaciones en cuenta atrás (Vetar /
+ * Permitir ya) y las de quien quiere volver sin código (Aprobar con código nuevo / Rechazar).
+ * Para los demás, el aviso va en Avisos (notificaciones).
  */
 export function avisosInicio() {
   const yo = usuarioActual();
-  const lista = datos.reanimacionesEnCurso().filter((r) => datos.usuario(r.difunto_id) && datos.usuario(r.autor_id));
-  // Para todos, el aviso va en Avisos (notificaciones); aquí queda solo el del Dictador, que actúa.
-  if (!lista.length || !soyAdmin()) return '';
-  const admin = soyAdmin();
+  if (!soyAdmin()) return '';
+  const lista = (datos.estado.reanimaciones ?? [])
+    .filter((r) => (r.estado === 'en_curso' || r.estado === 'sin_codigo') && datos.usuario(r.difunto_id) && datos.usuario(r.autor_id));
   return lista.map((r) => {
     const d = datos.usuario(r.difunto_id);
     const a = datos.usuario(r.autor_id);
-    const quien = a.id === yo?.id ? 'Estás' : `${esc(a.nombre)} está`;
-    if (admin) {
+    if (r.estado === 'sin_codigo') {
       return `
         <div class="aviso-reanimar destacado" role="status">
           <span class="aviso-reanimar-cab">
             <span class="aviso-reanimar-icono">${icono('rayo', { tam: 18, color: 'currentColor' })}</span>
-            <span><strong>${quien} intentando reanimar a ${esc(d.nombre)}</strong>
-            <small>Si no haces nada, volverá en <b data-queda="${esc(r.termina_en)}">${esc(queda(r))}</b>.</small></span>
+            <span><strong>${esc(d.nombre)} quiere volver, sin código</strong>
+            <small>Ha respondido a ${a.id === yo?.id ? 'tu llamada' : `la llamada de ${esc(a.nombre)}`}. Si lo apruebas, vuelve con un código nuevo que tendrás que darle.</small></span>
           </span>
           <span class="aviso-reanimar-botones">
-            <button type="button" class="boton-secundario boton-pequeno peligro" data-vetar="${esc(r.id)}">Vetar</button>
-            <button type="button" class="boton-secundario neutro boton-pequeno" data-permitir="${esc(r.id)}">Permitir ya</button>
-            <a class="enlace-discreto" href="#cementerio">Ver la lápida</a>
+            <button type="button" class="boton-secundario neutro boton-pequeno" data-aprobar="${esc(r.id)}">Aprobar y darle código</button>
+            <button type="button" class="boton-secundario boton-pequeno peligro" data-vetar="${esc(r.id)}">Rechazar</button>
           </span>
         </div>`;
     }
+    const quien = a.id === yo?.id ? 'Estás' : `${esc(a.nombre)} está`;
     return `
-      <a class="aviso-reanimar" href="#cementerio">
-        <span class="aviso-reanimar-icono">${icono('rayo', { tam: 16, color: 'currentColor' })}</span>
-        <span>${quien} intentando reanimar a <strong>${esc(d.nombre)}</strong> · quedan <span data-queda-h="${esc(r.termina_en)}">${esc(quedaHoras(r))}</span></span>
-        ${icono('adelante', { tam: 16, color: 'var(--texto-2)' })}
-      </a>`;
+      <div class="aviso-reanimar destacado" role="status">
+        <span class="aviso-reanimar-cab">
+          <span class="aviso-reanimar-icono">${icono('rayo', { tam: 18, color: 'currentColor' })}</span>
+          <span><strong>${quien} intentando reanimar a ${esc(d.nombre)}</strong>
+          <small>Ha respondido. Si no haces nada, volverá en <b data-queda="${esc(r.termina_en)}">${esc(queda(r))}</b>.</small></span>
+        </span>
+        <span class="aviso-reanimar-botones">
+          <button type="button" class="boton-secundario boton-pequeno peligro" data-vetar="${esc(r.id)}">Vetar</button>
+          <button type="button" class="boton-secundario neutro boton-pequeno" data-permitir="${esc(r.id)}">Permitir ya</button>
+          <a class="enlace-discreto" href="#cementerio">Ver la lápida</a>
+        </span>
+      </div>`;
   }).join('');
 }
 
-/** Clics de los avisos (Vetar / Permitir ya). true si era suyo. */
+/** Clics de los avisos y lápidas (Vetar / Permitir ya / Aprobar sin código / reenviar el enlace). true si era suyo. */
 export function clicAviso(e) {
+  const env = e.target.closest('[data-enlace]');
+  if (env) { reenviarEnlace(datos.reanimacion(env.dataset.enlace), env); return true; }
+  const ap = e.target.closest('[data-aprobar]');
+  if (ap) { aprobarSinCodigo(datos.reanimacion(ap.dataset.aprobar), ap); return true; }
   const v = e.target.closest('[data-vetar], [data-permitir]');
   if (!v) return false;
   const r = datos.reanimacion(v.dataset.vetar ?? v.dataset.permitir);
@@ -259,6 +269,33 @@ export function clicAviso(e) {
   v.disabled = true;
   resolver(r, v.dataset.vetar ? 'vetar' : 'permitir').finally(() => { v.disabled = false; });
   return true;
+}
+
+/** El enlace de la llamada otra vez (quien llamó o el admin). */
+async function reenviarEnlace(r, boton) {
+  const d = r && datos.usuario(r.difunto_id);
+  if (!d) return;
+  boton.disabled = true;
+  const res = await datos.enlaceDe('reanimacion', r.id, usuarioActual()?.id);
+  boton.disabled = false;
+  if (!res.ok) { aviso(res.codigo === 'red' ? 'Sin conexión' : 'Ese enlace ya no vale'); return; }
+  const { hojaEnlace } = await import('./llamada.js');
+  hojaEnlace({ tipo: 'reanimacion', nombre: d.nombre, token: res.token });
+}
+
+/** Aprobar al que quiere volver sin código: vuelve y se le genera uno nuevo (se enseña una vez). */
+async function aprobarSinCodigo(r, boton) {
+  const d = r && datos.usuario(r.difunto_id);
+  if (!d) return;
+  boton.disabled = true;
+  const res = await llamarAdmin('permitir', { reanimacion_id: r.id });
+  if (!res.ok) { boton.disabled = false; aviso(res.error ?? 'No se ha podido'); return; }
+  const grupo = await import('./ajustes-grupo.js');
+  const c = await grupo.codigoNuevo(d.nombre, 'nuevo_codigo', { usuario_id: d.id });
+  await datos.refrescar();
+  boton.disabled = false;
+  if (c.ok) grupo.mostrarCodigo(d.nombre, c.codigo);
+  else aviso(`${d.nombre} ha vuelto, pero no se ha podido generar su código: hazlo desde Gestionar grupo.`, 5000);
 }
 
 /** Los contadores "quedan…" se actualizan solos (sin repintar). */
@@ -298,8 +335,16 @@ export function filaActividad({ e }, ahora = new Date()) {
     extra = 'Ya se le puede intentar reanimar.';
   } else if (e.tipo === 'reanimacion_pedida') {
     const r = e.reanimacion_id ? datos.reanimacion(e.reanimacion_id) : null;
-    frase = r?.estado === 'en_curso' ? `${nom(autor)} está intentando reanimar a ${nom(d)}` : `${nom(autor)} intentó reanimar a ${nom(d)}`;
-    if (r?.estado === 'en_curso') extra = `Quedan <span data-queda-h="${esc(r.termina_en)}">${esc(quedaHoras(r))}</span>. Que alguien avise al Dictador.`;
+    const vivo2 = ['pendiente', 'en_curso', 'sin_codigo'].includes(r?.estado);
+    if (r?.estado === 'caducada') {
+      frase = `${nom(d)} no respondió a la llamada`;
+      extra = `${esc(autor?.nombre ?? 'Alguien')} intentó reanimarlo. Ni un mensaje desde el más allá.`;
+    } else {
+      frase = vivo2 ? `${nom(autor)} está intentando reanimar a ${nom(d)}` : `${nom(autor)} intentó reanimar a ${nom(d)}`;
+      if (r?.estado === 'pendiente') extra = 'Intentando contactar con el más allá…';
+      else if (r?.estado === 'en_curso') extra = `Ha respondido · quedan <span data-queda-h="${esc(r.termina_en)}">${esc(quedaHoras(r))}</span>. Que alguien avise al Dictador.`;
+      else if (r?.estado === 'sin_codigo') extra = `Ha respondido, pero sin código. Decide ${DICTADOR}.`;
+    }
   } else if (e.tipo === 'veto') {
     const r = e.reanimacion_id ? datos.reanimacion(e.reanimacion_id) : null;
     const quien = r ? datos.usuario(r.autor_id) : null;

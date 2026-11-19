@@ -62,7 +62,7 @@
   const $ = (id) => document.getElementById(id);
 
   try {
-    const r = await fetch(`${SUPABASE_BASE}/rest/v1/usuarios?select=*&order=nombre`, { headers: { apikey: SUPABASE_KEY } });
+    const r = await fetch(`${SUPABASE_BASE}/rest/v1/usuarios?select=id,nombre,inicial,color,activo&order=nombre`, { headers: { apikey: SUPABASE_KEY } });
     const us = await r.json();
     $('usuario').innerHTML = us.map((u) => `<option value="${u.id}">${u.nombre}${u.xbox_gamertag ? ` (Xbox: ${u.xbox_gamertag})` : ''}</option>`).join('');
   } catch {

@@ -42,7 +42,8 @@ export function render(el) {
       const r = datos.reanimacion(b.dataset.progreso);
       if (r) b.style.setProperty('--p', `${Math.round(cem.progreso(r, ahora) * 1000) / 10}%`);
     }
-    if (datos.reanimacionesEnCurso().some((r) => new Date(r.termina_en).getTime() <= ahora)) datos.refrescar();
+    if (datos.reanimacionesEnCurso().some((r) => new Date(r.termina_en).getTime() <= ahora)
+      || (datos.estado.reanimaciones ?? []).some((r) => r.estado === 'pendiente' && new Date(r.caduca_en).getTime() <= ahora)) datos.refrescar();
   }, 30_000);
 
   const quitar = [datos.suscribir(pintar), datos.suscribirSocial(pintar)];
@@ -95,7 +96,7 @@ function lapida(u, h, yo) {
   const vida = h.ultima;
   const l = cem.legado(u.id);
   const pal = cem.ultimasPalabras(u.id);
-  const r = datos.reanimacionEnCurso(u.id);
+  const r = datos.reanimacionViva(u.id);
   const velas = datos.velasDe(u.id);
   const miVela = velas.some((v) => v.usuario_id === yo?.id);
   const sellada = h.exorcizado;
@@ -164,13 +165,42 @@ function botonReanimar(u, yo) {
 
 function reanimando(r, yo) {
   const a = datos.usuario(r.autor_id);
+  const mio = a?.id === yo?.id;
+  const d = datos.usuario(r.difunto_id);
+  const admin = cem.soyAdmin();
+  if (r.estado === 'pendiente') {
+    return `
+      <div class="lapida-reanimando llamando" role="status">
+        <svg class="ecg" viewBox="0 0 300 26" aria-hidden="true"><path pathLength="100" d="M0 14h300" /></svg>
+        <p><strong>Intentando contactar con el más allá</strong></p>
+        <p class="lapida-nota">${mio ? 'Lo has llamado tú' : `Lo ha llamado ${esc(a?.nombre ?? 'alguien')}`}. Si ${esc(d?.nombre ?? 'no')} no responde antes del ${esc(cem.fechaHora(r.caduca_en))}, se queda donde está.</p>
+        ${mio || admin ? `
+          <div class="lapida-veto">
+            <button type="button" class="boton-secundario neutro boton-pequeno con-icono" data-enlace="${esc(r.id)}">${icono('compartir', { tam: 16, color: 'currentColor' })}<span>Mandar el enlace</span></button>
+            ${admin ? `<button type="button" class="boton-secundario boton-pequeno peligro" data-vetar="${esc(r.id)}">Vetar</button>` : ''}
+          </div>` : ''}
+      </div>`;
+  }
+  if (r.estado === 'sin_codigo') {
+    return `
+      <div class="lapida-reanimando" role="status">
+        <p><strong>Ha respondido, pero sin código</strong></p>
+        <p class="lapida-nota">${admin ? 'Si lo apruebas, vuelve con un código nuevo que tendrás que darle.' : `Solo vuelve si ${cem.DICTADOR} lo aprueba.`}</p>
+        ${admin ? `
+          <div class="lapida-veto">
+            <button type="button" class="boton-secundario neutro boton-pequeno" data-aprobar="${esc(r.id)}">Aprobar y darle código</button>
+            <button type="button" class="boton-secundario boton-pequeno peligro" data-vetar="${esc(r.id)}">Rechazar</button>
+          </div>` : ''}
+      </div>`;
+  }
   const p = Math.round(cem.progreso(r) * 1000) / 10;
   return `
     <div class="lapida-reanimando" role="status">
       <svg class="ecg" viewBox="0 0 300 26" aria-hidden="true"><path pathLength="100" d="M0 14h96l6-9 9 18 7-13 5 4h40l6-9 9 18 7-13 5 4h110" /></svg>
-      <p><strong>${a?.id === yo?.id ? 'Lo estás intentando tú' : `${esc(a?.nombre ?? 'Alguien')} lo está intentando`}</strong> · quedan <b data-queda="${esc(r.termina_en)}">${esc(cem.queda(r))}</b></p>
+      <p><strong>Ha respondido</strong> · quedan <b data-queda="${esc(r.termina_en)}">${esc(cem.queda(r))}</b></p>
+      <p class="lapida-nota">${mio ? 'Lo estás reanimando tú' : `Lo está reanimando ${esc(a?.nombre ?? 'alguien')}`}.</p>
       <div class="lapida-progreso" data-progreso="${esc(r.id)}" style="--p:${p}%"><i></i></div>
-      ${cem.soyAdmin() ? `
+      ${admin ? `
         <div class="lapida-veto">
           <button type="button" class="boton-secundario boton-pequeno peligro" data-vetar="${esc(r.id)}">Vetar</button>
           <button type="button" class="boton-secundario neutro boton-pequeno" data-permitir="${esc(r.id)}">Permitir ya</button>
@@ -188,10 +218,10 @@ function confirmarReanimar(u) {
     html: `
       <div class="elegir-juegos cem-confirmar">
         <span class="cem-confirmar-icono">${icono('rayo', { tam: 30, color: 'currentColor' })}</span>
-        <p>Empieza una cuenta atrás de <strong>12 horas</strong>. Si ${cem.DICTADOR} no lo veta, ${esc(u.nombre)} volverá a la vida con su mismo código.</p>
+        <p>Le mandarás un enlace a ${esc(u.nombre)}: tiene <strong>72 horas</strong> para responder. Cuando acepte, empieza una cuenta atrás de <strong>12 horas</strong> y, si ${cem.DICTADOR} no lo veta, volverá con su mismo código.</p>
         <p class="ajustes-nota">Todo el grupo verá que lo estás intentando. Si sale mal, no podrás volver a probar con ${esc(u.nombre)} hasta dentro de 7 días.</p>
         <p class="psn-mensaje error" data-ref="error" hidden></p>
-        <button type="button" class="boton-principal con-icono" data-ref="si">${icono('rayo', { tam: 18, color: 'currentColor' })}<span>Cargar el desfibrilador</span></button>
+        <button type="button" class="boton-principal con-icono" data-ref="si">${icono('rayo', { tam: 18, color: 'currentColor' })}<span>Llamar al más allá</span></button>
         <button type="button" class="boton-secundario neutro" data-ref="no">Mejor que descanse</button>
       </div>`,
     alMontar(cuerpo, cerrar) {
@@ -208,7 +238,8 @@ function confirmarReanimar(u) {
           return;
         }
         cerrar(true);
-        aviso(`Desfibrilador cargado. ${u.nombre} vuelve en 12 h si nadie lo impide.`, 3600);
+        const { hojaEnlace } = await import('../llamada.js');
+        hojaEnlace({ tipo: 'reanimacion', nombre: u.nombre, token: r.token });
       });
     },
   });

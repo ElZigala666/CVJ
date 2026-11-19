@@ -46,6 +46,17 @@ export function render(el, { params = [] } = {}) {
       anadirPersona({ nombre: p.nombre, propuesta: p });
       return;
     }
+    const env = t.closest('[data-enlace]');
+    if (env) {
+      const p = datos.propuesta(env.dataset.enlace);
+      env.disabled = true;
+      const r = await datos.enlaceDe('propuesta', p.id, yo?.id);
+      env.disabled = false;
+      if (!r.ok) { aviso(r.codigo === 'red' ? 'Sin conexión' : 'Ese enlace ya no vale'); return; }
+      const { hojaEnlace } = await import('../llamada.js');
+      hojaEnlace({ tipo: 'propuesta', nombre: p.nombre, token: r.token });
+      return;
+    }
     const rech = t.closest('[data-rechazar]');
     if (rech) { hojaRechazar(datos.propuesta(rech.dataset.rechazar)); return; }
     const ap = t.closest('[data-aparcar], [data-reabrir]');
@@ -66,7 +77,7 @@ export function render(el, { params = [] } = {}) {
 }
 
 function html(yo) {
-  const { abiertas, aparcadas, aceptadas, rechazadas } = prop.porEstado();
+  const { abiertas, esperando, aparcadas, aceptadas, rechazadas } = prop.porEstado();
   const vivo = yo && datos.usuario(yo.id)?.activo !== false;
   const mias = yo ? prop.misAbiertas(yo.id) : 0;
   return `
@@ -86,9 +97,10 @@ function html(yo) {
             : `<button type="button" class="boton-principal con-icono" data-proponer>${icono('mas', { tam: 18, color: 'currentColor' })}<span>Proponer a alguien</span></button>
                <p class="prop-limite">Como mucho ${prop.MAX_ABIERTAS} abiertas a la vez. Elige bien a tus amigos.</p>`}
         </div>` : ''}
+      ${esperando.length ? `<div class="prop-lista">${esperando.map((p) => tarjetaEsperando(p, yo)).join('')}</div>` : ''}
       ${abiertas.length
         ? `<div class="prop-lista">${abiertas.map(({ p, r }) => tarjeta(p, r, yo, vivo)).join('')}</div>`
-        : `<div class="cem-vacio">
+        : esperando.length ? '' : `<div class="cem-vacio">
             <span class="cem-vacio-icono">${icono('urna', { tam: 44, color: 'currentColor' })}</span>
             <p><strong>No hay nadie en la puerta.</strong> Ni falta que hace.</p>
           </div>`}
@@ -172,6 +184,29 @@ function tarjeta(p, r, yo, vivo) {
     </article>`;
 }
 
+/** Una propuesta que espera a que el candidato acepte en su enlace: aún no se vota. */
+function tarjetaEsperando(p, yo) {
+  const autor = datos.usuario(p.autor_id);
+  const mia = p.autor_id === yo?.id;
+  return `
+    <article class="prop esperando" id="prop-${esc(p.id)}">
+      <header class="prop-cab">
+        <span class="prop-inicial" aria-hidden="true">${esc((p.nombre.match(/\p{L}|\p{N}/u)?.[0] ?? '?').toUpperCase())}</span>
+        <div class="prop-cab-texto">
+          <h3 class="prop-nombre">${esc(p.nombre)}</h3>
+          <p class="prop-meta">Propuesto por <strong>${esc(autor?.nombre ?? 'alguien')}</strong> · ${esc(tiempoRelativo(p.creado_en).toLowerCase())}</p>
+        </div>
+      </header>
+      <p class="prop-esperando">${icono('urna', { tam: 18, color: 'currentColor' })}<span>Esperando a que ${esc(p.nombre)} acepte${p.caduca_en ? ` · hasta el ${esc(fecha(p.caduca_en))}` : ''}</span></p>
+      <blockquote class="prop-motivo texto-seleccionable">${esc(p.motivo)}</blockquote>
+      ${mia || soyAdmin() ? `
+        <div class="prop-decidir-botones">
+          <button type="button" class="boton-secundario neutro boton-pequeno con-icono" data-enlace="${esc(p.id)}">${icono('compartir', { tam: 16, color: 'currentColor' })}<span>Mandar el enlace</span></button>
+          ${soyAdmin() ? `<button type="button" class="boton-secundario boton-pequeno peligro" data-rechazar="${esc(p.id)}">Rechazar</button>` : ''}
+        </div>` : ''}
+    </article>`;
+}
+
 function filaAceptada(p) {
   const u = p.usuario_id ? datos.usuario(p.usuario_id) : null;
   const autor = datos.usuario(p.autor_id);
@@ -226,7 +261,7 @@ function hojaProponer(yo) {
         <div class="prop-chips" role="group" aria-label="Plataformas">
           ${prop.PLATAFORMAS.map(([k, n]) => `<button type="button" class="chip" data-plat="${k}" aria-pressed="false">${esc(n)}</button>`).join('')}
         </div>
-        <p class="ajustes-nota">Todo el grupo lo verá y votará. Si lo rechazan, no se le podrá volver a proponer hasta dentro de 30 días.</p>
+        <p class="ajustes-nota">Primero tendrá que aceptar en un enlace que le mandarás (7 días). Después, el grupo votará. Si lo rechazan, no se le podrá volver a proponer hasta dentro de 30 días.</p>
         <p class="psn-mensaje error" data-ref="error" hidden></p>
         <button type="button" class="boton-principal" data-ref="enviar">Proponer</button>
       </div>`,
@@ -251,7 +286,8 @@ function hojaProponer(yo) {
         enviar.disabled = false;
         if (!r.ok) { mostrarError(cuerpo, r.error ?? 'No se ha podido proponer.'); return; }
         cerrar(true);
-        aviso(`${nombre} está en la puerta. Que vote el grupo.`, 3200);
+        const { hojaEnlace } = await import('../llamada.js');
+        hojaEnlace({ tipo: 'propuesta', nombre, token: r.token });
       });
       cuerpo.querySelector('#prop-nombre').focus();
     },

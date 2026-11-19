@@ -1006,7 +1006,12 @@ export function cambiarVela(usuarioId, difuntoId, encender, onError) {
   );
 }
 
-/** Empezar a reanimar a alguien (12 horas de cuenta atrás). → { ok, error? } */
+/** Una reanimación viva (esperando respuesta, en cuenta atrás o sin código) de este difunto. */
+export const reanimacionViva = (difuntoId) => (estado.reanimaciones ?? [])
+  .find((r) => r.difunto_id === difuntoId && ['pendiente', 'en_curso', 'sin_codigo'].includes(r.estado)) ?? null;
+export const reanimacionesSinCodigo = () => (estado.reanimaciones ?? []).filter((r) => r.estado === 'sin_codigo');
+
+/** Llamar al más allá: queda pendiente hasta que el difunto acepte. → { ok, token?, error? } */
 export async function pedirReanimacion(autorId, difuntoId) {
   try {
     const r = await api('rpc/pedir_reanimacion', { p_autor: autorId, p_difunto: difuntoId });
@@ -1014,6 +1019,29 @@ export async function pedirReanimacion(autorId, difuntoId) {
     return r ?? { ok: false, error: 'No ha contestado nadie desde el más allá.' };
   } catch {
     return { ok: false, error: 'Sin conexión con el más allá. Prueba otra vez en un momento.' };
+  }
+}
+
+// Enlaces de confirmación (migración 043): el interesado acepta en #llamada/{token}.
+/** El enlace otra vez (solo quien lo pidió o el admin). → { ok, token?, caduca_en? } */
+export async function enlaceDe(tipo, objetivoId, usuarioId) {
+  try { return (await api('rpc/enlace_de', { p_tipo: tipo, p_objetivo: objetivoId, p_usuario: usuarioId })) ?? { ok: false }; } catch { return { ok: false, codigo: 'red' }; }
+}
+export async function verEnlace(token, dispositivo, sesionId) {
+  try {
+    return (await api('rpc/ver_enlace', { p_token: token, p_dispositivo: dispositivo, p_sesion: sesionId ?? null })) ?? { ok: false, codigo: 'red' };
+  } catch {
+    return { ok: false, codigo: 'red', error: 'Sin conexión. Prueba otra vez en un momento.' };
+  }
+}
+/** Aceptar por el enlace (token) o, el difunto desde su pantalla, por su id. */
+export async function aceptarEnlace({ token = null, usuarioId = null, dispositivo, sesionId = null, hash = null, sinCodigo = false }) {
+  const comun = { p_dispositivo: dispositivo, p_sesion: sesionId, p_hash: hash, p_sin_codigo: sinCodigo };
+  try {
+    return (await api(token ? 'rpc/aceptar_enlace' : 'rpc/aceptar_llamada', token ? { p_token: token, ...comun } : { p_usuario: usuarioId, ...comun }))
+      ?? { ok: false, error: 'No ha contestado nadie.' };
+  } catch {
+    return { ok: false, codigo: 'red', error: 'Sin conexión. Prueba otra vez en un momento.' };
   }
 }
 
@@ -1057,9 +1085,9 @@ export const apelacionesDe = (usuarioId) => apelaciones().filter((a) => a.usuari
 export const apelacionesPendientes = () => apelaciones().filter((a) => a.estado === 'pendiente');
 
 /** Lo que ve un expulsado de sí mismo: con su hash, todo; con su id, lo público. */
-export async function estadoDifunto({ hash = null, id = null }) {
+export async function estadoDifunto({ hash = null, id = null, dispositivo = null }) {
   try {
-    return (await api('rpc/estado_difunto', { p_hash: hash, p_usuario: hash ? null : id })) ?? { ok: false, codigo: 'red' };
+    return (await api('rpc/estado_difunto', { p_hash: hash, p_usuario: hash ? null : id, p_dispositivo: dispositivo })) ?? { ok: false, codigo: 'red' };
   } catch {
     return { ok: false, codigo: 'red', error: 'Sin conexión con el más allá.' };
   }

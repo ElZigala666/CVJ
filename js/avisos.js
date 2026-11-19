@@ -24,17 +24,18 @@ export const GRUPOS = [
   { id: 'lectura', nombre: 'Lecturas de tu columna', tipos: ['lectura'] },
   { id: 'insignia', nombre: 'Insignias', tipos: ['insignia', 'insignia_perdida'] },
   { id: 'entrada', nombre: 'Entradas nuevas en las columnas', tipos: ['entrada'] },
-  { id: 'cementerio', nombre: 'Cementerio (muertes y vueltas)', tipos: ['muerte', 'reanimacion', 'vuelta'] },
-  { id: 'propuesta', nombre: 'Propuestas de nuevos miembros', tipos: ['propuesta'] },
+  { id: 'cementerio', nombre: 'Cementerio (muertes y vueltas)', tipos: ['muerte', 'reanimacion', 'reanimacion_respondida', 'reanimacion_caducada', 'vuelta'] },
+  { id: 'propuesta', nombre: 'Propuestas de nuevos miembros', tipos: ['propuesta', 'propuesta_lista', 'propuesta_caducada'] },
   { id: 'completo', nombre: 'Juegos completados', tipos: ['completo'] },
   { id: 'evento', nombre: 'Eventos (Game Awards...)', tipos: ['evento_resultados', 'evento_cierra'] },
-  { id: 'admin', nombre: 'Del Dictador (apelaciones, reanimaciones, propuestas con apoyo)', tipos: ['apelacion', 'reanimacion_pronto', 'propuesta_apoyo'], admin: true },
+  { id: 'admin', nombre: 'Del Dictador (apelaciones, reanimaciones, propuestas con apoyo)', tipos: ['apelacion', 'reanimacion_pronto', 'reanimacion_sin_codigo', 'propuesta_apoyo'], admin: true },
 ];
 const grupoDe = (tipo) => GRUPOS.find((g) => g.tipos.includes(tipo))?.id ?? tipo;
 
 const ICONO = {
   reaccion: 'reaccionar', respuesta: 'comentario', lectura: 'leido', insignia: 'trofeo', insignia_perdida: 'trofeo',
   entrada: 'columnas', muerte: 'lapida', reanimacion: 'rayo', vuelta: 'rayo', reanimacion_pronto: 'rayo',
+  reanimacion_respondida: 'rayo', reanimacion_sin_codigo: 'rayo', reanimacion_caducada: 'lapida', propuesta_lista: 'urna', propuesta_caducada: 'urna',
   propuesta: 'urna', propuesta_apoyo: 'urna', apelacion: 'sello', completo: 'completado',
   evento_resultados: 'trofeo', evento_cierra: 'trofeo',
 };
@@ -97,7 +98,12 @@ export function describir(n) {
       break;
     }
     case 'muerte': titulo = `${b(sujeto?.nombre ?? 'Alguien')} ha muerto${d.exorcismo ? ' (exorcizado)' : ''}`; extra = d.causa ? `Causa: ${esc(d.causa)}` : 'El Dictador no da explicaciones.'; break;
-    case 'reanimacion': titulo = `${b(quienes(A))} intenta reanimar a ${b(sujeto?.nombre ?? 'alguien')}`; extra = 'Si nadie lo veta, vuelve en 12 horas.'; break;
+    case 'reanimacion': titulo = `${b(quienes(A))} intenta reanimar a ${b(sujeto?.nombre ?? 'alguien')}`; extra = 'Intentando contactar con el más allá…'; break;
+    case 'reanimacion_respondida': titulo = `${b(sujeto?.nombre ?? 'Alguien')} ha respondido a la llamada`; extra = 'Si nadie lo veta, vuelve en 12 horas.'; break;
+    case 'reanimacion_sin_codigo': titulo = `${b(sujeto?.nombre ?? 'Alguien')} quiere volver, sin código`; extra = 'Solo vuelve si lo apruebas (con un código nuevo).'; break;
+    case 'reanimacion_caducada': titulo = `${b(sujeto?.nombre ?? 'Alguien')} no respondió a la llamada`; extra = 'Sigue bajo tierra.'; break;
+    case 'propuesta_lista': titulo = `${b(d.nombre ?? 'Tu candidato')} ha aceptado tu propuesta`; extra = 'Ya se puede votar.'; break;
+    case 'propuesta_caducada': titulo = `${b(d.nombre ?? 'Tu candidato')} no aceptó a tiempo`; extra = 'La propuesta ha caducado.'; break;
     case 'vuelta': titulo = `${b(sujeto?.nombre ?? 'Alguien')} ha vuelto ${d.apelacion ? 'tras apelar' : 'de entre los muertos'}`; break;
     case 'reanimacion_pronto': titulo = `${b(sujeto?.nombre ?? 'Alguien')} vuelve en menos de 2 horas`; extra = 'Si no lo vetas, vuelve solo.'; break;
     case 'propuesta': titulo = `${b(quienes(A))} propone a ${b(d.nombre ?? 'alguien')}`; extra = n.leida ? '' : 'Falta tu voto.'; break;
@@ -119,7 +125,7 @@ function visual(n, tam = 40) {
   }
   const quien = d.sujeto ?? (n.actores ?? [])[0];
   const u = quien ? datos.usuario(quien) : null;
-  const muerto = ['muerte', 'apelacion', 'reanimacion', 'reanimacion_pronto'].includes(n.tipo);
+  const muerto = ['muerte', 'apelacion', 'reanimacion', 'reanimacion_pronto', 'reanimacion_respondida', 'reanimacion_sin_codigo', 'reanimacion_caducada'].includes(n.tipo);
   return `
     <span class="aviso-visual${muerto ? ' difunto-foto' : ''}">
       ${u ? avatar(u, tam) : `<span class="aviso-visual-icono">${icono(ICONO[n.tipo] ?? 'aviso', { tam: tam * 0.55, color: 'currentColor' })}</span>`}

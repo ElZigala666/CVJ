@@ -3461,3 +3461,22 @@ body.apariencia-abierta > #app, body.apariencia-abierta > #barra { visibility: h
 .edg-acciones .boton-cuadrado { width: 34px; height: 34px; }
 body.reordenando { user-select: none; -webkit-user-select: none; cursor: grabbing; }
 .edg-final { justify-items: start; }
+
+/* Enlaces de confirmación (reanimar / proponer): la página del enlace y la hoja para mandarlo */
+.llamada .llamada-caja { display: flex; flex-direction: column; align-items: center; gap: var(--esp-3); text-align: center; }
+.llamada .llamada-caja .campo-titulo { align-self: stretch; text-align: left; }
+.llamada .llamada-caja .psn-input, .llamada .llamada-caja .boton-principal, .llamada .llamada-caja .boton-secundario { width: 100%; }
+.llamada-foto { display: inline-flex; margin-bottom: var(--esp-1); }
+.llamada-aceptar { min-height: 56px; font-size: 18px; }
+.llamada-codigo { text-align: center; font: 700 24px var(--fuente-titulos); letter-spacing: .25em; text-transform: uppercase; }
+.llamada-url { margin: 0; padding: var(--esp-2) var(--esp-3); border-radius: var(--boton-radio); background: var(--superficie-2, rgba(127,127,127,.12)); font-size: 13px; word-break: break-all; color: var(--texto-2); }
+.llamada-hoja { text-align: center; }
+.llamada-hoja .ajustes-nota { text-align: left; overflow-wrap: anywhere; }
+.boton-whatsapp { text-decoration: none; }
+.lapida-reanimando.llamando .ecg path { stroke-dasharray: 4 6; }
+.prop.esperando { border: 1px dashed color-mix(in srgb, var(--texto-2) 45%, transparent); }
+.prop-esperando { display: flex; align-items: center; gap: var(--esp-2); margin: var(--esp-2) 0; font-weight: 600; color: var(--acento); }
+.grupo-whatsapp { display: flex; gap: var(--esp-2); align-items: center; }
+.grupo-whatsapp .psn-input { flex: 1; min-width: 0; }
+.difunto .llamada-aceptar { width: 100%; }
+.llamada > .enlace-discreto { justify-self: center; }

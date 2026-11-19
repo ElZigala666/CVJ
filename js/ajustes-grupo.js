@@ -40,7 +40,7 @@ const ACCIONES = {
 };
 
 /** Código nuevo que no tenga nadie del grupo (se reintenta si coincidiera). */
-async function codigoNuevo(paraQuien, accion, extra) {
+export async function codigoNuevo(paraQuien, accion, extra) {
   for (let i = 0; i < 3; i++) {
     const codigo = codigoAleatorio(6);
     const r = await llamarAdmin(accion, { ...extra, codigo_hash: await hashCodigo(codigo) });
@@ -51,7 +51,7 @@ async function codigoNuevo(paraQuien, accion, extra) {
 }
 
 /** Enseña el código UNA vez, en grande, con Copiar y Compartir. */
-function mostrarCodigo(nombre, codigo) {
+export function mostrarCodigo(nombre, codigo) {
   const url = `${location.origin}${location.pathname.replace(/[^/]*$/, '')}`;
   const texto = `Te he dado acceso a CVJ: ${url}. Tu código es ${codigo}`;
   abrirHoja({
@@ -153,12 +153,16 @@ export function anadirPersona({ nombre = '', propuesta = null, alCrear = null } 
 /** Monta la sección en Ajustes (no pinta nada si no soy admin). Devuelve la función para desmontar. */
 export function montarGrupo(cont) {
   const yo = usuarioActual();
-  const vista = { abierto: null, confirmar: null };
+  const vista = { abierto: null, confirmar: null, whatsapp: null };
+  // El WhatsApp del Dictador (privado: solo sale en las páginas de enlace de reanimar y proponer).
+  if (datos.usuario(yo?.id)?.es_admin) llamarAdmin('whatsapp', {}).then((r) => { if (r.ok) { vista.whatsapp = r.numero ?? ''; pintar(); } });
 
   const pintar = () => {
     const soy = datos.usuario(yo?.id);
     if (!soy?.es_admin) { cont.innerHTML = ''; return; }
     // Lo que estaba escribiendo (la causa de la muerte) no se pierde si llegan datos nuevos.
+    const wa = cont.querySelector('#grupo-whatsapp');
+    if (wa && !wa.disabled) vista.whatsapp = wa.value;
     const causa = cont.querySelector('[data-causa]');
     const escrito = causa ? { valor: causa.value, foco: document.activeElement === causa } : null;
     const lista = [...datos.estado.usuarios].sort((a, b) => (a.activo === false) - (b.activo === false) || new Date(a.creado_en) - new Date(b.creado_en));
@@ -201,6 +205,12 @@ export function montarGrupo(cont) {
         </div>
         ${bloqueGrupo()}
         <button type="button" class="boton-secundario con-icono" data-anadir>${icono('mas', { tam: 18, color: 'currentColor' })}<span>Añadir persona</span></button>
+        <label class="campo-titulo" for="grupo-whatsapp">Tu WhatsApp</label>
+        <div class="grupo-whatsapp">
+          <input id="grupo-whatsapp" class="psn-input" inputmode="tel" autocomplete="off" maxlength="20" placeholder="${vista.whatsapp === null ? 'Cargando…' : '34 600 000 000'}" value="${esc(vista.whatsapp ?? '')}" ${vista.whatsapp === null ? 'disabled' : ''}>
+          <button type="button" class="boton-secundario boton-pequeno" data-whatsapp>Guardar</button>
+        </div>
+        <p class="ajustes-nota">Con el prefijo del país. Solo se ve en las páginas de los enlaces de reanimar y proponer, para que te pidan su código.</p>
         ${datos.sagasOcultas().length ? `
           <details class="plat-otras">
             <summary>Sagas ocultas (${datos.sagasOcultas().length})</summary>
@@ -220,6 +230,18 @@ export function montarGrupo(cont) {
   cont.addEventListener('click', async (e) => {
     const t = e.target;
     if (clicApelaciones(e)) return;
+    const waB = t.closest('[data-whatsapp]');
+    if (waB) {
+      const v = cont.querySelector('#grupo-whatsapp').value;
+      waB.disabled = true;
+      const r = await llamarAdmin('whatsapp', { numero: v });
+      waB.disabled = false;
+      if (!r.ok) { aviso(r.error ?? 'No se ha podido guardar'); return; }
+      vista.whatsapp = r.numero;
+      pintar();
+      aviso(r.numero ? 'WhatsApp guardado' : 'WhatsApp quitado');
+      return;
+    }
     const colu = t.closest('[data-columna]');
     if (colu) { hojaColumna(datos.usuario(colu.dataset.columna)); return; }
     const ms = t.closest('[data-mostrar-saga]');

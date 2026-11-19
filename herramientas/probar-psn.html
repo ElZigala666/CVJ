@@ -63,7 +63,7 @@
 
   // Usuarios (para no tener que copiar ids a mano).
   try {
-    const r = await fetch(`${SUPABASE_BASE}/rest/v1/usuarios?select=*&order=nombre`, { headers: { apikey: SUPABASE_KEY } });
+    const r = await fetch(`${SUPABASE_BASE}/rest/v1/usuarios?select=id,nombre,inicial,color,activo&order=nombre`, { headers: { apikey: SUPABASE_KEY } });
     const us = await r.json();
     $('usuario').innerHTML = us.map((u) => `<option value="${u.id}">${u.nombre}${u.psn_online_id ? ` (PSN: ${u.psn_online_id}${u.psn_reconectar ? ', caducada' : ''})` : ''}</option>`).join('');
   } catch {

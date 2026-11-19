@@ -1,6 +1,6 @@
 // Arranque de CVJ: sesión, datos, rutas (#inicio, #buscar, #juego/123...) y barra inferior.
 import { icono } from './icons.js';
-import { usuarioActual, salir, refrescarUsuario, difuntoGuardado, guardarDifunto } from './sesion.js';
+import { usuarioActual, salir, refrescarUsuario, difuntoGuardado, guardarDifunto, hashSesion, latido } from './sesion.js';
 import * as datos from './datos.js';
 import { aplicarAcento, SELECCIONABLE } from './ui.js';
 import { iniciarInstalacion } from './instalar.js';
@@ -37,6 +37,7 @@ const RUTAS = {
 };
 const login = () => import('./pantallas/entrada.js');
 const pantallaDifunto = () => import('./pantallas/difunto.js'); // expulsado: su lápida y Apelar
+const pantallaLlamada = () => import('./pantallas/llamada.js'); // #llamada/{token}: aceptar reanimación o propuesta
 
 // Lo que no hace falta para pintar: se carga cuando se usa o cuando la app está quieta.
 const abrirAjustes = (...a) => import('./ajustes.js').then((m) => m.abrirAjustes(...a));
@@ -314,6 +315,14 @@ async function montar(cargar, contexto, conBarra, scroll = 0) {
 function navegar() {
   const usuario = usuarioActual();
 
+  // El enlace de confirmación (reanimar / proponer): con o sin sesión, sin nada del grupo.
+  const llamada = location.hash.match(/^#llamada\/([0-9a-f]{20,64})$/i);
+  if (llamada) {
+    montar(pantallaLlamada, { token: llamada[1].toLowerCase(), alSalir: () => { corregirRuta(location.pathname + location.search); navegar(); } }, false);
+    document.title = 'CVJ · Te llaman';
+    return;
+  }
+
   if (!usuario) {
     if (location.hash) corregirRuta(location.pathname + location.search);
     const difunto = difuntoGuardado();
@@ -389,7 +398,8 @@ function iniciarDatos() {
     const yo = usuarioActual();
     const fresco = yo && datos.usuario(yo.id);
     // Expulsado por el admin: se cierra la sesión y ve su pantalla de difunto (puede apelar).
-    if (fresco?.activo === false) { guardarDifunto({ id: yo.id }); alSalir(); return; }
+    // Su identidad se queda en el dispositivo (id y hash): si le reaniman, entra solo.
+    if (fresco?.activo === false) { guardarDifunto({ id: yo.id, hash: hashSesion() }); alSalir(); return; }
     // Un color que se quedó solo en este dispositivo (se eligió y no llegó a la cuenta):
     // se sube una vez, para que los demás lo vean en su perfil.
     if (fresco && !fresco.acento && /^#[0-9a-f]{6}$/i.test(yo.acento ?? '') && datos.datosFrescos() && !acentoSubido) {
@@ -417,6 +427,9 @@ function iniciarDatos() {
   });
   // Sincronizaciones automáticas: en segundo plano y con datos del servidor (no de la caché).
   datos.cuandoFrescos(revisarPlataformas);
+  // "Aquí hay alguien activo" (antiengaño de los enlaces de reanimar y proponer).
+  latido(true);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') latido(); });
   datos.iniciar();
 }
 

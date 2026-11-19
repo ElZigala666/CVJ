@@ -39,13 +39,15 @@ export function porEstado() {
     .sort((a, b) => b.r.apoyo - a.r.apoyo || b.r.favor.length - a.r.favor.length || new Date(b.p.creado_en) - new Date(a.p.creado_en));
   return {
     abiertas,
+    // Esperando a que el candidato acepte en su enlace (aún no se vota).
+    esperando: todas.filter((p) => p.estado === 'esperando').sort((a, b) => new Date(b.creado_en) - new Date(a.creado_en)),
     aparcadas: todas.filter((p) => p.estado === 'aparcada').sort(recientes).map((p) => ({ p, r: recuento(p) })),
     aceptadas: todas.filter((p) => p.estado === 'aceptada').sort(recientes),
     rechazadas: todas.filter((p) => p.estado === 'rechazada').sort(recientes),
   };
 }
 
-export const misAbiertas = (uid) => datos.propuestas().filter((p) => p.autor_id === uid && p.estado === 'abierta').length;
+export const misAbiertas = (uid) => datos.propuestas().filter((p) => p.autor_id === uid && (p.estado === 'abierta' || p.estado === 'esperando')).length;
 export const miVoto = (p, uid) => datos.votosDe(p.id).find((v) => v.usuario_id === uid) ?? null;
 
 /** Quién propuso a esta persona (si entró por propuesta). */
@@ -116,7 +118,9 @@ export function eventosActividad() {
   const ev = [];
   for (const p of datos.propuestas()) {
     if (!datos.usuario(p.autor_id)) continue;
-    ev.push({ p, tipo: 'nueva', fecha: p.creado_en });
+    // Sale cuando el candidato acepta (antes no es una propuesta de verdad). Las de antes de
+    // la migración 043 no tienen confirmada_en: su fecha de creación.
+    if (!['esperando', 'caducada'].includes(p.estado)) ev.push({ p, tipo: 'nueva', fecha: p.confirmada_en ?? p.creado_en });
     if (p.estado === 'aceptada' && p.resuelta_en) ev.push({ p, tipo: 'aceptada', fecha: p.resuelta_en });
     if (p.estado === 'rechazada' && p.resuelta_en) ev.push({ p, tipo: 'rechazada', fecha: p.resuelta_en });
   }

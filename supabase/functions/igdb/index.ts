@@ -14,6 +14,7 @@
 //     "primera_vez": "2021-03-01T...", "valorados": [1, 2] }
 //       (lo usa la función psn: juego o colección de IGDB de un título de PlayStation, con su
 //        confianza 0-100; por debajo de 75 no se acepta y se devuelve como propuesta)
+//   { "accion": "clasificar" }   (temas, modos, perspectiva, desarrolladoras y franquicia de los que no los tienen; 500 por llamada)
 //   { "accion": "revisar_juegos" }   (rellena es_online y relaciones en los juegos que no las tienen)
 // =============================================================================
 
@@ -193,6 +194,26 @@ const GENEROS: Record<string, string> = {
   "MOBA": "MOBA", "Pinball": "Pinball", "Quiz/Trivia": "Preguntas", "Visual Novel": "Novela visual",
 };
 
+// Temas, modos de juego y perspectivas de IGDB, en español (la app agrupa los finos).
+const TEMAS: Record<string, string> = {
+  "Action": "Acción", "Fantasy": "Fantasía", "Science fiction": "Ciencia ficción", "Horror": "Terror",
+  "Thriller": "Suspense", "Survival": "Supervivencia", "Historical": "Histórico", "Stealth": "Sigilo",
+  "Comedy": "Comedia", "Business": "Gestión", "Drama": "Drama", "Non-fiction": "No ficción",
+  "Sandbox": "Sandbox", "Educational": "Educativo", "Kids": "Infantil", "Open world": "Mundo abierto",
+  "Warfare": "Bélico", "Party": "Party", "4X (explore, expand, exploit, and exterminate)": "4X",
+  "Erotic": "Erótico", "Mystery": "Misterio", "Romance": "Romance",
+};
+const MODOS: Record<string, string> = {
+  "Single player": "Un jugador", "Multiplayer": "Multijugador", "Co-operative": "Cooperativo",
+  "Split screen": "Pantalla dividida", "Massively Multiplayer Online (MMO)": "MMO", "Battle Royale": "Battle royale",
+};
+const PERSPECTIVAS: Record<string, string> = {
+  "First person": "Primera persona", "Third person": "Tercera persona", "Bird view / Isometric": "Cenital o isométrica",
+  "Side view": "Lateral", "Text": "Texto", "Auditory": "Auditiva", "Virtual Reality": "Realidad virtual",
+};
+const traducir = (lista: { name?: string }[] | undefined, mapa: Record<string, string>) =>
+  [...new Set((lista ?? []).map((x) => (x.name ? mapa[x.name] ?? x.name : "")).filter(Boolean))];
+
 function anio(fecha?: number): number | null {
   return fecha ? new Date(fecha * 1000).getUTCFullYear() : null;
 }
@@ -232,7 +253,22 @@ type JuegoIGDB = {
   collections?: { id: number; name?: string }[];
   franchises?: { id: number; name?: string }[];
   franchise?: { id: number; name?: string } | null;
+  player_perspectives?: { name?: string }[];
 };
+
+/** Lo que usan las estadísticas: géneros, temas, modos, perspectiva, desarrolladoras y franquicia. */
+function clasificacionDe(j: JuegoIGDB) {
+  const devs = [...new Set((j.involved_companies ?? []).filter((c) => c.developer).map((c) => c.company?.name ?? "").filter(Boolean))];
+  return {
+    generos: traducir(j.genres, GENEROS),
+    temas: traducir(j.themes, TEMAS),
+    modos: traducir(j.game_modes, MODOS),
+    perspectivas: traducir(j.player_perspectives, PERSPECTIVAS),
+    desarrolladora: devs[0] ?? null,
+    desarrolladoras: devs.slice(0, 3),
+    franquicia: j.franchise?.name ?? j.franchises?.[0]?.name ?? null,
+  };
+}
 
 // -----------------------------------------------------------------------------
 // Tipos de juego (game_type sustituye al antiguo "category").
@@ -276,7 +312,7 @@ const CAMPOS_LISTA =
 const CAMPOS_RELACIONES =
   "game_type,version_parent,parent_game,remakes,remasters,ports,expanded_games,bundles,collections.name,franchises.name,franchise.name";
 const CAMPOS_FICHA =
-  `name,slug,first_release_date,summary,cover.image_id,platforms.abbreviation,platforms.name,genres.name,involved_companies.developer,involved_companies.company.name,game_modes.name,themes.name,keywords.name,${CAMPOS_RELACIONES}`;
+  `name,slug,first_release_date,summary,cover.image_id,platforms.abbreviation,platforms.name,genres.name,involved_companies.developer,involved_companies.company.name,game_modes.name,themes.name,keywords.name,player_perspectives.name,${CAMPOS_RELACIONES}`;
 const CAMPOS_EMPAREJAR = `${CAMPOS_LISTA},alternative_names.name,game_localizations.name,version_parent,parent_game`;
 
 // <puntuacion> (bloque sin dependencias: se prueba en local con node)
@@ -794,6 +830,9 @@ async function onlineManual(ids: number[]) {
 /** Guarda filas en juegos; sin la migración 005 (columna es_online), las guarda sin ella. */
 async function guardarJuegos(filas: Record<string, unknown>[]) {
   let { error } = await sb.from("juegos").upsert(filas, { onConflict: "igdb_id" });
+  if (error && /temas|modos|perspectivas|desarrolladoras|franquicia/.test(error.message)) {
+    ({ error } = await sb.from("juegos").upsert(filas.map(({ temas: _a, modos: _b, perspectivas: _c, desarrolladoras: _d, franquicia: _e, ...r }) => r), { onConflict: "igdb_id" }));
+  }
   if (error && /relaciones/.test(error.message)) {
     ({ error } = await sb.from("juegos").upsert(filas.map(({ relaciones: _, ...r }) => r), { onConflict: "igdb_id" }));
   }
@@ -930,8 +969,7 @@ async function juego(igdbId: number) {
     cover_id: j.cover?.image_id ?? null,
     anio: anio(j.first_release_date),
     plataformas: normalizarPlataformas(j.platforms),
-    desarrolladora: j.involved_companies?.find((c) => c.developer)?.company?.name ?? null,
-    generos: (j.genres ?? []).map((g) => GENEROS[g.name] ?? g.name),
+    ...clasificacionDe(j),
     resumen: j.summary ?? null,
     actualizado_en: new Date().toISOString(),
   };
@@ -1141,14 +1179,49 @@ async function guardarVarios(ids: number[], nivel = 0) {
     const fila: Record<string, unknown> = {
       igdb_id: j.id, nombre: j.name, slug: j.slug ?? null, cover_id: j.cover?.image_id ?? null,
       anio: anio(j.first_release_date), plataformas: normalizarPlataformas(j.platforms),
-      desarrolladora: j.involved_companies?.find((c) => c.developer)?.company?.name ?? null,
-      generos: (j.genres ?? []).map((g) => GENEROS[g.name] ?? g.name), resumen: j.summary ?? null,
+      ...clasificacionDe(j), resumen: j.summary ?? null,
       actualizado_en: new Date().toISOString(), relaciones: relacionesDe(j),
     };
     if (manual) fila.es_online = manual.get(j.id) ?? detectarOnline(j);
     return fila;
   }));
   await asegurarPadres(lista.map((j) => ({ relaciones: relacionesDe(j) })), nivel);
+}
+
+/**
+ * Clasifica los juegos que aún no lo están (temas = null): géneros, temas, modos,
+ * perspectiva, desarrolladoras, franquicia y año, en lotes de 500 (una consulta a IGDB por
+ * lote). Los que IGDB no conoce se quedan con listas vacías (no se vuelven a pedir).
+ * todos = true: vuelve a clasificarlos todos (por si cambia el mapa de traducciones).
+ */
+async function clasificar(todos = false, limite = 500) {
+  if (todos) {
+    const { error } = await sb.from("juegos").update({ temas: null }).not("igdb_id", "is", null);
+    if (error) throw new Error("clasificar: " + error.message);
+  }
+  const { data, error } = await sb.from("juegos").select("igdb_id").is("temas", null).order("igdb_id").limit(limite);
+  if (error) throw new Error("clasificar: " + error.message);
+  const ids = (data ?? []).map((x) => Number(x.igdb_id));
+  if (!ids.length) return { ok: true, clasificados: 0, quedan: 0 };
+  const lista = await igdb<JuegoIGDB[]>("games",
+    `fields first_release_date,genres.name,themes.name,game_modes.name,player_perspectives.name,involved_companies.developer,involved_companies.company.name,franchise.name,franchises.name; where id = (${ids.join(",")}); limit 500;`);
+  const porId = new Map(lista.map((j) => [j.id, j]));
+  let fallos = 0;
+  for (let i = 0; i < ids.length; i += 25) {
+    await Promise.all(ids.slice(i, i + 25).map(async (id) => {
+      const j = porId.get(id);
+      const cambios: Record<string, unknown> = j
+        ? { ...clasificacionDe(j), ...(j.first_release_date ? { anio: anio(j.first_release_date) } : {}) }
+        : { temas: [], modos: [], perspectivas: [], desarrolladoras: [] };
+      // Lo que IGDB no da no borra lo que ya había (géneros, desarrolladora).
+      if (j && !(cambios.generos as string[]).length) delete cambios.generos;
+      if (j && !cambios.desarrolladora) delete cambios.desarrolladora;
+      const { error: e } = await sb.from("juegos").update(cambios).eq("igdb_id", id);
+      if (e) { fallos++; console.error("clasificar", id, e.message); }
+    }));
+  }
+  const { count } = await sb.from("juegos").select("igdb_id", { count: "exact", head: true }).is("temas", null);
+  return { ok: true, clasificados: ids.length - fallos, sin_datos: ids.length - porId.size, fallos, quedan: count ?? null };
 }
 
 /**
@@ -1307,6 +1380,8 @@ Deno.serve(async (req) => {
         return json(await actualizarTiempos());
       case "arte":
         return json(await actualizarArte());
+      case "clasificar":
+        return json(await clasificar(cuerpo.todos === true));
       case "artes": {
         const id = Number(cuerpo.igdb_id);
         if (!Number.isInteger(id) || id <= 0) throw new ErrorPublico("igdb_id no válido");

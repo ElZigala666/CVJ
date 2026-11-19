@@ -290,6 +290,12 @@ export function suscribir(fn) {
   return () => oyentes.delete(fn);
 }
 
+/**
+ * Repintar lo que escucha (sin cambiar los datos ni la versión): para lo que vive fuera de
+ * ellos, como la posición de lectura o la marca de leída de las listas de entradas.
+ */
+export function repintar() { avisar(); }
+
 function avisar() {
   for (const fn of oyentes) {
     try { fn(estado); } catch (e) { console.error(e); }

@@ -226,6 +226,7 @@ export function render(el, { params }) {
     if (cuerpo == null || datos.entrada(id)?.usuario_id === yo?.id) return;
     clearTimeout(relojPos);
     relojPos = setTimeout(() => {
+      relojPos = 0;
       const art = el.querySelector('.lectura-articulo');
       if (!art) return;
       guardarPosicion(id, Math.min(1, Math.max(0, -art.getBoundingClientRect().top / total())));
@@ -320,7 +321,13 @@ export function render(el, { params }) {
 
   const desuscribir = datos.suscribir(() => { if (cuerpo != null || fallo) pintar(); });
   pintar();
-  return () => { desuscribir(); quitarSocial(); clearInterval(relojLectura); clearTimeout(relojPos); window.removeEventListener('scroll', progreso); };
+  return () => {
+    desuscribir(); quitarSocial(); clearInterval(relojLectura); window.removeEventListener('scroll', progreso);
+    // Al salir: la posición, guardada ya, y las listas (Inicio, Columnas...) al día con
+    // "Vas por el 40 %" o "Leída" sin esperar al siguiente refresco.
+    if (relojPos) { clearTimeout(relojPos); const art = el.querySelector('.lectura-articulo'); if (art && el.isConnected && cuerpo != null && datos.entrada(id)?.usuario_id !== yo?.id) guardarPosicion(id, Math.min(1, Math.max(0, -art.getBoundingClientRect().top / total()))); }
+    datos.repintar();
+  };
 }
 
 /** Los números de una entrada, para su autor: lecturas, hasta el final, reacciones, encuesta y réplicas. */

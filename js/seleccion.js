@@ -97,23 +97,40 @@ export function iniciarSeleccion(contenedor) {
   vista = contenedor;
 
   // Clics: en captura y en window, antes que cualquier otro (también los de los perfiles).
+  // (Antes, "const enVista = … enVista()" tapaba la función: cada clic en una tarjeta
+  // lanzaba un error antes de impedir la navegación y se abría la ficha.)
   window.addEventListener('click', (e) => {
     const item = e.target.closest?.('[data-sel]');
-    const enVista = item && enVista().contains(item);
+    const aqui = !!item && enVista().contains(item);
     if (largaHecha) {
+      // El clic que suelta la pulsación larga que ha activado el modo no abre nada.
       largaHecha = false;
-      if (enVista) { e.preventDefault(); e.stopPropagation(); }
+      if (aqui) { e.preventDefault(); e.stopPropagation(); }
       return;
     }
-    if (!enVista || e.button > 0) return;
+    if (!aqui || e.button > 0) return;
     if (!activo) {
-      if (e.ctrlKey || e.metaKey) { e.preventDefault(); e.stopPropagation(); entrarSeleccion(item); }
+      // Escritorio: Ctrl/Cmd+clic, Mayús+clic o el círculo que sale al pasar el ratón.
+      if (e.ctrlKey || e.metaKey || e.shiftKey || e.target.closest?.('.sel-hover')) {
+        e.preventDefault(); e.stopPropagation(); entrarSeleccion(item);
+      }
       return;
     }
     e.preventDefault();
     e.stopPropagation();
     if (e.shiftKey && ancla) rango(ancla, item);
     else alternar(item.dataset.sel);
+  }, true);
+
+  // Escritorio: un círculo de selección al pasar el ratón por una portada (CSS lo enseña en :hover).
+  window.addEventListener('pointerover', (e) => {
+    if (e.pointerType !== 'mouse' || activo) return;
+    const item = e.target.closest?.('[data-sel]:not([data-sel-tipo])');
+    if (!item || item.querySelector(':scope > .sel-hover') || !enVista().contains(item)) return;
+    const c = document.createElement('span');
+    c.className = 'sel-hover';
+    c.title = 'Seleccionar';
+    item.appendChild(c);
   }, true);
 
   // Pulsación larga.

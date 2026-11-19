@@ -52,7 +52,9 @@ español (código, comentarios, commits, interfaz).
   "Por nombre", quitar con Deshacer, fusionar y eliminar u ocultar. Las sagas, en orden de salida.
   Etiqueta de una colección: `metricas.etiquetaColeccion(id, uid?)` ("Colección · 14 juegos" o
   "Colección · 6 de 14 jugados"), con los datos enteros, nunca con lo filtrado en pantalla.
-- `js/seleccion.js` selección múltiple; `js/deslizar.js` deslizar entre las 4 pestañas
+- `js/seleccion.js` selección múltiple (pulsación larga; en escritorio también Ctrl/Mayús+clic y el
+  círculo que sale al pasar el ratón; en el modo, cualquier toque marca y nunca navega). En
+  escritorio las hojas bloquean el scroll en `html` con `scrollbar-gutter: stable`: sin saltos; `js/deslizar.js` deslizar entre las 4 pestañas
   principales siguiendo el dedo (vecina = foto que guarda app.js al salir, o esqueleto;
   indicador de la barra; las subpestañas ya no se deslizan; lo que tiene scroll horizontal
   propio manda; llegar a Buscar deslizando no abre el teclado);

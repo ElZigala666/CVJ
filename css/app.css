@@ -3497,3 +3497,23 @@ body.reordenando { user-select: none; -webkit-user-select: none; cursor: grabbin
 .llamada > .enlace-discreto { justify-self: center; }
 .ficha-explica { margin: 4px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--texto-2); }
 .saga-explica { display: block; font-size: 12.5px; line-height: 1.4; opacity: .85; }
+
+/* Escritorio: círculo de selección al pasar el ratón (clic en él = seleccionar) y, al abrir un
+   menú u hoja (que bloquea el scroll del fondo), el hueco de la barra de desplazamiento se
+   queda: la rejilla no cambia de ancho ni salta. En táctil no se toca nada. */
+.sel-hover { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  html { scrollbar-gutter: stable; }
+  /* El bloqueo, en html (con body el hueco no se respeta) */
+  html:has(> body.hoja-abierta) { overflow: hidden; }
+  body.hoja-abierta { overflow: visible; }
+  [data-sel]:not([data-sel-tipo]) { position: relative; }
+  [data-sel]:not([data-sel-tipo]) > .sel-hover {
+    display: block; position: absolute; top: 6px; left: 6px; z-index: 6; width: 24px; height: 24px; border-radius: 50%;
+    border: 2px solid #FFFFFF; background: rgba(0, 0, 0, .4); box-shadow: 0 1px 4px rgba(0, 0, 0, .35);
+    opacity: 0; transition: opacity .12s; cursor: pointer;
+  }
+  [data-sel]:not([data-sel-tipo]):hover > .sel-hover { opacity: 1; }
+  [data-sel]:not([data-sel-tipo]) > .sel-hover:hover { background: rgba(0, 0, 0, .65); }
+  body.seleccionando .sel-hover { display: none !important; }
+}

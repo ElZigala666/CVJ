@@ -226,6 +226,7 @@ export function revisarResumen() {
   const yo = usuarioActual();
   if (!toca || mostrando || !yo || !datos.datosFrescos()) return;
   if (document.body.classList.contains('hoja-abierta') || document.body.classList.contains('celebrando')) return;
+  if (document.querySelector('.tut-capa')) return; // un tutorial abierto: luego
   toca = false;
   const lista = pendientesResumen();
   if (!lista.length) return;

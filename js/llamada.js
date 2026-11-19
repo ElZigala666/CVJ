@@ -49,19 +49,21 @@ export function mensajeLlamada(tipo, token) {
 /** La hoja para mandar el enlace (al pedirlo y cada vez que se quiera reenviar). */
 export function hojaEnlace({ tipo, nombre, token, titulo = null }) {
   const texto = mensajeLlamada(tipo, token);
+  const compartir = !!navigator.share;
   abrirHoja({
-    titulo: titulo ?? (tipo === 'propuesta' ? `Manda el enlace a ${nombre}` : `Llama a ${nombre}`),
+    titulo: titulo ?? (tipo === 'propuesta' ? `Propuesta de ${nombre}` : `Reanimar a ${nombre}`),
     html: `
       <div class="elegir-juegos llamada-hoja">
         <span class="cem-confirmar-icono">${icono(tipo === 'propuesta' ? 'urna' : 'rayo', { tam: 30, color: 'currentColor' })}</span>
-        <p>${tipo === 'propuesta'
-          ? `Para que se pueda votar, ${esc(nombre)} tiene que aceptar en este enlace. Caduca en ${DURACION.propuesta} y solo vale una vez.`
-          : `${esc(nombre)} tiene que responder en este enlace para que empiece la cuenta atrás. Caduca en ${DURACION.reanimacion} y solo vale una vez.`}</p>
-        <p class="llamada-url texto-seleccionable" data-ref="url">${esc(urlLlamada(token))}</p>
+        <h2 class="llamada-ahora">Ahora mándale este enlace a ${esc(nombre)}</h2>
         <div class="fila-botones">
-          <button type="button" class="boton-secundario" data-ref="copiar">Copiar</button>
-          ${navigator.share ? `<button type="button" class="boton-principal con-icono" data-ref="compartir">${icono('compartir', { tam: 18, color: 'currentColor' })}<span>Compartir</span></button>` : ''}
+          ${compartir ? `<button type="button" class="boton-principal con-icono" data-ref="compartir">${icono('compartir', { tam: 18, color: 'currentColor' })}<span>Compartir</span></button>` : ''}
+          <button type="button" class="${compartir ? 'boton-secundario' : 'boton-principal'} con-icono" data-ref="copiar">${icono('copiar', { tam: 18, color: 'currentColor' })}<span>Copiar</span></button>
         </div>
+        <p class="llamada-url texto-seleccionable" data-ref="url">${esc(urlLlamada(token))}</p>
+        <p>${tipo === 'propuesta'
+          ? `Hasta que ${esc(nombre)} acepte, no se vota. Caduca en ${DURACION.propuesta} y solo vale una vez.`
+          : `Cuando ${esc(nombre)} responda, empieza la cuenta atrás de 12 h. Caduca en ${DURACION.reanimacion} y solo vale una vez.`}</p>
         <p class="ajustes-nota">Mensaje listo para mandar: «<span class="texto-seleccionable" data-ref="mensaje">${esc(texto)}</span>»</p>
         <p class="ajustes-nota">No vale aceptar desde tu móvil ni desde tu wifi: tiene que ser ${esc(nombre)}.</p>
       </div>`,

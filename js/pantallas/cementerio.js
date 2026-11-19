@@ -12,6 +12,7 @@ import { abrirHoja } from '../hoja.js';
 import { textoHoras } from '../metricas.js';
 import { padrino } from '../propuestas.js';
 import { vecesApelado, clicApelaciones } from '../apelaciones.js';
+import { tutorialPrimeraVez, abrirTutorial, enlaceTutorial } from '../tutorial.js';
 
 export function render(el) {
   document.title = 'CVJ · Cementerio';
@@ -19,8 +20,11 @@ export function render(el) {
 
   const pintar = () => conservarScroll(el, () => { el.innerHTML = html(yo); });
 
+  tutorialPrimeraVez('cementerio');
+
   el.addEventListener('click', async (e) => {
     if (e.target.closest('[data-accion="atras"]')) { volver('#inicio'); return; }
+    if (e.target.closest('[data-tutorial]')) { abrirTutorial('cementerio'); return; }
     if (cem.clicAviso(e)) return;
     if (clicApelaciones(e)) return;
     const v = e.target.closest('[data-vela]');
@@ -61,6 +65,7 @@ function html(yo) {
         <div class="cementerio-cab-texto">
           <h1 class="cementerio-titulo">Cementerio</h1>
           <p class="cementerio-sub">Aquí descansan los que no se lo tomaron en serio.</p>
+          ${enlaceTutorial()}
           ${lista.length ? `<p class="cementerio-cuenta">${lista.length} ${lista.length === 1 ? 'difunto' : 'difuntos'}${velas ? ` · ${velas} ${velas === 1 ? 'vela encendida' : 'velas encendidas'}` : ''}</p>` : ''}
         </div>
       </header>

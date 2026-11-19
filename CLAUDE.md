@@ -120,8 +120,14 @@ español (código, comentarios, commits, interfaz).
   `js/pantallas/difunto.js`: lo que ve un expulsado en vez del login (su lápida y Apelar);
   `sesion.js` guarda `cvj.difunto` ({id, hash}); al expulsarle NO se borra su identidad del
   dispositivo y, si vuelve, entra solo (con el hash o con `entrar_dispositivo()`).
+- `js/tutorial.js`: mini tutoriales de Cementerio y Propuestas (3 tarjetas animadas que se
+  deslizan, con "Saltar"; ilustraciones de iconos propios, animaciones `.tut-*`). Salen solos la
+  primera vez que se entra en la sección en ese dispositivo (`localStorage` "cvj.tutorial.{id}";
+  esperan a que no haya nada encima, y el "Mientras no estabas" espera a que se cierren) y luego
+  con "¿Cómo funciona?" de la cabecera.
 - `js/llamada.js` + `js/pantallas/llamada.js` (#llamada/{token}, con o sin sesión): enlaces de
-  confirmación de reanimar y proponer (hoja con Compartir/Copiar y texto listo, página con
+  confirmación de reanimar y proponer (hoja que dice en grande "Ahora mándale este enlace a
+  {nombre}" con Compartir/Copiar y texto listo, página con
   "Aceptar" sin pedir datos, botón "Escribir al Dictador" por wa.me con mensajes graciosos).
 - `js/eventos.js`: eventos destacados (galas: TGA, Summer Game Fest, Directs...): activos,
   banner de Inicio (cuenta atrás; se cierra por persona en localStorage hasta que sube

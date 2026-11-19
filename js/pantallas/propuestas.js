@@ -11,6 +11,7 @@ import { esc, avatar, conservarScroll, aviso, tiempoRelativo } from '../ui.js';
 import { volver } from '../navegacion.js';
 import { abrirHoja } from '../hoja.js';
 import { llamarAdmin } from '../admin-api.js';
+import { tutorialPrimeraVez, abrirTutorial, enlaceTutorial } from '../tutorial.js';
 
 const DIA = 24 * 60 * 60 * 1000;
 
@@ -33,9 +34,13 @@ export function render(el, { params = [] } = {}) {
     }
   };
 
+  // La primera vez que se entra (no si viene a una propuesta concreta), el tutorial.
+  if (!params[0]) tutorialPrimeraVez('propuestas');
+
   el.addEventListener('click', async (e) => {
     const t = e.target;
     if (t.closest('[data-accion="atras"]')) { volver('#inicio'); return; }
+    if (t.closest('[data-tutorial]')) { abrirTutorial('propuestas'); return; }
     if (t.closest('[data-proponer]')) { hojaProponer(yo); return; }
     const v = t.closest('[data-votar]');
     if (v) { hojaVotar(datos.propuesta(v.dataset.votar), v.dataset.voto, yo); return; }
@@ -87,6 +92,7 @@ function html(yo) {
         <div class="cementerio-cab-texto">
           <h1 class="cementerio-titulo">Propuestas</h1>
           <p class="cementerio-sub">Aquí nadie invita. Se propone, se vota y decide ${DICTADOR}.</p>
+          ${enlaceTutorial()}
           ${abiertas.length ? `<p class="cementerio-cuenta">${abiertas.length} ${abiertas.length === 1 ? 'propuesta abierta' : 'propuestas abiertas'}</p>` : ''}
         </div>
       </header>

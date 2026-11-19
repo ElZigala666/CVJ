@@ -3514,6 +3514,7 @@ body.reordenando { user-select: none; -webkit-user-select: none; cursor: grabbin
 .llamada-codigo { text-align: center; font: 700 24px var(--fuente-titulos); letter-spacing: .25em; text-transform: uppercase; }
 .llamada-url { margin: 0; padding: var(--esp-2) var(--esp-3); border-radius: var(--boton-radio); background: var(--superficie-2, rgba(127,127,127,.12)); font-size: 13px; word-break: break-all; color: var(--texto-2); }
 .llamada-hoja { text-align: center; }
+.llamada-ahora { margin: 0; font: 700 24px/1.2 var(--fuente-titulos); letter-spacing: -.01em; text-wrap: balance; }
 .llamada-hoja .ajustes-nota { text-align: left; overflow-wrap: anywhere; }
 .boton-whatsapp { text-decoration: none; }
 .lapida-reanimando.llamando .ecg path { stroke-dasharray: 4 6; }
@@ -3779,4 +3780,112 @@ button.anillo-item { cursor: pointer; }
 [data-espera] .graf-anim { animation-play-state: paused; }
 @media (prefers-reduced-motion: reduce) {
   .graf-anim { animation: none !important; }
+}
+
+/* ---------------------------------------------------------------------------
+   Mini tutoriales (js/tutorial.js): Propuestas y Cementerio. 3 tarjetas que se deslizan,
+   con ilustraciones de iconos propios animadas (se reinician al llegar a cada tarjeta).
+   --------------------------------------------------------------------------- */
+.tut-capa { position: fixed; inset: 0; z-index: 35; display: grid; place-items: center; padding: 16px; animation: tut-aparece .22s ease both; }
+.tut-capa.saliendo { animation: tut-desaparece .2s ease both; }
+.tut-fondo { position: absolute; inset: 0; background: rgba(8, 6, 14, .62); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+.tut-caja {
+  position: relative; width: min(100%, 420px); padding: var(--esp-5) 0 var(--esp-5); border-radius: 24px;
+  background: var(--flotante); color: var(--texto); box-shadow: var(--sombra-flotante); overflow: hidden;
+  animation: tut-sube .32s var(--curva) both;
+}
+.tut-saltar {
+  position: absolute; z-index: 2; top: 10px; right: 12px; min-height: var(--boton-alto-peq); padding: 0 12px;
+  border: 0; border-radius: var(--r-pill); background: none; color: var(--texto-2); font: 600 14px var(--fuente-texto);
+}
+.tut-saltar:hover { color: var(--texto); }
+.tut-pista { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; }
+.tut-pista::-webkit-scrollbar { display: none; }
+.tut-tarjeta { flex: 0 0 100%; scroll-snap-align: start; padding: var(--esp-3) var(--esp-5) 0; text-align: center; }
+.tut-titulo { margin: var(--esp-4) 0 var(--esp-2); font: 700 22px/1.2 var(--fuente-titulos); }
+.tut-texto { margin: 0; font-size: 15px; line-height: 1.45; color: var(--texto-2); }
+.tut-pie { display: flex; align-items: center; justify-content: space-between; gap: var(--esp-4); padding: var(--esp-5) var(--esp-5) 0; }
+.tut-puntos { display: flex; gap: 6px; }
+.tut-puntos i { width: 7px; height: 7px; border-radius: 50%; background: var(--superficie-2); transition: width var(--t-normal) var(--curva), background var(--t-normal) linear; }
+.tut-puntos i.activo { width: 20px; border-radius: 4px; background: var(--acento); }
+.tut-siguiente { min-width: 140px; }
+.tut-enlace { align-self: flex-start; margin-top: 8px; padding: 0; min-height: 32px; font-size: 14px; }
+
+/* Escenas */
+.tut-escena { position: relative; height: 150px; width: 260px; margin: 0 auto; color: var(--acento); }
+.tut-ic { position: absolute; display: grid; place-items: center; }
+.tut-chip { position: absolute; padding: 3px 10px; border-radius: var(--r-pill); background: var(--acento); color: var(--sobre-acento); font: 800 13px/1.3 var(--fuente-texto); }
+.tut-boton { position: absolute; left: 0; top: 56px; padding: 8px 14px; border-radius: 12px; background: var(--acento); color: var(--sobre-acento); font: 700 13px var(--fuente-texto); }
+
+/* Cementerio 1: lápida con velas */
+.tut-e-lapida .tut-lapida { left: 84px; top: 22px; color: var(--texto-2); }
+.tut-e-lapida .tut-vela-1 { left: 52px; top: 92px; color: var(--texto); }
+.tut-e-lapida .tut-vela-2 { left: 178px; top: 98px; color: var(--texto); }
+.tut-llama { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: radial-gradient(circle, #FFE08A 0 35%, rgba(255, 170, 60, .55) 60%, transparent 72%); }
+.tut-llama-1 { left: 63px; top: 86px; }
+.tut-llama-2 { left: 186px; top: 93px; }
+.tut-tarjeta.activa .tut-e-lapida .tut-lapida { animation: tut-flota 3s ease-in-out infinite; }
+.tut-tarjeta.activa .tut-llama { animation: tut-parpadea 1.1s ease-in-out infinite alternate; }
+.tut-tarjeta.activa .tut-llama-2 { animation-delay: -.5s; }
+
+/* Cementerio 2: Reanimar, el enlace viaja, la lápida responde, 12 h */
+.tut-e-reanimar .tut-viaja { left: 78px; top: 60px; }
+.tut-e-reanimar .tut-lapida { left: 178px; top: 34px; color: var(--texto-2); }
+.tut-chip-12 { left: 190px; top: 8px; opacity: 0; }
+.tut-tarjeta.activa .tut-e-reanimar .tut-viaja { animation: tut-viaje 2.8s var(--curva) infinite; }
+.tut-tarjeta.activa .tut-e-reanimar .tut-lapida { animation: tut-brillo 2.8s ease infinite; }
+.tut-tarjeta.activa .tut-chip-12 { animation: tut-chip 2.8s ease infinite; }
+
+/* Cementerio 3: sin respuesta, caduca */
+.tut-e-caduca .tut-lapida { left: 94px; top: 34px; color: var(--texto-2); opacity: .45; }
+.tut-e-caduca .tut-candado { left: 160px; top: 82px; color: var(--texto); }
+.tut-chip-72 { left: 70px; top: 18px; background: var(--superficie-2); color: var(--texto-2); text-decoration: line-through; }
+.tut-tarjeta.activa .tut-candado { animation: tut-sacude 2.4s ease infinite; }
+.tut-tarjeta.activa .tut-chip-72 { animation: tut-caduca 2.4s ease infinite; }
+
+/* Propuestas 1: algo cae en la urna */
+.tut-e-proponer .tut-urna { left: 88px; top: 40px; }
+.tut-e-proponer .tut-mas { left: 117px; top: 8px; color: var(--texto); }
+.tut-tarjeta.activa .tut-e-proponer .tut-mas { animation: tut-cae 2.2s var(--curva) infinite; }
+.tut-tarjeta.activa .tut-e-proponer .tut-urna { animation: tut-bote 2.2s ease infinite; }
+
+/* Propuestas 2: el enlace va al candidato y acepta */
+.tut-e-enlace .tut-yo { left: 14px; top: 52px; color: var(--texto-2); }
+.tut-e-enlace .tut-el { left: 200px; top: 52px; color: var(--texto); }
+.tut-e-enlace .tut-viaja { left: 66px; top: 60px; }
+.tut-e-enlace .tut-ok { left: 232px; top: 40px; width: 30px; height: 30px; border-radius: 50%; background: var(--acento); color: var(--sobre-acento); opacity: 0; }
+.tut-tarjeta.activa .tut-e-enlace .tut-viaja { animation: tut-viaje-2 2.8s var(--curva) infinite; }
+.tut-tarjeta.activa .tut-e-enlace .tut-ok { animation: tut-chip 2.8s ease infinite; }
+
+/* Propuestas 3: votos y el sello del Dictador */
+.tut-voto { position: absolute; left: 30px; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: var(--r-pill); background: var(--acento-suave); color: var(--texto); font: 700 13px var(--fuente-texto); opacity: 0; }
+.tut-voto svg { color: var(--acento); }
+.tut-voto.contra svg { color: var(--peligro); }
+.tut-voto-1 { top: 18px; }
+.tut-voto-2 { top: 58px; }
+.tut-voto-3 { top: 98px; }
+.tut-e-votar .tut-sello { left: 172px; top: 42px; opacity: 0; }
+.tut-tarjeta.activa .tut-voto { animation: tut-voto 3.2s ease infinite; }
+.tut-tarjeta.activa .tut-voto-2 { animation-delay: .25s; }
+.tut-tarjeta.activa .tut-voto-3 { animation-delay: .5s; }
+.tut-tarjeta.activa .tut-sello { animation: tut-sello 3.2s ease infinite; }
+
+@keyframes tut-aparece { from { opacity: 0; } }
+@keyframes tut-desaparece { to { opacity: 0; } }
+@keyframes tut-sube { from { opacity: 0; transform: translateY(24px) scale(.97); } }
+@keyframes tut-flota { 50% { transform: translateY(-6px); } }
+@keyframes tut-parpadea { from { transform: scale(.8); opacity: .7; } to { transform: scale(1.25); opacity: 1; } }
+@keyframes tut-viaje { 0% { transform: translate(0, 0); opacity: 0; } 10% { opacity: 1; } 55% { transform: translate(92px, -6px); opacity: 1; } 65%, 100% { transform: translate(100px, 0); opacity: 0; } }
+@keyframes tut-viaje-2 { 0% { transform: translate(0, 0); opacity: 0; } 10% { opacity: 1; } 55% { transform: translate(118px, -10px); opacity: 1; } 65%, 100% { transform: translate(124px, 0); opacity: 0; } }
+@keyframes tut-brillo { 0%, 55% { color: var(--texto-2); filter: none; } 70%, 92% { color: var(--acento); filter: drop-shadow(0 0 10px var(--acento)); } }
+@keyframes tut-chip { 0%, 62% { opacity: 0; transform: scale(.6); } 72%, 92% { opacity: 1; transform: scale(1); } 100% { opacity: 0; } }
+@keyframes tut-sacude { 0%, 40%, 100% { transform: rotate(0); } 45% { transform: rotate(-14deg); } 50% { transform: rotate(12deg); } 55% { transform: rotate(-8deg); } 60% { transform: rotate(0); } }
+@keyframes tut-caduca { 0%, 30% { opacity: 1; } 45%, 90% { opacity: .5; } 100% { opacity: 1; } }
+@keyframes tut-cae { 0% { transform: translateY(-10px); opacity: 0; } 15% { opacity: 1; } 50% { transform: translateY(34px); opacity: 1; } 60%, 100% { transform: translateY(40px); opacity: 0; } }
+@keyframes tut-bote { 0%, 50% { transform: none; } 58% { transform: scaleY(.92) translateY(4px); } 68% { transform: none; } }
+@keyframes tut-voto { 0% { opacity: 0; transform: translateX(-14px); } 12%, 88% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@keyframes tut-sello { 0%, 45% { opacity: 0; transform: scale(1.8) rotate(-20deg); } 55% { opacity: 1; transform: scale(.92) rotate(-8deg); } 62%, 88% { opacity: 1; transform: scale(1) rotate(-8deg); } 100% { opacity: 0; transform: scale(1) rotate(-8deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .tut-capa, .tut-capa * { animation: none !important; }
+  .tut-chip-12, .tut-e-enlace .tut-ok, .tut-voto, .tut-e-votar .tut-sello { opacity: 1; }
 }

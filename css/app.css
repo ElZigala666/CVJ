@@ -808,6 +808,9 @@ button.boton-mas { border: 0; padding: 0; }
 }
 .enlace-fila:active { opacity: .8; }
 .enlace-fila-texto { flex: 1; font-weight: 600; font-size: 15px; }
+/* Con subtítulo (<small>) y cuando es un <button>: el mismo aspecto que un enlace. */
+.enlace-fila-texto small { display: block; font-size: 12px; font-weight: 400; color: var(--texto-2); }
+button.enlace-fila { width: 100%; height: auto; min-height: 56px; padding-block: 8px; border: 0; font: inherit; text-align: left; cursor: pointer; }
 .icono-tiers { display: flex; gap: 3px; }
 .icono-tiers span { width: 8px; height: 20px; border-radius: 2px; }
 .icono-tiers [data-tier="S"] { background: var(--tier-s); }
@@ -2926,6 +2929,8 @@ body.apariencia-abierta > #app, body.apariencia-abierta > #barra { visibility: h
 .prop-recuento { display: grid; gap: 8px; }
 .prop-barra { height: 6px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--peligro) 55%, var(--superficie-2)); }
 .prop-barra i { display: block; height: 100%; width: var(--pf); background: var(--acento); transition: width .3s ease; }
+.prop-barra.sin-votos { background: var(--superficie-2); }
+.prop-barra.sin-votos i { width: 0; }
 .prop-lados { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .prop-lado { display: grid; gap: 5px; align-content: start; min-width: 0; }
 .prop-lado.contra { justify-items: end; text-align: right; }

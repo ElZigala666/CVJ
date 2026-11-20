@@ -177,6 +177,28 @@ const ANILLO = {
  * @param {object} d definición
  * @param {{ nivel?: number, tam?: number, bloqueada?: boolean }} op
  */
+/**
+ * Los degradados de las medallas viven UNA vez en un <svg> propio del <body> (nunca oculto): con
+ * los <defs> dentro de cada medalla, el mismo id se repetía y, si el primero quedaba en una
+ * pantalla oculta (las pestañas montadas), las demás se quedaban sin color. Los colores van en
+ * style (stop-color con var() y color-mix no vale como atributo).
+ */
+const defsHechas = new Set();
+function defsMedalla(gid, c1, c2) {
+  if (typeof document === 'undefined' || defsHechas.has(gid)) return;
+  let caja = document.getElementById('ins-defs');
+  if (!caja) {
+    caja = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    caja.id = 'ins-defs';
+    caja.setAttribute('aria-hidden', 'true');
+    caja.setAttribute('style', 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none');
+    caja.innerHTML = '<defs><linearGradient id="ins-brillo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:#fff;stop-opacity:.3"/><stop offset=".48" style="stop-color:#fff;stop-opacity:0"/></linearGradient></defs>';
+    document.body.append(caja);
+  }
+  caja.firstChild.insertAdjacentHTML('beforeend', `<linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:${c1}"/><stop offset="1" style="stop-color:${c2}"/></linearGradient>`);
+  defsHechas.add(gid);
+}
+
 export function medalla(d, { nivel = 1, tam = 48, bloqueada = false } = {}) {
   const forma = d.tipo;
   const gid = `ins-${bloqueada ? 'b' : ''}${forma}-${d.umbrales ? NIVELES[nivel] : forma === 'hito' ? 'unico' : forma}`;
@@ -187,20 +209,17 @@ export function medalla(d, { nivel = 1, tam = 48, bloqueada = false } = {}) {
   else if (forma === 'grupo') [c1, c2, glifo] = ['color-mix(in srgb, var(--acento) 70%, #fff)', 'var(--acento)', '#FFFFFF'];
   else [c1, c2, glifo] = COLORES[forma === 'secreta' ? 'secreta' : d.umbrales ? NIVELES[nivel] : 'unico'];
   const secretaOculta = bloqueada && d.tipo === 'secreta';
+  defsMedalla(gid, c1, c2);
   return `
     <svg class="medalla${bloqueada ? ' bloqueada' : ''}" width="${tam}" height="${tam}" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
-      <defs>
-        <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient>
-        <linearGradient id="ins-brillo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".3"/><stop offset=".48" stop-color="#fff" stop-opacity="0"/></linearGradient>
-      </defs>
       <path d="${FORMAS[forma]}" fill="url(#${gid})"/>
-      <path d="${ANILLO[forma]}" fill="none" stroke="${bloqueada ? 'var(--borde)' : 'rgba(255,255,255,.38)'}" stroke-width="1.2"/>
+      <path d="${ANILLO[forma]}" fill="none" style="stroke:${bloqueada ? 'var(--borde)' : 'rgba(255,255,255,.38)'}" stroke-width="1.2"/>
       ${bloqueada ? '' : `<path d="${FORMAS[forma]}" fill="url(#ins-brillo)"/>`}
       ${secretaOculta
-        ? `<text x="24" y="31" text-anchor="middle" font-family="var(--fuente-titulos)" font-weight="700" font-size="20" fill="${glifo}" opacity=".7">?</text>`
+        ? `<text x="24" y="31" text-anchor="middle" font-weight="700" font-size="20" opacity=".7" style="font-family:var(--fuente-titulos);fill:${glifo}">?</text>`
         : `<g transform="translate(13 13) scale(.9167)" opacity="${bloqueada ? '.45' : '1'}">${TRAZOS[d.glifo]
-          ? `<path d="${TRAZOS[d.glifo]}" fill="none" stroke="${glifo}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>`
-          : `<path d="${GLIFOS[d.glifo] ?? ''}" fill="${glifo}" fill-rule="evenodd"/>`}</g>`}
+          ? `<path d="${TRAZOS[d.glifo]}" fill="none" style="stroke:${glifo}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>`
+          : `<path d="${GLIFOS[d.glifo] ?? ''}" style="fill:${glifo}" fill-rule="evenodd"/>`}</g>`}
     </svg>`;
 }
 

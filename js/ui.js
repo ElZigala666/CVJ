@@ -181,6 +181,9 @@ export function esperaDatos(estado, noExiste, clase = 'evento-nota') {
   return `<p class="${clase}">Cargando…</p>`;
 }
 
+/** 4279 → "4 279" (con espacio que no parte la línea): las cifras grandes, igual en todas partes. */
+export const miles = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+
 /** Skeleton de una fila de juego (misma forma que la fila real). */
 export function skeletonFila(anchoTitulo = 65, anchoMeta = 40) {
   return `

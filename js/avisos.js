@@ -393,7 +393,7 @@ export function bloqueAjustes(u) {
   return `
     <section class="ajustes-bloque">
       <span class="campo-titulo">Notificaciones</span>
-      <p class="ajustes-nota">Qué sale en "Mientras no estabas" al entrar. En Avisos se ve siempre todo.</p>
+      <p class="ajustes-nota">Qué sale en «Mientras no estabas» al abrir la app. En Avisos se ve siempre todo.</p>
       <div class="avisos-ajustes">
         ${GRUPOS.filter((g) => !g.admin || u.es_admin).map((g) => `
           <label class="interruptor mini">

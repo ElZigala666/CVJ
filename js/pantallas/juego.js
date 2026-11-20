@@ -210,7 +210,7 @@ export function render(el, { params }) {
     // El total de cada uno (sincronizadas de todas sus cuentas + extra); el desglose, en "Tus horas".
     const h = metricas.textoHorasDe(uid, id);
     if (h) partes.push(h);
-    if (b?.progreso) partes.push(`${b.progreso} % trofeos`);
+    if (b?.progreso) partes.push(`${b.progreso} % trofeos`);
     return partes.length ? ` · ${partes.join(' · ')}` : '';
   }
 

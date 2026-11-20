@@ -5,7 +5,7 @@ import { icono } from './icons.js';
 import * as datos from './datos.js';
 import * as metricas from './metricas.js';
 import { LETRAS, rangoTier, formatearNota, notaALetra } from './notas.js';
-import { esc, avatar, portada, chipLetra, aviso } from './ui.js';
+import { esc, avatar, portada, chipLetra, aviso, miles } from './ui.js';
 import { usuarioActual } from './sesion.js';
 import { modoTiers, guardarPreferencia } from './preferencias.js';
 import { abrirHoja } from './hoja.js';
@@ -386,7 +386,6 @@ const MIN_JUEGOS = 5; // alguien: juegos jugados con ese dato
 const fmt1 = (n) => (Math.round(n * 10) / 10).toFixed(1);
 const deN = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
 /** 12 345 (espacio fino de miles: no se confunde con el punto de las notas). */
-const miles = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 
 export function htmlEstadisticas(id) {
   const u = datos.usuario(id);

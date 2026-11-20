@@ -9,7 +9,7 @@ import * as datos from '../datos.js';
 import * as metricas from '../metricas.js';
 import { usuarioActual } from '../sesion.js';
 import { formatearNota, notaALetra as notaLetra } from '../notas.js';
-import { esc, avatar, portada, chipLetra, cabeceraAtras, estadoVacio, tiempoRelativo, aviso, estaRejugando, marcaRejugado, notaConLetra, pintarHtml, esperaDatos } from '../ui.js';
+import { esc, avatar, portada, chipLetra, cabeceraAtras, estadoVacio, tiempoRelativo, aviso, estaRejugando, marcaRejugado, notaConLetra, pintarHtml, esperaDatos, miles } from '../ui.js';
 import * as social from '../social.js';
 import * as insignias from '../insignias.js';
 import { abrirHoja } from '../hoja.js';
@@ -210,7 +210,7 @@ function renderPerfil(el, id, alSalir, pedida = null) {
             </div>
             <div class="tarjeta-dato">
               ${tiempo.total
-                ? `<span class="dato-num">${tiempo.total}</span><span class="dato-etq">Horas jugadas</span>`
+                ? `<span class="dato-num">${miles(tiempo.total)}</span><span class="dato-etq">Horas jugadas</span>`
                 : `<span class="dato-num apagado">—</span><span class="dato-etq">Horas · ${vinculado ? 'sin datos' : 'sin plataforma'}</span>`}
             </div>
           </div>

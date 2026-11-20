@@ -152,7 +152,7 @@ function tarjeta(p, r, yo, vivo) {
       <blockquote class="prop-motivo texto-seleccionable">${esc(p.motivo)}</blockquote>
       ${p.plataformas?.length ? `<div class="prop-plataformas">${p.plataformas.map((x) => `<span class="prop-plat">${esc(prop.nombrePlataforma(x))}</span>`).join('')}</div>` : ''}
       <div class="prop-recuento">
-        <div class="prop-barra" style="--pf:${pf}%" aria-hidden="true"><i></i></div>
+        <div class="prop-barra${total ? '' : ' sin-votos'}" style="--pf:${pf}%" aria-hidden="true"><i></i></div>
         <div class="prop-lados">
           <div class="prop-lado favor">
             <span class="prop-lado-n"><b>${r.favor.length}</b> a favor</span>

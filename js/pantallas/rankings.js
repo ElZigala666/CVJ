@@ -125,7 +125,8 @@ function filaRanking(x, i) {
   const opinan = x.vals
     .filter((v) => typeof v.recomendado === 'boolean' && datos.usuario(v.usuario_id))
     .sort((a, b) => Number(b.recomendado) - Number(a.recomendado));
-  let extra = x.rec.total ? `${x.rec.si} de ${x.rec.total}` : '';
+  // Por nota: cuántas notas tiene (siempre) y cuántos lo recomiendan, si alguien lo ha dicho.
+  let extra = `${x.votos} ${x.votos === 1 ? 'nota' : 'notas'}${x.rec.total ? ` · ${x.rec.si} de ${x.rec.total} lo recomiendan` : ''}`;
   if (orden === 'jugados') extra = `${x.jugadores} ${x.jugadores === 1 ? 'jugador' : 'jugadores'}`;
   if (orden === 'recomendados') extra = `${x.rec.si} de ${x.rec.total} · ${x.rec.porcentaje}%`;
   if (orden === 'horas') extra = `${metricas.textoAprox(x.horas, x.horasEstimadas)} entre todos`;

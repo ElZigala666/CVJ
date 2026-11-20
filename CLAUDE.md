@@ -38,6 +38,9 @@ español (código, comentarios, commits, interfaz).
 - `js/datos.js`: datos del grupo en memoria + caché IndexedDB, refresco por "huellas",
   escrituras optimistas con reversión. `js/metricas.js`: perfiles, tier list, rankings,
   comparar, horas (`sumarHoras`, `desgloseDe`, estimaciones), memoizado por versión.
+- `js/navegacion.js` (`volver()` con respaldo, enlaces a perfiles), `js/instalar.js` (service
+  worker, aviso de versión nueva, "Instalar app"), `js/version.js` (`__VERSION__`),
+  `js/psn-nombres.js` (nombre limpio de un título de PSN), `js/ajustes.js` (la hoja de Ajustes).
 - `js/notas.js` escala S-F. `js/sesion.js` + `js/codigo.js` login (por `entrar(hash)`: el
   hash no se puede leer con la clave pública; la sesión guarda también el hash, el id del
   dispositivo `cvj.dispositivo` y manda `latido()` al abrir y cada 20 min). `js/supabase.js`
@@ -152,6 +155,8 @@ español (código, comentarios, commits, interfaz).
   ancho del contenedor (`@container`), no de la ventana.
 - `js/insignias.js`: catálogo de insignias (condiciones), medallas SVG, cálculo memorizado
   por versión de datos, guardado de cambios tras cada refresco, avisos y vitrina del perfil.
+  Los degradados de las medallas van UNA vez en `<svg id="ins-defs">` del body (`defsMedalla`):
+  nunca `<defs>` dentro de cada SVG repetido (un id duplicado en una pantalla oculta las deja sin color).
 - `js/cementerio.js`: vidas y muertes (`historia(uid)`), récords, epitafios, reanimaciones
   (cuenta atrás, vetar/permitir), acceso de Inicio, avisos de reanimación y filas de la
   actividad. El admin firma como "El Dictador" en el cementerio y en los vetos.
@@ -217,7 +222,10 @@ español (código, comentarios, commits, interfaz).
   `localStorage['prueba.escenario'] = 'real'`: las tablas reales desde `prueba-real.json` (excluido
   de git; copia de solo lectura sin códigos ni tokens) para comprobar números con datos reales;
   entra como el admin o `localStorage['prueba.yo']`. Las capturas del panel salen recortadas en
-  móvil emulado: mejor un iframe de 390 px en escritorio.
+  móvil emulado: mejor un iframe de 390 px en escritorio. Barrido de todas las rutas (errores de
+  consola, peticiones fallidas, desbordes, textos raros): `herramientas/barrido.js` (también
+  excluido; en la consola: `await (await import('/herramientas/barrido.js')).barrer()`). El
+  simulado no tiene `estado_servicios` ni `celebraciones_vistas` (sus 404 no son fallos).
 - `herramientas/`: restaurar copia (`RESTAURAR.md`, `restaurar-copia.sh`), pruebas de
   PSN/Xbox/buscador, generar iconos y hash de código.
 - `cvj-diseno/`: diseño original de referencia (no se publica).
@@ -420,6 +428,8 @@ español (código, comentarios, commits, interfaz).
 - Comprobar la sintaxis de los módulos con `node --input-type=module --check < archivo.js`
   (`node --check archivo.js` no ve algunos errores que rompen el módulo en el navegador).
 - Cambios pequeños de aspecto: sin pruebas. Lo importante se prueba con datos reales.
+- Cifras grandes con `miles()` de `js/ui.js` ("4 279", espacio que no parte). Una fila-enlace
+  con subtítulo: `.enlace-fila` + `.enlace-fila-texto` con `<small>` (vale `<a>` o `<button>`).
 - Botones y espaciado: sistema común en `css/tokens.css` (`--esp-1..6` = 4/8/12/16/24/32,
   `--boton-alto` 48 y `--boton-alto-peq` 36 como mínimo, `--boton-radio`). Principal,
   secundario (`.neutro`, `.peligro`) y de texto (`.enlace-discreto`); `.boton-pequeno` el

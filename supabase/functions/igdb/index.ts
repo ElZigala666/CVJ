@@ -533,6 +533,20 @@ export function variantesBusqueda(nombre: string): string[] {
   return [...new Set(salida.map((x) => x.trim()).filter((x) => x.length >= 2))];
 }
 
+/**
+ * Para BUSCAR en IGDB, las palabras que llevaban apóstrofo lo recuperan: el nombre limpio
+ * ("thats you", para comparar) no lo encuentra el buscador de IGDB, que sí encuentra
+ * "that's you" ("That's You!", "Don't Starve", "Assassin's Creed"). Cualquier apóstrofo
+ * (' ’ ` ´ ʼ) vale como '. → q con esas palabras cambiadas.
+ */
+export function conApostrofos(nombre: string, q: string): string {
+  const mapa = new Map<string, string>();
+  const crudo = String(nombre ?? "").replace(/[™®©]/g, "").replace(/[’‘`´ʼ]/g, "'")
+    .normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+  for (const w of crudo.match(/[a-z0-9]+(?:'[a-z0-9]+)+/g) ?? []) mapa.set(w.replace(/'/g, ""), w);
+  return mapa.size ? q.split(" ").map((w) => mapa.get(w) ?? w).join(" ") : q;
+}
+
 /** Bolsa de palabras (sin orden ni artículos, con sinónimos): "trilogia mafia" = "mafia trilogy". */
 export function bolsa(limpio: string): string {
   let x = limpio;
@@ -709,7 +723,9 @@ export function elegirCandidato(e: EntradaPsn, candidatos: CandidatoEmparejar[],
 
 /** Filtro de coincidencia parcial: el nombre contiene cada palabra (sin mayúsculas). */
 function filtroNombre(texto: string): string {
-  const palabras = texto.trim().split(/\s+/).filter(Boolean).slice(0, 6);
+  // Con apóstrofo, el trozo más largo ("that's" → "that"): IGDB puede escribirlo con ' o ’.
+  const trozo = (w: string) => w.split("'").sort((x, y) => y.length - x.length)[0];
+  const palabras = texto.trim().split(/\s+/).filter(Boolean).map(trozo).filter(Boolean).slice(0, 6);
   return palabras.map((w) => `name ~ *"${escaparTexto(w)}"*`).join(" & ");
 }
 
@@ -1297,7 +1313,8 @@ async function emparejarPsn(e: EntradaPsn & { titleId?: string }) {
   // 2) Por nombre (con bundles)
   if (!elegido) {
     const where = `version_parent = null & game_type = (${[...ids, bundle].join(",")})`;
-    const consultar = async (q: string) => {
+    const consultar = async (q0: string) => {
+      const q = conApostrofos(e.nombre, q0); // "thats you" → "that's you": si no, IGDB no lo encuentra
       const [busqueda, parcial] = await Promise.all([
         igdb<CandidatoEmparejar[]>("games", `search "${escaparTexto(q)}"; fields ${CAMPOS_EMPAREJAR}; where ${where}; limit 30;`),
         igdb<CandidatoEmparejar[]>("games", `fields ${CAMPOS_EMPAREJAR}; where ${filtroNombre(q)} & ${where}; sort total_rating_count desc; limit 30;`),

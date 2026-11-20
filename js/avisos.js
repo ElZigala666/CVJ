@@ -239,17 +239,17 @@ function visual(n, tam = 40) {
 }
 
 /** Una fila del centro de avisos. */
-export function fila(n, ahora = new Date()) {
+export function fila(n, ahora = new Date(), { nueva = !n.leida } = {}) {
   const { titulo, extra } = describir(n);
   return `
-    <a class="aviso-fila${n.leida ? '' : ' nueva'}" href="${esc(n.destino ?? '#avisos')}" data-aviso="${esc(n.id)}" data-k="${esc(n.id)}">
+    <a class="aviso-fila${nueva ? ' nueva' : ''}" href="${esc(n.destino ?? '#avisos')}" data-aviso="${esc(n.id)}" data-k="${esc(n.id)}">
       ${visual(n)}
       <span class="aviso-fila-texto">
         <span class="aviso-fila-titulo">${titulo}</span>
         ${extra ? `<span class="aviso-fila-extra">${extra}</span>` : ''}
         <span class="aviso-fila-tiempo">${tiempoRelativo(n.actualizado_en ?? n.creado_en, ahora)}</span>
       </span>
-      ${n.leida ? '' : '<span class="aviso-punto" aria-label="Sin leer"></span>'}
+      ${nueva ? '<span class="aviso-punto" aria-label="Nuevo"></span>' : ''}
     </a>`;
 }
 

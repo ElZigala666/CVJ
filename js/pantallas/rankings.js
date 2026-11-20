@@ -13,7 +13,7 @@ import { formatearNota, notaALetra } from '../notas.js';
 import { esc, avatar, avatarInsignia, portada, notaConLetra, estadoVacio, pintarHtml } from '../ui.js';
 import { reemplazarRuta } from '../navegacion.js';
 import { abrirHoja } from '../hoja.js';
-import { chipsUsuarios, htmlTiers, htmlTiersGrupo, htmlEstadisticas, htmlEstadisticasGrupo, clicEstadisticas, observarGraficos } from '../vistas-perfil.js';
+import { chipsUsuarios, htmlTiers, htmlTiersGrupo, htmlEstadisticas, htmlEstadisticasGrupo, clicEstadisticas, clicTiers, cambioTiers, observarGraficos } from '../vistas-perfil.js';
 
 const MODOS = [
   ['grupo', 'Ranking'],
@@ -47,8 +47,10 @@ export function render(el, { params, solo = null, ruta = 'rankings' }) {
     if (modo === 'estadisticas') observarGraficos(el);
   };
 
+  el.addEventListener('change', (e) => { cambioTiers(e); });
   el.addEventListener('click', (e) => {
     if (clicEstadisticas(e)) return;
+    if (clicTiers(e)) return;
     const chip = e.target.closest('[data-usuario]');
     if (chip && (modo === 'tiers' || modo === 'estadisticas')) {
       if (chip.dataset.usuario !== quien) reemplazarRuta(solo ? `#${ruta}/${chip.dataset.usuario}` : `#rankings/${modo}/${chip.dataset.usuario}`);

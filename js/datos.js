@@ -50,8 +50,9 @@ const COLUMNAS_JUEGO = 'igdb_id, nombre, slug, cover_id, anio, plataformas, desa
  * esencial = sin ella no se puede pintar nada, q = filtros.
  */
 const TABLAS = [
-  { k: 'usuarios', t: 'usuarios', orden: ['creado_en', 'id'], esencial: true,
-    sel: `${COLUMNAS_USUARIO}, foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas, estimar_horas, apariencia, perfil_datos, social_visto_en, insignias_visto_en, exorcizado, propuesta_id`,
+  // v2: con barra (migración 048) y preferencias (049): la caché de antes se pide una vez.
+  { k: 'usuarios', t: 'usuarios', orden: ['creado_en', 'id'], esencial: true, v: '2',
+    sel: `${COLUMNAS_USUARIO}, foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas, estimar_horas, apariencia, perfil_datos, social_visto_en, insignias_visto_en, exorcizado, propuesta_id, barra, preferencias`,
     alt: `${COLUMNAS_USUARIO}, foto_url, es_admin, umbral_probados, xbox_incluir_pc, activo, plataformas_ocultas, estimar_horas, apariencia, perfil_datos, social_visto_en, insignias_visto_en, exorcizado` },
   { k: 'valoraciones', t: 'valoraciones', orden: ['id'], esencial: true },
   // v: con arte_id (cabecera del perfil): la caché de antes se vuelve a pedir una vez.

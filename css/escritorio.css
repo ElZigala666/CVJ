@@ -435,3 +435,6 @@ body:has(#vista .entrada, #vista .difunto) #aviso { left: 50%; }
 /* Barra: en escritorio, la lateral de siempre (la del móvil, personalizable, no se ve). */
 .barra-movil { display: none !important; }
 .barra-escritorio { display: flex; }
+
+/* Tier list compacta en escritorio: portadas algo más grandes. */
+.tiers.compacta .portada-tier { width: 84px; }

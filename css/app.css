@@ -1831,6 +1831,9 @@ body.seleccionando [data-sel] { position: relative; cursor: pointer; }
 .sel-marcado > .sel-check { border-color: transparent; background: var(--sobre-acento); }
 /* Portadas: la marcada se encoge un poco y lleva el borde del acento */
 body.seleccionando [data-sel]:not([data-sel-tipo]) { transition: transform .12s var(--curva); }
+/* Pulsación larga cargándose: la tarjeta se hunde poco a poco (js/seleccion.js). */
+[data-sel].sel-cargando { transform: scale(.95); transition: transform var(--carga, 440ms) cubic-bezier(.3, 0, .2, 1); }
+[data-sel-tipo="fila"].sel-cargando { transform: scale(.98); }
 .sel-marcado:not([data-sel-tipo]) { transform: scale(.93); }
 .sel-marcado:not([data-sel-tipo]) .portada { box-shadow: 0 0 0 3px var(--acento); }
 /* Filas: la casilla a la derecha y el fondo del acento */
@@ -4173,3 +4176,23 @@ html.seleccion-propia :is(.texto-seleccionable, .grupo-resena, .perfil-resena-te
   background: none; color: var(--texto); font: 600 14px var(--fuente-texto); white-space: nowrap;
 }
 .selt-menu button:active { background: var(--superficie); }
+
+/* ---------------------------------------------------------------------------
+   Tier list: vista compacta (cada rango en una fila que se desliza) o completa
+   --------------------------------------------------------------------------- */
+.tiers-opciones { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin: 10px 12px 0; }
+.tiers-solos { font-size: 13px; }
+button.tier-letra { border: 0; padding: 0; font: inherit; cursor: pointer; }
+.tiers.compacta .tier-fila { min-height: 112px; }
+.tiers.compacta .portada-tier { width: 72px; }
+.tiers.compacta .portada-tier .portada-titulo { font-size: 8px; }
+.tier-fila.compacta:not(.abierta) .tier-juegos {
+  flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
+}
+.tier-fila.compacta:not(.abierta) .tier-juegos::-webkit-scrollbar { display: none; }
+.tier-fila.compacta .tier-item { flex: 0 0 auto; }
+.tier-mas {
+  flex: 0 0 auto; align-self: stretch; min-width: 56px; padding: 0 10px; border: 0; border-radius: 8px;
+  background: var(--superficie-2); color: var(--texto); font: 700 16px var(--fuente-titulos); cursor: pointer;
+}
+.tier-fila.compacta.abierta .tier-letra { box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .12); }

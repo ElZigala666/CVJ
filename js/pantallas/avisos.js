@@ -1,6 +1,7 @@
 // #avisos: el centro de avisos. Agrupados por día (Hoy, Ayer, Esta semana...), con avatar e
-// icono del tipo, las no leídas resaltadas, filtros "Todo / Sobre mí / Grupo" y "Marcar todo
-// como leído". Tocar uno lleva al sitio exacto y lo marca como leído (js/avisos.js).
+// icono del tipo y filtros "Todo / Sobre mí / Grupo". Al entrar se marcan todos como leídos
+// (el contador a cero); los que eran nuevos siguen resaltados durante esa visita. Tocar uno
+// lleva al sitio exacto (js/avisos.js).
 import { icono } from '../icons.js';
 import * as datos from '../datos.js';
 import * as avisos from '../avisos.js';
@@ -25,34 +26,48 @@ function grupoDia(f, ahora) {
 export function render(el) {
   document.title = 'CVJ · Avisos';
   const yo = usuarioActual();
-  const pintar = () => pintarHtml(el, html(yo));
+  // Los que eran nuevos al entrar (siguen resaltados toda la visita).
+  let nuevos = new Set();
+  const pintar = () => pintarHtml(el, html(yo, nuevos));
+  /** Leer todo lo que haya sin leer (al entrar y, mientras se está aquí, lo que llegue). */
+  const leer = () => {
+    if (el.hidden || !el.isConnected || !yo) return;
+    const sin = datos.notificaciones().filter((n) => n.usuario_id === yo.id && !n.leida);
+    if (!sin.length) return;
+    for (const n of sin) nuevos.add(n.id);
+    datos.marcarAvisos(yo.id, sin.map((n) => n.id), {}, aviso);
+  };
+  // Si es una pestaña de la barra se queda montada: cada visita empieza de nuevo.
+  // (El primer aviso de "pantalla puesta" es el de este mismo montaje: no cuenta.)
+  let montada = false;
+  const alVolver = () => {
+    if (!montada) { montada = true; return; }
+    if (!el.hidden && el.isConnected) { nuevos = new Set(); leer(); pintar(); }
+  };
+  window.addEventListener('cvj:pantalla', alVolver);
 
   el.addEventListener('click', (e) => {
     if (e.target.closest('[data-accion="atras"]')) { volver('#inicio'); return; }
     const f = e.target.closest('[data-filtro]');
     if (f) { filtro = f.dataset.filtro; pintar(); return; }
-    if (e.target.closest('[data-todo-leido]')) {
-      datos.marcarAvisos(yo.id, null, {}, aviso);
-      aviso('Todo leído');
-      return;
-    }
     const a = e.target.closest('[data-aviso]');
     if (a) { e.preventDefault(); avisos.abrir(a.dataset.aviso); }
   });
 
   const reloj = setInterval(() => { if (!el.hidden) pintar(); }, 60_000); // los "hace 5 min"
-  const quitar = datos.suscribir(pintar);
+  const quitar = datos.suscribir(() => { leer(); pintar(); });
+  leer();
   pintar();
-  return () => { clearInterval(reloj); quitar(); };
+  return () => { clearInterval(reloj); quitar(); window.removeEventListener('cvj:pantalla', alVolver); };
 }
 
-function html(yo) {
+function html(yo, nuevos) {
   const ahora = new Date();
   const todas = datos.notificaciones().filter((n) => n.usuario_id === yo?.id);
   // Las insignias que llegan juntas, en un solo aviso.
   const lista = avisos.agrupar(todas.filter((n) => filtro === 'todo' || n.categoria === filtro)
     .sort((a, b) => new Date(b.actualizado_en) - new Date(a.actualizado_en)));
-  const sinLeer = todas.filter((n) => !n.leida).length;
+  const sinLeer = todas.filter((n) => nuevos.has(n.id)).length;
   const grupos = [];
   for (const n of lista) {
     const g = grupoDia(n.actualizado_en, ahora);
@@ -65,9 +80,8 @@ function html(yo) {
         <button type="button" class="boton-cuadrado" data-accion="atras" aria-label="Volver">${icono('atras', { tam: 20, color: 'var(--texto)' })}</button>
         <div class="cementerio-cab-texto">
           <h1 class="cementerio-titulo">Avisos</h1>
-          <p class="cementerio-cuenta">${sinLeer ? `${sinLeer} sin leer` : 'Todo leído'}</p>
+          <p class="cementerio-cuenta">${sinLeer ? `${sinLeer} ${sinLeer === 1 ? 'nuevo' : 'nuevos'}` : 'Nada nuevo'}</p>
         </div>
-        ${sinLeer ? '<button type="button" class="enlace-discreto avisos-todo" data-todo-leido>Marcar todo como leído</button>' : ''}
       </header>
       <div class="segmentado avisos-filtros" role="tablist" aria-label="Filtrar avisos">
         ${FILTROS.map(([id, t]) => `<button type="button" role="tab" data-filtro="${id}" class="${filtro === id ? 'activo' : ''}" aria-selected="${filtro === id}">${t}</button>`).join('')}
@@ -75,7 +89,7 @@ function html(yo) {
       ${grupos.length ? grupos.map(({ g, l }) => `
         <section class="avisos-dia" data-k="${esc(g)}">
           <h2 class="avisos-dia-titulo">${g}</h2>
-          <div class="avisos-lista">${l.map((n) => avisos.fila(n, ahora)).join('')}</div>
+          <div class="avisos-lista">${l.map((n) => avisos.fila(n, ahora, { nueva: avisos.idsDe(n).some((id) => nuevos.has(id)) })).join('')}</div>
         </section>`).join('') : estadoVacio({
           icono: 'aviso',
           titulo: filtro === 'todo' ? 'Nada por aquí' : 'Nada de esto',

@@ -26,7 +26,7 @@ import { entrarSeleccion } from '../seleccion.js';
 import { imagenPlataforma } from '../portadas.js';
 import { perfilDe, cabeceraEfectiva, capasCabecera } from '../perfil-personal.js';
 import { padrino } from '../propuestas.js';
-import { htmlTiers, htmlEstadisticas, htmlColumna, clicEstadisticas, observarGraficos } from '../vistas-perfil.js';
+import { htmlTiers, htmlEstadisticas, htmlColumna, clicEstadisticas, clicTiers, cambioTiers, observarGraficos } from '../vistas-perfil.js';
 
 // Pestañas del perfil (la de Columna, solo si tiene). La última elegida se recuerda aquí.
 const PESTANAS_PERFIL = [
@@ -534,8 +534,10 @@ function renderPerfil(el, id, alSalir, pedida = null) {
     if (nueva) cambiarPestana(nueva);
   });
 
+  el.addEventListener('change', (e) => { cambioTiers(e); });
   el.addEventListener('click', (e) => {
     if (clicEstadisticas(e)) return;
+    if (clicTiers(e)) return;
     const pp = e.target.closest('[data-ppestana]');
     if (pp) { cambiarPestana(pp.dataset.ppestana); return; }
     if (e.target.closest('[data-accion="insignias"]')) { insignias.abrirColeccion(id); return; }

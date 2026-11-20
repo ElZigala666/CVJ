@@ -20,7 +20,13 @@ import { resolverDuplicados, TEXTO_RESUELTO } from './horas-ui.js';
 // Las pestañas visitadas siguen montadas (ocultas) en #vista: solo cuenta la que se ve.
 const enVista = () => vista?.querySelector(':scope > .pantalla:not([hidden])') ?? vista;
 
+// Pulsación larga: en táctil, algo más larga (que no salte al empezar a hacer scroll); la
+// tarjeta se hunde mientras se "carga" (desde AVISO_MS) y vibra al activarse.
 const PULSACION_LARGA_MS = 480;
+const PULSACION_TACTIL_MS = 580;
+const AVISO_MS = 140;
+// Tocar fuera de la lista sale del modo, salvo a esta distancia de una portada (puntería).
+const MARGEN_FUERA = 24;
 const PLATAFORMAS_GENERICAS = ['PS5', 'PS4', 'PC', 'Xbox', 'Switch'];
 const ESTADOS_SIN_FINAL = [
   { id: 'jugando', nombre: 'Lo juego', icono: 'jugando' },
@@ -102,6 +108,12 @@ export function iniciarSeleccion(contenedor) {
   window.addEventListener('click', (e) => {
     const item = e.target.closest?.('[data-sel]');
     const aqui = !!item && enVista().contains(item);
+    // En el modo, un toque CLARAMENTE fuera de la lista sale (y no hace nada más).
+    if (activo && !aqui && !largaHecha && fueraDeLista(e)) {
+      if (!e.target.closest?.('#barra')) { e.preventDefault(); e.stopPropagation(); }
+      salir();
+      return;
+    }
     if (largaHecha) {
       // El clic que suelta la pulsación larga que ha activado el modo no abre nada.
       largaHecha = false;
@@ -141,26 +153,28 @@ export function iniciarSeleccion(contenedor) {
     if (e.target.closest?.(SELECCIONABLE)) return; // sobre el texto: seleccionarlo, no la tarjeta
     largaHecha = false;
     const x0 = e.clientX, y0 = e.clientY;
-    clearTimeout(largo?.t);
+    soltarLargo();
+    const ms = e.pointerType === 'mouse' ? PULSACION_LARGA_MS : PULSACION_TACTIL_MS;
     largo = {
-      x0, y0,
+      x0, y0, item,
+      // La tarjeta se hunde mientras se carga (no al instante: un toque normal no la mueve).
+      aviso: activo ? 0 : setTimeout(() => { item.style.setProperty('--carga', `${ms - AVISO_MS}ms`); item.classList.add('sel-cargando'); }, AVISO_MS),
       t: setTimeout(() => {
-        largo = null;
+        soltarLargo();
         largaHecha = true;
-        navigator.vibrate?.(12);
+        try { navigator.vibrate?.(15); } catch { /* sin vibración */ }
         if (!activo) entrarSeleccion(item);
         else alternar(item.dataset.sel);
-      }, PULSACION_LARGA_MS),
+      }, ms),
     };
   }, true);
   const cancelar = (e) => {
     if (!largo) return;
     if (e.type === 'pointermove' && Math.hypot(e.clientX - largo.x0, e.clientY - largo.y0) < 10) return;
-    clearTimeout(largo.t);
-    largo = null;
+    soltarLargo();
   };
   for (const t of ['pointermove', 'pointerup', 'pointercancel']) window.addEventListener(t, cancelar, true);
-  window.addEventListener('scroll', () => { if (largo) { clearTimeout(largo.t); largo = null; } }, { passive: true });
+  window.addEventListener('scroll', soltarLargo, { passive: true });
   // Al tocar y mantener, el navegador abre su menú (y algunas pantallas el suyo): aquí no.
   window.addEventListener('contextmenu', (e) => {
     const item = e.target.closest?.('[data-sel]');
@@ -182,6 +196,36 @@ export function iniciarSeleccion(contenedor) {
     pendientePintar = true;
     requestAnimationFrame(() => { pendientePintar = false; pintarMarcas(); pintarCuenta(); });
   }).observe(vista, { childList: true, subtree: true });
+}
+
+/** Cancela la pulsación larga en curso (y quita el "hundido"). */
+function soltarLargo() {
+  if (!largo) return;
+  clearTimeout(largo.t);
+  clearTimeout(largo.aviso);
+  largo.item?.classList.remove('sel-cargando');
+  largo = null;
+}
+
+/**
+ * ¿Un toque claramente fuera de la lista? No cuentan: la propia lista (los huecos entre
+ * portadas están dentro), lo que esté a MARGEN_FUERA de una portada, las barras del modo, las
+ * hojas y los menús.
+ */
+function fueraDeLista(e) {
+  const t = e.target;
+  if (t.closest?.('.sel-cab, .sel-barra, .capa-hoja, .hoja, .menu-opciones, .menu-yo, [data-lista]')) return false;
+  const x = e.clientX;
+  const y = e.clientY;
+  if (!x && !y) return false; // clic de teclado: no
+  for (const el of enVista().querySelectorAll('[data-sel]')) {
+    const r = el.getBoundingClientRect();
+    if (!r.width) continue;
+    const dx = Math.max(r.left - x, 0, x - r.right);
+    const dy = Math.max(r.top - y, 0, y - r.bottom);
+    if (Math.hypot(dx, dy) < MARGEN_FUERA) return false;
+  }
+  return true;
 }
 
 // ---------------------------------------------------------------------------

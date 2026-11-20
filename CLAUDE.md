@@ -53,8 +53,11 @@ español (código, comentarios, commits, interfaz).
   "Por nombre", quitar con Deshacer, fusionar y eliminar u ocultar. Las sagas, en orden de salida.
   Etiqueta de una colección: `metricas.etiquetaColeccion(id, uid?)` ("Colección · 14 juegos" o
   "Colección · 6 de 14 jugados"), con los datos enteros, nunca con lo filtrado en pantalla.
-- `js/seleccion.js` selección múltiple (pulsación larga; en escritorio también Ctrl/Mayús+clic y el
-  círculo que sale al pasar el ratón; en el modo, cualquier toque marca y nunca navega). En
+- `js/seleccion.js` selección múltiple (pulsación larga: 580 ms en táctil, 480 con ratón; la tarjeta
+  se hunde mientras se carga y vibra al activarse; en escritorio también Ctrl/Mayús+clic y el
+  círculo que sale al pasar el ratón; en el modo, cualquier toque marca y nunca navega; se sale
+  con la X, atrás, Esc o un toque CLARAMENTE fuera de la lista: no cuentan `[data-lista]` ni lo
+  que esté a 24 px de una portada). En
   escritorio las hojas bloquean el scroll en `html` con `scrollbar-gutter: stable`: sin saltos; `js/deslizar.js` deslizar entre las pestañas
   principales (las de la barra, en su orden) siguiendo el dedo, también sobre la barra de abajo
   (vecina = foto que guarda app.js al salir, o esqueleto; indicador de la barra; lo que tiene
@@ -116,7 +119,12 @@ español (código, comentarios, commits, interfaz).
   Estadísticas y Columna sale de `js/vistas-perfil.js` (también lo usan `#columna/{id}` y
   Rankings). Rankings: Ranking · Tier list · Estadísticas · Comparar; `#rankings/tiers/{id|grupo}`
   y `#rankings/estadisticas/{id|grupo}` con la fila de personas; "Grupo" = tier list con la nota
-  media de todos (`metricas.tierListGrupo()`, desde 1 nota) y las estadísticas del grupo.
+  media de todos (`metricas.tierListGrupo(min)`: por defecto 2 notas o más; "Incluir juegos de una
+  sola persona" en `localStorage` "cvj.tiers.solos") y las estadísticas del grupo. Las tier lists
+  tienen dos vistas: compacta (cada rango en una fila con scroll horizontal, "+N" y la letra que
+  despliega el rango) y completa; por defecto compacta en móvil y completa en escritorio, y la
+  elección va en la cuenta (`usuarios.preferencias.tiers`, migración 049; `js/preferencias.js`),
+  también en Ajustes.
 - Estadísticas (`htmlEstadisticas` / `htmlEstadisticasGrupo` de `js/vistas-perfil.js`): resumen
   compacto, revelaciones (placer culpable, más duro/blando, década, estudio, saga, especialidad),
   ADN de jugador (radar de los 8 géneros más jugados del grupo, raíz del reparto, "Comparar con"),
@@ -174,7 +182,8 @@ español (código, comentarios, commits, interfaz).
   exacto (`destino` + `datos.destacar`, resaltado con `.destacado-aviso`) y marcarlo leído,
   "Mientras no estabas" (al abrir la app o volver tras 5 min: carrusel con las 5 más
   importantes sin ver; sustituye a las capas de insignias y "¡Completado!") y Ajustes →
-  Notificaciones. `js/pantallas/avisos.js` (#avisos): por días, filtros y "Marcar todo".
+  Notificaciones. `js/pantallas/avisos.js` (#avisos): por días y filtros; al entrar se marcan
+  todos como leídos y los que eran nuevos siguen resaltados durante esa visita.
   En Inicio ya no van avisos sueltos (solo el del Dictador con Vetar / Permitir ya).
 - `js/social.js`: reacciones y respuestas (tira bajo reseñas y entradas, menú, hilo y
   filas de actividad).
@@ -215,7 +224,8 @@ español (código, comentarios, commits, interfaz).
   `.cab-tope`), escritorio (≥ 768 px) 7:2 en todos los anchos (más de 1680 px: se centra y se
   funde por los lados). Si cambia una, cambian las dos (CSS y `ASPECTO_CAB`)),
   `umbral_probados`, `estimar_horas`, `plataformas_ocultas`, `barra` (`{pestanas, inicio}`,
-  migración 048; copia local "cvj.barra").
+  migración 048; copia local "cvj.barra"), `preferencias` (jsonb de interfaz: `tiers`; migración
+  049).
 - `juegos` (PK `igdb_id`): caché de IGDB + `es_online`(_manual) = sin final,
   `relaciones` (jsonb de IGDB), `ttb_*` tiempo para terminar (sin imposibles: > 300 h historia,
   600 extras, 1500 completo; migración 046), `generos`, `temas`, `modos`, `perspectivas`,

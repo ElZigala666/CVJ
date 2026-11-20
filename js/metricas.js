@@ -163,15 +163,17 @@ export function tierList(uid) {
 
 /**
  * Tier list del grupo: cada juego (o colección, regla única) con la nota media de todos los
- * que le han puesto nota que cuenta en los rankings (desde 1 nota). { filas, total }
+ * que le han puesto nota que cuenta en los rankings. Por defecto, con 2 notas o más
+ * (min = 1: también los de una sola persona). { filas, total, solos: los que se quedan fuera }
  */
-export function tierListGrupo() {
-  return memoizar('tiersGrupo', () => {
+export function tierListGrupo(min = 2) {
+  return memoizar(`tiersGrupo:${min}`, () => {
     const filas = Object.fromEntries(LETRAS.map((l) => [l, []]));
-    const lista = juegosDelGrupo().filter((x) => x.votos >= 1 && x.media != null)
+    const solos = juegosDelGrupo().filter((x) => x.votos === 1 && x.media != null).length;
+    const lista = juegosDelGrupo().filter((x) => x.votos >= min && x.media != null)
       .sort((a, b) => b.media - a.media || b.votos - a.votos || a.juego.nombre.localeCompare(b.juego.nombre, 'es'));
     for (const x of lista) filas[notaALetra(x.media)].push(x);
-    return { filas, total: lista.length };
+    return { filas, total: lista.length, solos: min > 1 ? solos : 0 };
   });
 }
 

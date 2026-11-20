@@ -6,6 +6,7 @@ import { aviso, esc, pintarHtml } from './ui.js';
 import { modoInstalacion, instalar } from './instalar.js';
 import { usuarioActual } from './sesion.js';
 import * as datos from './datos.js';
+import { modoTiers, guardarPreferencia } from './preferencias.js';
 import * as metricas from './metricas.js';
 import { VERSION_CORTA } from './version.js';
 import { montarPlataformas } from './ajustes-plataformas.js';
@@ -68,6 +69,7 @@ export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas 
       <div class="ajustes">
         <div data-ref="foto"></div>
         <div data-ref="apariencia"></div>
+        <div data-ref="vista-tiers"></div>
         <section class="ajustes-bloque">
           <span class="campo-titulo">Barra de navegación</span>
           <button type="button" class="enlace-fila" data-accion="barra-nav">
@@ -143,6 +145,26 @@ export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas 
       });
       const pintarApariencia = () => { cuerpo.querySelector('[data-ref="apariencia"]').innerHTML = bloqueApariencia(datos.usuario(usuarioActual()?.id)); };
       pintarApariencia();
+      // Tier list: Compacta o Completa (se guarda en la cuenta: js/preferencias.js).
+      const pintarTiers = () => {
+        const m = modoTiers();
+        cuerpo.querySelector('[data-ref="vista-tiers"]').innerHTML = `
+          <section class="ajustes-bloque">
+            <span class="campo-titulo">Tier list</span>
+            <div class="segmentado" role="tablist" aria-label="Vista de las tier lists">
+              ${[['compacta', 'Compacta'], ['completa', 'Completa']].map(([v, t]) => `<button type="button" role="tab" data-ajuste-tiers="${v}" class="${m === v ? 'activo' : ''}" aria-selected="${m === v}">${t}</button>`).join('')}
+            </div>
+            <p class="ajustes-nota">Compacta: cada rango en una fila que se desliza (toca la letra para verlo entero). Completa: todo a la vista.</p>
+          </section>`;
+      };
+      pintarTiers();
+      cuerpo.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-ajuste-tiers]');
+        if (!b) return;
+        guardarPreferencia('tiers', b.dataset.ajusteTiers);
+        pintarTiers();
+        datos.repintar();
+      });
       // Notificaciones: qué sale en el resumen al entrar ("Mientras no estabas").
       const pintarAvisos = () => import('./avisos.js').then((m) => { const c = cuerpo.querySelector('[data-ref="avisos"]'); if (c) pintarHtml(c, m.bloqueAjustes(datos.usuario(usuarioActual()?.id))); });
       pintarAvisos();

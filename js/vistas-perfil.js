@@ -7,6 +7,7 @@ import * as metricas from './metricas.js';
 import { LETRAS, rangoTier, formatearNota, notaALetra } from './notas.js';
 import { esc, avatar, portada, chipLetra } from './ui.js';
 import { usuarioActual } from './sesion.js';
+import { modoTiers, guardarPreferencia } from './preferencias.js';
 import { abrirHoja } from './hoja.js';
 import * as clas from './clasificacion.js';
 import * as grafico from './graficos.js';
@@ -35,16 +36,42 @@ export function chipsUsuarios(activo, { grupo = false } = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// Tier list (de alguien o del grupo)
+// Tier list (de alguien o del grupo). Dos vistas (Ajustes y la propia tier list; en la cuenta,
+// js/preferencias.js): "completa" (filas que crecen hacia abajo) y "compacta" (cada rango en una
+// fila con scroll horizontal, portadas más grandes y "+N"; tocar la letra o el "+N" lo
+// despliega entero). En la del grupo, por defecto solo juegos con 2 notas o más.
 // ---------------------------------------------------------------------------
+const EN_FILA = 12; // compacta: portadas en la fila antes del "+N"
+const desplegados = new Set(); // `${lista}:${letra}`, mientras la app está abierta
+const CLAVE_SOLOS = 'cvj.tiers.solos';
+const conSolos = () => { try { return localStorage.getItem(CLAVE_SOLOS) === '1'; } catch { return false; } };
+
+/** Compacta / Completa (y, en la del grupo, el interruptor de los juegos de una persona). */
+function barraTiers(grupo, t) {
+  const modo = modoTiers();
+  return `
+    <div class="tiers-opciones">
+      <div class="segmentado segmentado-peq" role="tablist" aria-label="Vista de la tier list">
+        ${[['compacta', 'Compacta'], ['completa', 'Completa']].map(([m, n]) => `<button type="button" role="tab" data-tiers-modo="${m}" class="${modo === m ? 'activo' : ''}" aria-selected="${modo === m}">${n}</button>`).join('')}
+      </div>
+      ${grupo ? `
+        <label class="interruptor mini tiers-solos">
+          <input type="checkbox" data-tiers-solos${conSolos() ? ' checked' : ''}>
+          <span>Incluir juegos de una sola persona${!conSolos() && t.solos ? ` (${t.solos})` : ''}</span>
+        </label>` : ''}
+    </div>`;
+}
+
 export function htmlTiers(id) {
   const t = metricas.tierList(id);
   let n = 0;
   if (!t.total) return `<p class="historial-tab-vacia">Todavía no hay notas que cuenten en la tier list.</p>`;
+  const modo = modoTiers();
   return `
     <p class="tiers-sub">${t.total} ${t.total === 1 ? 'juego' : 'juegos'}, según sus notas</p>
-    <div class="tiers" data-lista>
-      ${LETRAS.map((l) => fila(l, t.filas[l].map((v) => {
+    ${barraTiers(false, t)}
+    <div class="tiers ${modo}" data-lista>
+      ${LETRAS.map((l) => fila(l, `u:${id}`, modo, t.filas[l].map((v) => {
         const j = v.esColeccion ? datos.comoJuego(datos.coleccion(v.coleccion_id)) : datos.juegoConocido(v.juego_id);
         if (!j) return '';
         const h = v.esColeccion ? metricas.horasColeccion(id, v.coleccion_id).total : metricas.horasDe(id, v.juego_id);
@@ -54,33 +81,69 @@ export function htmlTiers(id) {
     </div>`;
 }
 
-/** La del grupo: cada juego con la nota media de todos los que lo han valorado. */
+/** La del grupo: cada juego con la nota media de todos los que lo han valorado (2 notas o más, salvo que se pida). */
 export function htmlTiersGrupo() {
-  const t = metricas.tierListGrupo();
+  const t = metricas.tierListGrupo(conSolos() ? 1 : 2);
   let n = 0;
-  if (!t.total) return `<p class="historial-tab-vacia">Todavía no hay notas en el grupo.</p>`;
+  const modo = modoTiers();
+  if (!t.total) return `${barraTiers(true, t)}<p class="historial-tab-vacia">Todavía no hay juegos con notas de ${conSolos() ? 'nadie' : 'dos personas'}.</p>`;
   return `
-    <p class="tiers-sub">${t.total} ${t.total === 1 ? 'juego' : 'juegos'}, con la nota media de todos</p>
-    <div class="tiers">
-      ${LETRAS.map((l) => fila(l, t.filas[l].map((x) => item(x.juego, !!x.coleccion, formatearNota(x.media), `${x.votos} ${x.votos === 1 ? 'nota' : 'notas'}`, n++ < 12, false)))).join('')}
+    <p class="tiers-sub">${t.total} ${t.total === 1 ? 'juego' : 'juegos'}, con la nota media de todos${conSolos() ? '' : ' (con 2 notas o más)'}</p>
+    ${barraTiers(true, t)}
+    <div class="tiers ${modo}">
+      ${LETRAS.map((l) => fila(l, 'grupo', modo, t.filas[l].map((x) => item(x.juego, !!x.coleccion, formatearNota(x.media), `${x.votos} ${x.votos === 1 ? 'nota' : 'notas'}`, n++ < 12, false)))).join('')}
     </div>`;
 }
 
-const fila = (l, items) => `
-  <div class="tier-fila">
-    <div class="tier-letra" data-tier="${l}">
-      <span class="tier-letra-l">${l}</span>
-      <span class="tier-rango">${rangoCorto(l)}</span>
-    </div>
+function fila(l, lista, modo, items) {
+  const llenos = items.filter(Boolean);
+  const abierto = modo === 'completa' || desplegados.has(`${lista}:${l}`);
+  const visibles = abierto ? llenos : llenos.slice(0, EN_FILA);
+  const resto = llenos.length - visibles.length;
+  const letra = `
+    <span class="tier-letra-l">${l}</span>
+    <span class="tier-rango">${rangoCorto(l)}</span>`;
+  return `
+  <div class="tier-fila${modo === 'compacta' ? ` compacta${abierto ? ' abierta' : ''}` : ''}">
+    ${modo === 'compacta' && llenos.length
+      ? `<button type="button" class="tier-letra" data-tier="${l}" data-tier-abrir="${esc(lista)}:${l}" aria-expanded="${abierto}" aria-label="${l}: ${abierto ? 'plegar' : 'ver entero'}">${letra}</button>`
+      : `<div class="tier-letra" data-tier="${l}">${letra}</div>`}
     <div class="tier-juegos">
-      ${items.filter(Boolean).length ? items.join('') : '<span class="tier-vacio">Ningún juego en este tier</span>'}
+      ${llenos.length ? visibles.join('') : '<span class="tier-vacio">Ningún juego en este tier</span>'}
+      ${resto > 0 ? `<button type="button" class="tier-mas" data-tier-abrir="${esc(lista)}:${l}">+${resto}</button>` : ''}
     </div>
   </div>`;
+}
+
+/** Clics de la tier list (vista, juegos de una persona, desplegar un rango). true si era suyo. */
+export function clicTiers(e) {
+  const m = e.target.closest('[data-tiers-modo]');
+  if (m) {
+    if (m.dataset.tiersModo !== modoTiers()) { guardarPreferencia('tiers', m.dataset.tiersModo); datos.repintar(); }
+    return true;
+  }
+  const a = e.target.closest('[data-tier-abrir]');
+  if (a) {
+    const k = a.dataset.tierAbrir;
+    if (desplegados.has(k)) desplegados.delete(k); else desplegados.add(k);
+    datos.repintar();
+    return true;
+  }
+  return false;
+}
+/** El interruptor "Incluir juegos de una sola persona" (evento change). true si era suyo. */
+export function cambioTiers(e) {
+  const c = e.target.closest?.('[data-tiers-solos]');
+  if (!c) return false;
+  try { localStorage.setItem(CLAVE_SOLOS, c.checked ? '1' : '0'); } catch { /* nada */ }
+  datos.repintar();
+  return true;
+}
 
 function item(j, esColeccion, nota, pie, prioridad, seleccionable = true) {
   return `
     <a class="tier-item${esColeccion ? ' es-coleccion' : ''}"${esColeccion || !seleccionable ? '' : ` data-sel="${j.igdb_id}"`} href="${metricas.rutaDe(j)}" data-precarga="${esc(j.cover_id ?? '')}" aria-label="${esc(j.nombre)}${esColeccion ? ' (colección)' : ''}, ${nota}">
-      ${portada(j, { clase: 'portada-tier', titulo: 'arriba', prioridad })}
+      ${portada(j, { clase: 'portada-tier', titulo: 'arriba', prioridad, ancho: modoTiers() === 'compacta' ? 72 : undefined })}
       ${esColeccion ? '<span class="sello-coleccion mini">Colección</span>' : ''}
       <span class="tier-nota">${nota}${pie ? `<small class="tier-horas">${esc(pie)}</small>` : ''}</span>
     </a>`;

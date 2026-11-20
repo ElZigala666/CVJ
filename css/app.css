@@ -4088,3 +4088,88 @@ button.anillo-item { cursor: pointer; }
 .ins-nota-fina b { min-width: 30px; text-align: right; color: var(--texto); }
 .ins-portada-actual { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 12px; }
 .ins-subir { cursor: pointer; }
+
+/* ---------------------------------------------------------------------------
+   Barra de navegación personalizable (js/barra.js): en el móvil, la elegida; la de
+   escritorio (barra lateral) va aparte y aquí no se ve.
+   --------------------------------------------------------------------------- */
+.barra-escritorio { display: none; }
+#barra .barra-tab.barra-movil { position: relative; flex: 1 1 0; min-width: 0; max-width: 72px; width: auto; }
+.barra-tab.barra-movil span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.barra-tab.barra-movil .avisos-contador { top: -4px; right: calc(50% - 22px); }
+.barra-tab.barra-movil .avisos-contador[hidden] { display: none; }
+.barra-fab.barra-movil { flex: 0 0 56px; }
+
+/* Ajustes → Barra de navegación */
+.ajb { display: grid; gap: 10px; }
+.barra-previa {
+  display: flex; align-items: center; justify-content: space-around; gap: 2px; padding: 10px 6px 12px;
+  border-radius: 18px; background: var(--fondo); border: 1px solid var(--borde);
+}
+.barra-previa-tab { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--texto-2); font-size: 10px; font-weight: 600; }
+.barra-previa-tab small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.barra-previa-tab.al-abrir { color: var(--acento-texto); }
+.barra-previa-mas { flex: 0 0 44px; height: 44px; display: grid; place-items: center; border-radius: 14px; background: var(--acento); }
+.ajb-lista { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.ajb-fila {
+  display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 4px 6px 4px 8px;
+  border-radius: 14px; background: var(--superficie); color: var(--texto); font-weight: 600; touch-action: pan-y;
+}
+.ajb-fila > span:not(.ajb-tirador) { flex: 1; }
+.ajb-fila.fija { color: var(--texto-2); }
+.ajb-fila.fija small { font-size: 12px; font-weight: 500; }
+.ajb-fila.arrastrando { position: relative; z-index: 2; box-shadow: var(--sombra-flotante); background: var(--flotante); }
+.ajb-tirador { display: grid; place-items: center; width: 36px; height: 44px; color: var(--texto-2); cursor: grab; touch-action: none; }
+.ajb-mini, .ajb-quitar {
+  flex: none; width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 10px;
+  background: none; color: var(--texto-2); font: 700 15px var(--fuente-texto); cursor: pointer;
+}
+.ajb-mini:disabled, .ajb-quitar:disabled { opacity: .3; cursor: default; }
+.ajb-anadir { display: flex; flex-wrap: wrap; gap: 8px; }
+.ajb-chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: var(--boton-alto-peq); padding: 0 14px;
+  border: 1px solid var(--borde); border-radius: var(--r-pill); background: none; color: var(--texto); font: 600 14px var(--fuente-texto); cursor: pointer;
+}
+.ajb-chip.activo { border-color: var(--acento); background: var(--acento-suave); }
+.ajb-chip:disabled { opacity: .4; cursor: default; }
+.ajb-restablecer { justify-self: start; margin-top: 6px; }
+
+/* Mi avatar en Inicio: menú con Mi perfil y Ajustes */
+.cabecera-yo { padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; }
+.menu-yo {
+  position: fixed; z-index: 40; min-width: 180px; padding: 6px; border-radius: 16px;
+  background: var(--flotante); box-shadow: var(--sombra-flotante); animation: tut-sube .18s var(--curva) both;
+}
+.menu-yo button {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px;
+  background: none; color: var(--texto); font: 600 15px var(--fuente-texto); text-align: left; cursor: pointer;
+}
+.menu-yo button:active, .menu-yo button:hover { background: var(--superficie); }
+
+/* Avisos: varias insignias juntas en el resumen */
+.resumen-medallas { display: flex; justify-content: center; align-items: center; gap: 6px; }
+
+/* ---------------------------------------------------------------------------
+   Selección de texto propia en táctil (js/seleccion-texto.js): sin la del navegador.
+   --------------------------------------------------------------------------- */
+html.seleccion-propia :is(.texto-seleccionable, .grupo-resena, .perfil-resena-texto, .lectura-articulo, .social-respuesta p, .social-original p) {
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; cursor: default;
+}
+.selt-capa { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 38; }
+.selt-marcas { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 1; pointer-events: none; }
+.selt-marca { position: absolute; border-radius: 2px; background: color-mix(in srgb, var(--acento) 30%, transparent); pointer-events: none; }
+.selt-tirador { position: absolute; width: 2px; margin-left: -1px; background: var(--acento); pointer-events: auto; touch-action: none; }
+.selt-tirador i { position: absolute; top: 100%; width: 18px; height: 18px; background: var(--acento); }
+.selt-tirador.ini i { right: -1px; border-radius: 50% 0 50% 50%; }
+.selt-tirador.fin i { left: -1px; border-radius: 0 50% 50% 50%; }
+.selt-tirador::after { content: ""; position: absolute; top: 0; left: -22px; width: 46px; height: calc(100% + 34px); } /* área táctil */
+.selt-menu {
+  position: absolute; display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; width: max-content; max-width: calc(100vw - 16px); padding: 4px;
+  border-radius: 14px; background: var(--flotante); box-shadow: var(--sombra-flotante); pointer-events: auto; animation: tut-aparece .15s ease both;
+}
+.selt-menu[hidden] { display: none; }
+.selt-menu button {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; border: 0; border-radius: 10px;
+  background: none; color: var(--texto); font: 600 14px var(--fuente-texto); white-space: nowrap;
+}
+.selt-menu button:active { background: var(--superficie); }

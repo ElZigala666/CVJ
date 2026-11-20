@@ -49,8 +49,9 @@ export function render(el) {
 function html(yo) {
   const ahora = new Date();
   const todas = datos.notificaciones().filter((n) => n.usuario_id === yo?.id);
-  const lista = todas.filter((n) => filtro === 'todo' || n.categoria === filtro)
-    .sort((a, b) => new Date(b.actualizado_en) - new Date(a.actualizado_en));
+  // Las insignias que llegan juntas, en un solo aviso.
+  const lista = avisos.agrupar(todas.filter((n) => filtro === 'todo' || n.categoria === filtro)
+    .sort((a, b) => new Date(b.actualizado_en) - new Date(a.actualizado_en)));
   const sinLeer = todas.filter((n) => !n.leida).length;
   const grupos = [];
   for (const n of lista) {

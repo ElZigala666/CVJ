@@ -5,7 +5,9 @@
 //   · abrir uno: lleva al sitio exacto (y lo resalta un momento) y lo marca como leído;
 //   · "Mientras no estabas": al entrar, un carrusel con lo más importante sin ver (como
 //     mucho 5), que sustituye a las capas sueltas de insignias y "¡Completado!";
-//   · Ajustes → Notificaciones: qué tipos salen en ese resumen (en el centro, todo siempre).
+//   · Ajustes → Notificaciones: qué tipos salen en ese resumen (en el centro, todo siempre);
+//   · insignias que llegan juntas (una muerte o una vuelta reparte varias): UN aviso, con la
+//     causa ("Tras la vuelta de Gonzalo: has ganado «X» y perdido «Y»"; agrupar()).
 // La pantalla del centro de avisos está en js/pantallas/avisos.js.
 import * as datos from './datos.js';
 import { icono } from './icons.js';
@@ -73,8 +75,94 @@ function cosa(d) {
 }
 
 /** { titulo (html), extra (html), visual (html) } de un aviso. */
+// ---------------------------------------------------------------------------
+// Insignias juntas: un solo aviso
+// ---------------------------------------------------------------------------
+const VENTANA_INSIGNIAS = 20 * 60000;
+const esInsignia = (n) => n.tipo === 'insignia' || n.tipo === 'insignia_perdida';
+const fechaDe = (n) => new Date(n.actualizado_en ?? n.creado_en).getTime();
+/** Ids reales de un aviso (los agrupados llevan varios). */
+export const idsDe = (n) => n.ids ?? [n.id];
+
+/** Qué pasó justo antes en el cementerio (la causa del reparto de insignias), o null. */
+function causaInsignias(desde, hasta) {
+  const v = (datos.estado.vidas ?? [])
+    .filter((x) => ['reanimacion', 'expulsion', 'exorcismo'].includes(x.tipo))
+    .map((x) => ({ x, t: new Date(x.fecha).getTime() }))
+    .filter(({ t }) => t >= desde - 60 * 60000 && t <= hasta + 5 * 60000)
+    .sort((a, b) => b.t - a.t)[0]?.x;
+  if (!v) return null;
+  const quien = esc(nombre(v.usuario_id));
+  return v.tipo === 'reanimacion' ? `Tras la vuelta de ${quien}` : v.tipo === 'exorcismo' ? `Tras el exorcismo de ${quien}` : `Tras la muerte de ${quien}`;
+}
+
+/**
+ * Junta los avisos de insignias que llegan seguidos (en 20 minutos) en uno solo. La lista
+ * puede venir en cualquier orden; se devuelve en el mismo orden (el grupo, donde el primero).
+ */
+export function agrupar(lista) {
+  const ins = lista.filter(esInsignia).sort((a, b) => fechaDe(a) - fechaDe(b));
+  const tandas = [];
+  for (const n of ins) {
+    const t = tandas[tandas.length - 1];
+    if (t && fechaDe(n) - fechaDe(t[t.length - 1]) <= VENTANA_INSIGNIAS) t.push(n); else tandas.push([n]);
+  }
+  const grupoDeAviso = new Map();
+  for (const t of tandas) {
+    if (t.length < 2) continue;
+    const ultimo = t[t.length - 1];
+    const g = {
+      id: `ins:${t.map((n) => n.id).join(',')}`,
+      ids: t.map((n) => n.id),
+      tipo: 'insignias',
+      categoria: 'mi',
+      usuario_id: ultimo.usuario_id,
+      leida: t.every((n) => n.leida),
+      en_resumen: t.every((n) => n.en_resumen),
+      prioridad: Math.max(...t.map((n) => n.prioridad ?? 0)),
+      actualizado_en: ultimo.actualizado_en,
+      creado_en: t[0].creado_en,
+      destino: '#perfil',
+      datos: {
+        ganadas: t.filter((n) => n.tipo === 'insignia').map((n) => n.datos ?? {}),
+        perdidas: t.filter((n) => n.tipo === 'insignia_perdida').map((n) => n.datos ?? {}),
+        causa: causaInsignias(fechaDe(t[0]), fechaDe(ultimo)),
+      },
+    };
+    for (const n of t) grupoDeAviso.set(n.id, g);
+  }
+  const salida = [];
+  const puestos = new Set();
+  for (const n of lista) {
+    const g = grupoDeAviso.get(n.id);
+    if (!g) { salida.push(n); continue; }
+    if (puestos.has(g.id)) continue;
+    puestos.add(g.id);
+    salida.push(g);
+  }
+  return salida;
+}
+
+const listaY = (l) => (l.length <= 1 ? l.join('') : `${l.slice(0, -1).join(', ')} y ${l[l.length - 1]}`);
+
 export function describir(n) {
   const d = n.datos ?? {};
+  if (n.tipo === 'insignias') {
+    const nom = (x) => b(`«${definicion(x.insignia)?.nombre ?? 'una insignia'}»`);
+    const ganadas = d.ganadas.filter((x) => !x.sube).map(nom);
+    const subidas = d.ganadas.filter((x) => x.sube).map(nom);
+    const perdidas = d.perdidas.map(nom);
+    const partes = [
+      ganadas.length ? `has ganado ${listaY(ganadas)}` : '',
+      subidas.length ? `${ganadas.length ? '' : 'has '}subido ${listaY(subidas)}` : '',
+      perdidas.length ? `${ganadas.length || subidas.length ? '' : 'has '}perdido ${listaY(perdidas)}` : '',
+    ].filter(Boolean);
+    const frase = listaY(partes);
+    return {
+      titulo: d.causa ? `${d.causa}: ${frase}` : frase.charAt(0).toUpperCase() + frase.slice(1),
+      extra: 'Cambios en tus insignias',
+    };
+  }
   const A = n.actores ?? [];
   const ins = d.insignia ? definicion(d.insignia) : null;
   const juego = d.juego_id ? datos.juegoConocido(d.juego_id) : null;
@@ -132,6 +220,11 @@ export function describir(n) {
 /** Lo que va a la izquierda: la medalla, la portada o el avatar de quien lo hizo. */
 function visual(n, tam = 40) {
   const d = n.datos ?? {};
+  if (n.tipo === 'insignias') {
+    const x = d.ganadas[0] ?? d.perdidas[0];
+    const def = x && definicion(x.insignia);
+    if (def) return `<span class="aviso-visual medalla">${medalla(def, { nivel: x.nivel ?? 1, tam, bloqueada: !d.ganadas.length })}</span>`;
+  }
   if ((n.tipo === 'insignia' || n.tipo === 'insignia_perdida') && d.insignia && definicion(d.insignia)) {
     return `<span class="aviso-visual medalla">${medalla(definicion(d.insignia), { nivel: d.nivel ?? 1, tam, bloqueada: n.tipo === 'insignia_perdida' })}</span>`;
   }
@@ -164,15 +257,15 @@ export function fila(n, ahora = new Date()) {
 // Abrir uno: al sitio exacto y leído
 // ---------------------------------------------------------------------------
 export function abrir(id) {
-  const n = mias().find((x) => x.id === id);
+  const n = String(id).startsWith('ins:') ? agrupar(mias()).find((x) => x.id === id) : mias().find((x) => x.id === id);
   if (!n) return;
   const yo = usuarioActual();
-  if (!n.leida) datos.marcarAvisos(yo.id, [n.id], {}, aviso);
+  if (!n.leida) datos.marcarAvisos(yo.id, idsDe(n), {}, aviso);
   const d = n.datos ?? {};
   const destino = n.destino || '#avisos';
   if (d.destacar) { try { sessionStorage.setItem('cvj.destacar', d.destacar); } catch { /* nada */ } }
   const despues = () => {
-    if (n.tipo === 'insignia' || n.tipo === 'insignia_perdida') import('./insignias.js').then((m) => m.abrirColeccion(yo.id));
+    if (n.tipo === 'insignia' || n.tipo === 'insignia_perdida' || n.tipo === 'insignias') import('./insignias.js').then((m) => m.abrirColeccion(yo.id));
     window.dispatchEvent(new Event('cvj:destacar'));
   };
   if (location.hash === destino) despues();
@@ -207,8 +300,8 @@ function pendientesResumen() {
   const u = datos.usuario(usuarioActual()?.id);
   const apagados = u?.avisos_resumen ?? {};
   const limite = Date.now() - DIAS_RESUMEN * DIA;
-  return mias()
-    .filter((n) => !n.leida && !n.en_resumen && apagados[grupoDe(n.tipo)] !== false && new Date(n.actualizado_en).getTime() > limite)
+  return agrupar(mias()
+    .filter((n) => !n.leida && !n.en_resumen && apagados[grupoDe(n.tipo === 'insignias' ? 'insignia' : n.tipo)] !== false && new Date(n.actualizado_en).getTime() > limite))
     .sort((a, b) => b.prioridad - a.prioridad || new Date(b.actualizado_en) - new Date(a.actualizado_en));
 }
 
@@ -216,7 +309,10 @@ function tarjetaResumen(n) {
   const d = n.datos ?? {};
   const { titulo, extra } = describir(n);
   let grande;
-  if ((n.tipo === 'insignia' || n.tipo === 'insignia_perdida') && d.insignia && definicion(d.insignia)) {
+  if (n.tipo === 'insignias') {
+    const todas = [...d.ganadas.map((x) => ({ ...x, gana: true })), ...d.perdidas].filter((x) => definicion(x.insignia)).slice(0, 3);
+    grande = `<div class="resumen-medallas">${todas.map((x) => `<span class="resumen-medalla nivel-${NIVELES[x.nivel ?? 1] || 'unico'}${x.gana ? '' : ' perdida'}">${medalla(definicion(x.insignia), { nivel: x.nivel ?? 1, tam: todas.length > 1 ? 84 : 120, bloqueada: !x.gana })}</span>`).join('')}</div>`;
+  } else if ((n.tipo === 'insignia' || n.tipo === 'insignia_perdida') && d.insignia && definicion(d.insignia)) {
     grande = `<div class="resumen-medalla nivel-${NIVELES[d.nivel ?? 1] || 'unico'}${n.tipo === 'insignia_perdida' ? ' perdida' : ''}">${medalla(definicion(d.insignia), { nivel: d.nivel ?? 1, tam: 120, bloqueada: n.tipo === 'insignia_perdida' })}</div>`;
   } else if (n.tipo === 'completo' && (d.juego_id ? datos.juegoConocido(d.juego_id) : null)) {
     grande = `<div class="resumen-portada">${portada(datos.juegoConocido(d.juego_id), { clase: 'portada-resumen', ancho: 120, prioridad: true })}<span class="resumen-sello">${icono('completado', { tam: 22, color: 'currentColor' })}</span></div>`;
@@ -243,7 +339,7 @@ export function revisarResumen() {
   const lista = pendientesResumen();
   if (!lista.length) return;
   // Todas las de ahora quedan vistas en el resumen (las que no caben, en el centro).
-  datos.marcarAvisos(yo.id, lista.map((n) => n.id), { resumen: true });
+  datos.marcarAvisos(yo.id, lista.flatMap(idsDe), { resumen: true });
   mostrarResumen(lista.slice(0, MAX_RESUMEN), lista.length);
 }
 

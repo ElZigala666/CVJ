@@ -156,7 +156,7 @@ export function cabecera(usuario, junto = '') {
         ${icono('logo', { tam: 30, color: 'var(--acento)' })}
         <span class="marca-texto">CVJ</span>
       </a>
-      <span class="cabecera-derecha">${junto}${avatar(usuario, 40, '#perfil')}</span>
+      <span class="cabecera-derecha">${junto}<button type="button" class="cabecera-yo" data-menu-yo aria-label="Mi perfil y Ajustes" aria-haspopup="menu">${avatar(usuario, 40)}</button></span>
     </header>`;
 }
 

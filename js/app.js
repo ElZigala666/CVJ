@@ -6,6 +6,8 @@ import { aplicarAcento, SELECCIONABLE, avatar } from './ui.js';
 import { iniciarInstalacion } from './instalar.js';
 import { iniciarApariencia, aplicarApariencia, olvidarApariencia, aparienciaActual, acentoVisitado, ACENTO_DEFECTO } from './apariencia.js';
 import { anotarNavegacion, corregirRuta } from './navegacion.js';
+import { iniciarSeleccionTexto } from './seleccion-texto.js';
+import * as cfgBarra from './barra.js';
 
 const vista = document.getElementById('vista');
 const barra = document.getElementById('barra');
@@ -33,6 +35,11 @@ const RUTAS = {
   cementerio: () => import('./pantallas/cementerio.js'),      // #cementerio: los expulsados, sus lápidas y las reanimaciones
   propuestas: () => import('./pantallas/propuestas.js'),      // #propuestas(/{id}): proponer, votar y (admin) decidir
   evento: () => import('./pantallas/evento.js'),
+  // Pestañas que se pueden poner en la barra (js/barra.js): la tier list y las estadísticas
+  // (las mías, con la fila de personas; #tierlist/{id|grupo}, #cifras/{id|grupo}) y mi biblioteca.
+  tierlist: () => import('./pantallas/rankings.js').then((m) => ({ render: (el, c) => m.render(el, { ...c, solo: 'tiers' }) })),
+  cifras: () => import('./pantallas/rankings.js').then((m) => ({ render: (el, c) => m.render(el, { ...c, solo: 'estadisticas' }) })),
+  biblioteca: () => import('./pantallas/perfil.js').then((m) => ({ render: (el, c) => m.render(el, { ...c, params: [usuarioActual()?.id, 'biblioteca'] }) })),
   avisos: () => import('./pantallas/avisos.js'),              // #avisos: el centro de avisos (notificaciones)              // #evento/{id}: evento destacado (TGA...); #evento/{id}/editar y #evento/nuevo: el admin
 };
 const login = () => import('./pantallas/entrada.js');
@@ -52,13 +59,14 @@ function cargarSegundoPlano() {
   segundoPlano = true;
   setTimeout(() => enCalma(() => {
     cargarSeleccion();
-    import('./deslizar.js').then((m) => m.iniciarDeslizar(vista, { foto: fotoDe, indicador: moverIndicador, indicadorQuieto: () => colocarIndicador() }));
+    import('./deslizar.js').then((m) => m.iniciarDeslizar(vista, { foto: fotoDe, indicador: moverIndicador, indicadorQuieto: () => colocarIndicador(), principales: cfgBarra.principales, barra }));
     import('./estimaciones.js').then((m) => m.iniciarEstimaciones());
     import('./insignias.js').then((m) => m.iniciarInsignias());
     for (const r of ['inicio', 'perfil', 'buscar', 'rankings', 'juego']) RUTAS[r]().catch(() => {});
     import('./hoja-valorar.js').catch(() => {});
   }), 1200);
 }
+// Barra lateral de escritorio: siempre la misma. La del móvil sale de js/barra.js.
 const PESTANAS = [
   ['inicio', 'Inicio'],
   ['buscar', 'Buscar'],
@@ -74,10 +82,12 @@ let datosIniciados = false;
 
 // Deslizar entre pestañas (js/deslizar.js): la última foto de cada pestaña principal, para
 // que la vecina se vea al arrastrar (sin ids ni animación de entrada).
-const PRINCIPALES = new Set(['inicio', 'buscar', 'rankings', 'perfil']);
+// Las pestañas principales son las de la barra del móvil (en su orden; js/barra.js).
 const fotos = new Map();
 let montada = null; // { ruta, params } de la pantalla que se ve
-const esPestana = (c) => !!c?.ruta && PRINCIPALES.has(c.ruta) && !(c.params ?? []).filter(Boolean).length;
+const esPestana = (c) => !!c?.ruta && cfgBarra.principales().includes(c.ruta) && !(c.params ?? []).filter(Boolean).length;
+/** Con barra: lo de siempre y, además, cualquier pestaña elegida (aunque normalmente vaya sin ella). */
+const conBarraEn = (ruta) => !SIN_BARRA.has(ruta) || cfgBarra.principales().includes(ruta);
 /** Copia de una pantalla para enseñarla quieta (sin ids, sin foco, sin animación). */
 function copiaDe(p) {
   const copia = p.cloneNode(true);
@@ -113,12 +123,13 @@ const indicadorBarra = document.createElement('span');
 indicadorBarra.className = 'barra-indicador';
 indicadorBarra.setAttribute('aria-hidden', 'true');
 function centroTab(ruta) {
-  const a = ruta && barra.querySelector(`.barra-tab[data-ruta="${ruta}"]`);
+  // La que se ve (en el móvil, la de la barra elegida; las de escritorio están ocultas).
+  const a = ruta && [...barra.querySelectorAll(`.barra-tab[data-ruta="${ruta}"]`)].find((x) => x.getClientRects().length);
   if (!a || !a.getClientRects().length) return null;
   const r = a.getBoundingClientRect();
   return r.left + r.width / 2 - barra.getBoundingClientRect().left;
 }
-function colocarIndicador(x = centroTab(barra.querySelector('.barra-tab.activa')?.dataset.ruta), animar = true) {
+function colocarIndicador(x = centroTab([...barra.querySelectorAll('.barra-tab.activa')].find((a) => a.getClientRects().length)?.dataset.ruta), animar = true) {
   if (!indicadorBarra.isConnected) barra.appendChild(indicadorBarra);
   indicadorBarra.style.transition = animar ? '' : 'none';
   if (x == null) { indicadorBarra.style.opacity = '0'; return; }
@@ -136,17 +147,31 @@ window.addEventListener('resize', () => colocarIndicador(undefined, false));
 // ---------------------------------------------------------------------------
 // Barra inferior
 // ---------------------------------------------------------------------------
+/** La barra del móvil: Inicio, las pestañas elegidas y el "+" en el centro (js/barra.js). */
+let barraPintada = '';
+function barraMovil() {
+  const ids = cfgBarra.principales();
+  const centro = Math.ceil(ids.length / 2);
+  const celdas = ids.map((id) => {
+    const o = cfgBarra.opcion(id);
+    const cont = id === 'avisos' ? '<b class="avisos-contador" data-avisos-contador hidden></b>' : '';
+    return `<a class="barra-tab barra-movil" href="#${id}" data-ruta="${id}">${icono(o.icono, { tam: 24 })}<span>${o.texto}</span>${cont}</a>`;
+  });
+  celdas.splice(centro, 0, `<a class="barra-fab barra-movil" href="#valorar" data-ruta="valorar" aria-label="Valorar un juego">${icono('mas', { tam: 26, color: 'var(--sobre-acento)' })}</a>`);
+  barraPintada = JSON.stringify(ids);
+  return celdas.join('');
+}
 function pintarBarra() {
   // En escritorio (css/escritorio.css) esta barra es la lateral: con logo, buscador y
   // "Valorar" con texto. En móvil esas piezas no se ven (display: none).
   barra.innerHTML = `
     <a class="barra-logo" href="#inicio" aria-label="CVJ, ir a Inicio">${icono('logo', { tam: 30, color: 'var(--acento)' })}<span>CVJ</span></a>
     <label class="barra-buscar">${icono('buscar', { tam: 18, color: 'var(--texto-2)' })}<input type="search" data-buscar-global placeholder="Buscar un juego" autocomplete="off" aria-label="Buscar un juego"><kbd>/</kbd></label>
-  ` + PESTANAS.map(([ruta, texto]) => {
+  ` + barraMovil() + PESTANAS.map(([ruta, texto]) => {
     if (!texto) {
-      return `<a class="barra-fab" href="#${ruta}" data-ruta="${ruta}" aria-label="Valorar un juego">${icono('mas', { tam: 26, color: 'var(--sobre-acento)' })}<span class="barra-fab-texto">Valorar</span></a>`;
+      return `<a class="barra-fab barra-escritorio" href="#${ruta}" data-ruta="${ruta}" aria-label="Valorar un juego">${icono('mas', { tam: 26, color: 'var(--sobre-acento)' })}<span class="barra-fab-texto">Valorar</span></a>`;
     }
-    const tab = `<a class="barra-tab" href="#${ruta}" data-ruta="${ruta}">${icono(ruta, { tam: 24 })}<span>${texto}</span></a>`;
+    const tab = `<a class="barra-tab barra-escritorio" href="#${ruta}" data-ruta="${ruta}">${icono(ruta, { tam: 24 })}<span>${texto}</span></a>`;
     // Columnas: solo en la barra lateral de escritorio (en el móvil, desde Inicio).
     return ruta === 'rankings' ? `${tab}<a class="barra-tab barra-solo-escritorio" href="#columnas" data-ruta="columnas">${icono('columnas', { tam: 24 })}<span>Columnas</span></a>` : tab;
   }).join('') + `<a class="barra-tab barra-solo-escritorio barra-propuestas" href="#propuestas" data-ruta="propuestas">${icono('urna', { tam: 20 })}<span>Propuestas</span></a><a class="barra-tab barra-solo-escritorio barra-cementerio" href="#cementerio" data-ruta="cementerio">${icono('lapida', { tam: 20 })}<span>Cementerio</span></a>`;
@@ -219,6 +244,7 @@ function marcarBarra(ruta, params) {
   let activa = ruta;
   if (ruta === 'perfil' || ruta === 'estadisticas') activa = !params[0] || params[0] === yo ? 'perfil' : '';
   if (ruta === 'columna' || ruta === 'entrada' || ruta === 'escribir') activa = 'columnas';
+  if (ruta === 'perfil' && params[1] === 'biblioteca' && (!params[0] || params[0] === yo) && cfgBarra.principales().includes('biblioteca')) activa = 'biblioteca';
   for (const a of barra.querySelectorAll('[data-ruta]')) {
     const on = a.dataset.ruta === activa;
     a.classList.toggle('activa', on);
@@ -254,6 +280,7 @@ function pintarContadorAvisos() {
   esquina.hidden = !yo || !montada?.ruta;
   if (esquina.hidden) { esquina.innerHTML = ''; esquina.__html = ''; return; }
   const n = datos.notificaciones().filter((x) => x.usuario_id === yo.id && !x.leida).length;
+  for (const b of barra.querySelectorAll('[data-avisos-contador]')) { b.hidden = !n; b.textContent = n > 99 ? '99+' : String(n); }
   const html = `
     <a class="cabecera-avisos esquina-avisos" href="#avisos" data-ruta="avisos" aria-label="Avisos${n ? `: ${n} sin leer` : ''}">
       ${icono('aviso', { tam: 24, color: 'currentColor' })}
@@ -261,6 +288,18 @@ function pintarContadorAvisos() {
     </a>${avatar(datos.usuario(yo.id) ?? yo, 40, '#perfil')}`;
   if (esquina.__html !== html) { esquina.innerHTML = html; esquina.__html = html; }
 }
+
+function repintarBarra() {
+  pintarBarra();
+  if (montada?.ruta) {
+    marcarBarra(montada.ruta, montada.params ?? []);
+    const con = conBarraEn(montada.ruta);
+    barra.hidden = !con;
+    document.body.classList.toggle('sin-barra', !con);
+  }
+  pintarContadorAvisos();
+}
+window.addEventListener('cvj:barra', repintarBarra);
 
 let turnoMontar = 0;
 async function montar(cargar, contexto, conBarra, scroll = 0) {
@@ -354,8 +393,9 @@ function navegar() {
   const pedida = location.hash.replace(/^#\/?/, '').split('/')[0];
   if (pedida !== ruta) corregirRuta(`#${ruta}`);
   // Título por defecto; las pantallas con nombre propio lo cambian al pintarse.
-  document.title = `CVJ · ${ruta[0].toUpperCase() + ruta.slice(1)}`;
-  montar(RUTAS[ruta], { ruta, params, alSalir }, !SIN_BARRA.has(ruta), scroll);
+  const TITULOS = { tierlist: 'Tier list', cifras: 'Estadísticas' };
+  document.title = `CVJ · ${TITULOS[ruta] ?? ruta[0].toUpperCase() + ruta.slice(1)}`;
+  montar(RUTAS[ruta], { ruta, params, alSalir }, conBarraEn(ruta), scroll);
   marcarBarra(ruta, params);
   fijarAcentoDeRuta();
 }
@@ -432,6 +472,7 @@ function iniciarDatos() {
     } else if (fresco) aplicarAcento(fresco.acento);
     // Su color puede llegar con los datos (o cambiar mientras estoy en su perfil).
     fijarAcentoDeRuta();
+    if (JSON.stringify(cfgBarra.principales()) !== barraPintada) repintarBarra();
     pintarContadorAvisos();
     // "Mientras no estabas": al abrir la app (en la pantalla que sea) y al volver tras un rato.
     if (datos.notificaciones().length) import('./avisos.js').then((m) => m.revisarResumen());
@@ -450,6 +491,7 @@ function iniciarDatos() {
 iniciarApariencia();
 iniciarInstalacion();
 pintarBarra();
+iniciarSeleccionTexto();
 aplicarAcento(usuarioActual()?.acento);
 window.addEventListener('hashchange', navegar);
 // "Reconectar" PlayStation (aviso de Inicio): Ajustes abierta en el asistente.
@@ -459,6 +501,34 @@ window.addEventListener('hashchange', navegar);
 document.addEventListener('contextmenu', (e) => {
   if (!e.target.closest?.(`input, textarea, select, [contenteditable="true"], ${SELECCIONABLE}`)) e.preventDefault();
 });
+// Mi avatar de la cabecera de Inicio: SIEMPRE lleva a mi perfil y a Ajustes (aunque Perfil no
+// esté en la barra: que nadie se quede sin acceso).
+let menuYo = null;
+const cerrarMenuYo = () => { menuYo?.remove(); menuYo = null; };
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-menu-yo]');
+  const op = e.target.closest('[data-menu-yo-ir]');
+  if (op) {
+    cerrarMenuYo();
+    if (op.dataset.menuYoIr === 'perfil') location.hash = '#perfil';
+    else abrirAjustes(alSalir);
+    return;
+  }
+  if (!b) { if (menuYo && !e.target.closest('.menu-yo')) cerrarMenuYo(); return; }
+  if (menuYo) { cerrarMenuYo(); return; }
+  const r = b.getBoundingClientRect();
+  menuYo = document.createElement('div');
+  menuYo.className = 'menu-yo';
+  menuYo.setAttribute('role', 'menu');
+  menuYo.innerHTML = `
+    <button type="button" role="menuitem" data-menu-yo-ir="perfil">${icono('perfil', { tam: 20 })}<span>Mi perfil</span></button>
+    <button type="button" role="menuitem" data-menu-yo-ir="ajustes">${icono('ajustes', { tam: 20 })}<span>Ajustes</span></button>`;
+  menuYo.style.top = `${r.bottom + 8}px`;
+  menuYo.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
+  document.body.appendChild(menuYo);
+});
+window.addEventListener('hashchange', cerrarMenuYo);
+window.addEventListener('scroll', cerrarMenuYo, { passive: true });
 // "Poner / cambiar foto" (Ajustes, o el perfil de otro si soy admin).
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-foto]');
@@ -479,4 +549,11 @@ setInterval(() => {
   if (document.visibilityState === 'visible' && usuarioActual() && datosIniciados) datos.refrescar();
 }, REFRESCO_MS);
 // La caché se lee mientras llega el resto de la app: se pinta ya con datos, sin esqueleto.
-(usuarioActual() ? datos.alArrancar() : Promise.resolve()).then(navegar);
+// Sin ruta: la pestaña elegida para abrir la app (Ajustes → Barra de navegación).
+(usuarioActual() ? datos.alArrancar() : Promise.resolve()).then(() => {
+  if (usuarioActual() && !location.hash.replace(/^#\/?/, '')) {
+    const ini = cfgBarra.config().inicio;
+    if (ini && ini !== 'inicio') corregirRuta(`#${ini}`);
+  }
+  navegar();
+});

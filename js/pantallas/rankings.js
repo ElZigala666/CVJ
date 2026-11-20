@@ -25,20 +25,22 @@ const MODOS = [
 let orden = 'nota'; // se recuerda mientras la app está abierta
 const MIN_COMUNES = 3;
 
-export function render(el, { params }) {
-  const modo = MODOS.some(([m]) => m === params[0]) ? params[0] : 'grupo';
+export function render(el, { params, solo = null, ruta = 'rankings' }) {
+  // solo: la pestaña "Tier list" o "Estadísticas" de la barra (#tierlist, #cifras): solo ese
+  // modo, sin el selector, y con las mías (la fila de personas cambia dentro de la pestaña).
+  const modo = solo ?? (MODOS.some(([m]) => m === params[0]) ? params[0] : 'grupo');
   const yo = usuarioActual();
-  // Tier list: "grupo" por defecto; estadísticas: las mías.
-  const quien = params[1] || (modo === 'tiers' ? 'grupo' : yo?.id);
+  // Tier list: "grupo" por defecto; estadísticas: las mías. En la pestaña, las mías.
+  const quien = (solo ? params[0] : params[1]) || (modo === 'tiers' && !solo ? 'grupo' : yo?.id);
 
   const pintar = () => {
     pintarHtml(el, `
       <section class="rankings">
         <div class="rankings-cab">
-          <h1 class="titulo-pantalla">Rankings</h1>
-          <div class="segmentado segmentado-4" role="tablist" aria-label="Rankings">
+          <h1 class="titulo-pantalla">${solo ? (solo === 'tiers' ? 'Tier list' : 'Estadísticas') : 'Rankings'}</h1>
+          ${solo ? '' : `<div class="segmentado segmentado-4" role="tablist" aria-label="Rankings">
             ${MODOS.map(([m, n]) => `<button type="button" role="tab" data-modo="${m}" class="${modo === m ? 'activo' : ''}" aria-selected="${modo === m}">${n}</button>`).join('')}
-          </div>
+          </div>`}
         </div>
         <div data-ref="contenido">${modo === 'grupo' ? grupo() : modo === 'comparar' ? comparar(params) : porPersona(modo, quien)}</div>
       </section>`);
@@ -49,7 +51,7 @@ export function render(el, { params }) {
     if (clicEstadisticas(e)) return;
     const chip = e.target.closest('[data-usuario]');
     if (chip && (modo === 'tiers' || modo === 'estadisticas')) {
-      if (chip.dataset.usuario !== quien) reemplazarRuta(`#rankings/${modo}/${chip.dataset.usuario}`);
+      if (chip.dataset.usuario !== quien) reemplazarRuta(solo ? `#${ruta}/${chip.dataset.usuario}` : `#rankings/${modo}/${chip.dataset.usuario}`);
       return;
     }
     const b = e.target.closest('[data-modo], [data-orden], [data-lado]');

@@ -55,11 +55,26 @@ español (código, comentarios, commits, interfaz).
   "Colección · 6 de 14 jugados"), con los datos enteros, nunca con lo filtrado en pantalla.
 - `js/seleccion.js` selección múltiple (pulsación larga; en escritorio también Ctrl/Mayús+clic y el
   círculo que sale al pasar el ratón; en el modo, cualquier toque marca y nunca navega). En
-  escritorio las hojas bloquean el scroll en `html` con `scrollbar-gutter: stable`: sin saltos; `js/deslizar.js` deslizar entre las 4 pestañas
-  principales siguiendo el dedo (vecina = foto que guarda app.js al salir, o esqueleto;
-  indicador de la barra; las subpestañas ya no se deslizan; lo que tiene scroll horizontal
-  propio manda; llegar a Buscar deslizando no abre el teclado);
+  escritorio las hojas bloquean el scroll en `html` con `scrollbar-gutter: stable`: sin saltos; `js/deslizar.js` deslizar entre las pestañas
+  principales (las de la barra, en su orden) siguiendo el dedo, también sobre la barra de abajo
+  (vecina = foto que guarda app.js al salir, o esqueleto; indicador de la barra; lo que tiene
+  scroll horizontal propio manda; llegar a Buscar deslizando no abre el teclado). Sobre una zona
+  `[data-subdeslizar]` (`data-sub-i`, `data-sub-n`; el contenido en `[data-subpanel]`) cambia de
+  subpestaña con el evento `cvj:subpestana` (el perfil): rebote en los extremos y nunca salta a
+  otra pestaña principal en ese gesto. `js/seleccion-texto.js`: selección de texto PROPIA en
+  táctil sobre SELECCIONABLE (pulsación larga = palabra, tiradores palabra a palabra con
+  desplazamiento automático, resaltado con rectángulos propios, menú Copiar / Seleccionar todo /
+  Citar en mi columna (`#escribir/nueva/cita[/juego/{id}]`, la cita en sessionStorage
+  "cvj.cita") / Reaccionar; scroll de verdad, tocar fuera o atrás la cancelan). En escritorio y
+  en el editor, la selección nativa;
   `js/galeria.js`; `js/refrescar.js` tirar para refrescar; `js/celebracion.js`.
+- `js/barra.js`: barra de navegación del móvil personalizable (Inicio y "+" fijos; 2 a 4 más entre
+  Buscar, Rankings, Perfil, Columnas, Tier list `#tierlist`, Estadísticas `#cifras`, Biblioteca
+  `#biblioteca`, Cementerio, Propuestas y Avisos con contador; "Pestaña al abrir la app").
+  `principales()` = las pestañas que se quedan montadas y el orden de deslizar. Se edita en
+  `js/ajustes-barra.js` (vista previa, arrastrar, Restablecer). En escritorio, la barra lateral
+  de siempre (`.barra-escritorio`; las del móvil, `.barra-movil`). El avatar de Inicio abre un
+  menú con Mi perfil y Ajustes (que nadie se quede sin acceso).
 - `js/psn.js`, `js/xbox.js`, `js/steam.js`, `js/igdb.js` + `js/ajustes-*.js`,
   `js/cuentas-ui.js`, `js/plataformas-ui.js`: plataformas y Ajustes.
 - `js/apariencia.js`: fondos (cada uno ya es claro u oscuro; no hay ajuste de tema),
@@ -199,7 +214,8 @@ español (código, comentarios, commits, interfaz).
   del encuadre (`ASPECTO_CAB`): móvil 39:28 sin contar la zona segura (va aparte, difuminada:
   `.cab-tope`), escritorio (≥ 768 px) 7:2 en todos los anchos (más de 1680 px: se centra y se
   funde por los lados). Si cambia una, cambian las dos (CSS y `ASPECTO_CAB`)),
-  `umbral_probados`, `estimar_horas`, `plataformas_ocultas`.
+  `umbral_probados`, `estimar_horas`, `plataformas_ocultas`, `barra` (`{pestanas, inicio}`,
+  migración 048; copia local "cvj.barra").
 - `juegos` (PK `igdb_id`): caché de IGDB + `es_online`(_manual) = sin final,
   `relaciones` (jsonb de IGDB), `ttb_*` tiempo para terminar (sin imposibles: > 300 h historia,
   600 extras, 1500 completo; migración 046), `generos`, `temas`, `modos`, `perspectivas`,
@@ -243,7 +259,9 @@ español (código, comentarios, commits, interfaz).
   `recalcular` al cambiar su regla, sin avisos) e `insignias_grupo` (una fila por insignia:
   dueño actual, anterior, desde; las de pareja con `otro_id`/`otro_anterior_id`). `inicial`
   = calculada al estrenar (no sale en la actividad). `usuarios.insignias_visto_en` para los
-  avisos; la vitrina elegida va en `perfil_datos.insignias`. Las condiciones viven en el
+  avisos; la vitrina elegida va en `perfil_datos.insignias`. NO salen en la actividad de Inicio:
+  solo se avisa a los afectados, y los avisos de insignias seguidos (20 min) van juntos en uno,
+  con la causa si hubo una muerte o una vuelta justo antes (`agrupar()` de `js/avisos.js`). Las condiciones viven en el
   cliente (`js/insignias.js`). Catálogo oculto: cada uno ve solo las suyas y las vitrinas
   de los demás (nada de bloqueadas, pistas ni "X de 30"). Las de grupo tienen que depender
   de lo que hacen los demás (nada que se consiga a solas farmeando).
@@ -370,7 +388,10 @@ español (código, comentarios, commits, interfaz).
   imprescindible que no se pueda hacer desde aquí.
 - Sin emojis en la interfaz; iconos propios rellenos (`js/icons.js`).
 - Texto no seleccionable salvo reseñas, entradas de columnas y respuestas (`SELECCIONABLE`
-  en `js/ui.js`): ahí la pulsación larga selecciona; no entra en selección múltiple ni menús.
+  en `js/ui.js`): ahí, en táctil, nuestra selección (`js/seleccion-texto.js`); con ratón, la del
+  navegador. No entra en selección múltiple ni menús (la pulsación larga sobre la tarjeta sí).
+- Comprobar la sintaxis de los módulos con `node --input-type=module --check < archivo.js`
+  (`node --check archivo.js` no ve algunos errores que rompen el módulo en el navegador).
 - Cambios pequeños de aspecto: sin pruebas. Lo importante se prueba con datos reales.
 - Botones y espaciado: sistema común en `css/tokens.css` (`--esp-1..6` = 4/8/12/16/24/32,
   `--boton-alto` 48 y `--boton-alto-peq` 36 como mínimo, `--boton-radio`). Principal,

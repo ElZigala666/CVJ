@@ -431,3 +431,7 @@ body:has(#vista .entrada, #vista .difunto) #aviso { left: 50%; }
 
 /* Mini tutoriales: centrados en el contenido (junto a la barra lateral). */
 .tut-capa { left: var(--ancho-lateral); }
+
+/* Barra: en escritorio, la lateral de siempre (la del móvil, personalizable, no se ve). */
+.barra-movil { display: none !important; }
+.barra-escritorio { display: flex; }

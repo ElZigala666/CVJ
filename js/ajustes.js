@@ -68,6 +68,14 @@ export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas 
       <div class="ajustes">
         <div data-ref="foto"></div>
         <div data-ref="apariencia"></div>
+        <section class="ajustes-bloque">
+          <span class="campo-titulo">Barra de navegación</span>
+          <button type="button" class="enlace-fila" data-accion="barra-nav">
+            ${icono('inicio', { tam: 20, color: 'var(--acento)', trazo: 'var(--superficie)' })}
+            <span class="enlace-fila-texto">Pestañas del móvil<small>Elige y ordena las de la barra de abajo</small></span>
+            ${icono('adelante', { tam: 18, color: 'var(--texto-2)' })}
+          </button>
+        </section>
         <div data-ref="avisos"></div>
         <section class="ajustes-bloque ajustes-plataformas" id="ajustes-plataformas">
           <span class="campo-titulo">Plataformas</span>
@@ -161,6 +169,9 @@ export function abrirAjustes(alSalir, { psn = false, steam = false, plataformas 
         if (b.dataset.accion === 'apariencia') {
           cerrar(true);
           import('./ajustes-apariencia.js').then((m) => m.abrirApariencia());
+        } else if (b.dataset.accion === 'barra-nav') {
+          cerrar(true);
+          setTimeout(() => import('./ajustes-barra.js').then((m) => m.abrirBarra()), 220);
         } else if (b.dataset.accion === 'salir') {
           cerrar(true);
           alSalir();

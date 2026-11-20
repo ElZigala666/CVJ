@@ -240,12 +240,12 @@ function renderPerfil(el, id, alSalir, pedida = null) {
           </a>` : ''}
 
         </div>
-        <div class="perfil-principal">
+        <div class="perfil-principal" data-subdeslizar data-sub-i="${pestanas.findIndex((x) => x.id === pestana)}" data-sub-n="${pestanas.length}">
           <div class="perfil-pestanas" role="tablist" aria-label="Perfil">
             ${pestanas.map((x) => `
               <button type="button" role="tab" class="perfil-pestana${x.id === pestana ? ' activa' : ''}" aria-selected="${x.id === pestana}" data-ppestana="${x.id}">${x.nombre}</button>`).join('')}
           </div>
-          <div class="perfil-panel" data-ref="panel" data-k="panel-${pestana}">${panel(u, p, bib, vinculado, hayBiblioteca, col)}</div>
+          <div class="perfil-panel" data-ref="panel" data-subpanel data-k="panel-${pestana}">${panel(u, p, bib, vinculado, hayBiblioteca, col)}</div>
         </div>
       </section>`);
     if (pestana === 'historial') pintarHistorial(u, p);
@@ -525,6 +525,14 @@ function renderPerfil(el, id, alSalir, pedida = null) {
       if (prob) prob.innerHTML = rejillaBiblioteca(bib, bib.probados.filter((x) => x.coleccion || (x.igdbId != null && x.juego)), 'Ninguno identificado.');
     }
   };
+
+  // Deslizar sobre las subpestañas (js/deslizar.js): la de al lado.
+  el.addEventListener('cvj:subpestana', (e) => {
+    const lista = [...el.querySelectorAll('[data-ppestana][role="tab"]')].map((b) => b.dataset.ppestana);
+    const i = lista.indexOf(pestana);
+    const nueva = lista[i + e.detail.dir];
+    if (nueva) cambiarPestana(nueva);
+  });
 
   el.addEventListener('click', (e) => {
     if (clicEstadisticas(e)) return;

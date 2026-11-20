@@ -444,8 +444,7 @@ function actividad() {
     .concat(social.eventos()
       .filter((ev) => ev.quien !== usuarioActual()?.id && (ev.o.autorId === usuarioActual()?.id || ev.reaccion === 'wtf'))
       .slice(0, MAX_ACTIVIDAD).map((ev) => ({ social: ev, creado_en: ev.fecha })))
-    // Insignias nuevas, subidas de nivel y cambios de dueño (no las del estreno).
-    .concat(insignias.eventosActividad().map((ev) => ({ insignia: ev, creado_en: ev.fecha })))
+    // (Las insignias no van en la actividad: solo se avisa a los afectados, en Avisos.)
     // El cementerio: expulsiones, intentos de reanimación, vetos, vueltas y exorcismos.
     .concat(cementerio.eventosActividad().map((ev) => ({ vida: ev, creado_en: ev.fecha })))
     // Propuestas de nuevos miembros: nuevas, aceptadas y las que no pasaron el casting.

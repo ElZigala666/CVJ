@@ -374,6 +374,13 @@ español (código, comentarios, commits, interfaz).
     no suma.
   - Posible duplicado Steam/Xbox: solo aviso (no cambia el total); el usuario decide en
     `horas_ajustes` (excluir línea o "son partidas distintas").
+  - Packs de IGDB (`psn_igdb.tipo = 'coleccion'`: "Naruto … Trilogy", "Uncharted: Legacy of
+    Thieves"): sus horas son del pack entero y cuentan como el pack (su ficha de IGDB) en
+    `metricas.tiempo()` y en las listas de juegos, no como ninguno de sus juegos.
+  - Lo que suma en el total sin ser de ningún juego conocido sale aparte: `tiempo(uid).sinIdentificar`
+    (horas) y `nSinIdentificar`; línea "Sin identificar: N h" en Estadísticas → Plataformas y horas
+    (lleva a la biblioteca con "Sin identificar" abierto: sessionStorage "cvj.abrir.sinid") y en el
+    recuento de la biblioteca.
   - Estimadas: la automática se retira sola si hay horas reales o extra; la elegida a mano
     no la toca el automático; borrar = `descartada`. Nunca en juegos sin final ni con tiempos
     imposibles (`datos.MAX_TTB`).

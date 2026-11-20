@@ -545,8 +545,8 @@ function resumen(s, t, bib, u) {
       <div class="resumen-cifras">
         ${cifra(s.jugados, 'Jugados')}
         ${cifra(s.completados, 'Completados')}
-        ${cifra(s.media !== null ? `${formatearNota(s.media)}${chipLetra(s.letra, 'sm')}` : '—', vs ? `Nota media · ${vs}` : 'Nota media', true)}
-        ${cifra(t.total ? `${miles(t.total)}<small> h</small>` : (datos.cuentasDe(u.id).length ? '0' : '—'), t.estimadas ? `Jugadas · ≈${miles(t.estimadas)} h estimadas` : 'Jugadas', true)}
+        ${cifra(s.media !== null ? `${formatearNota(s.media)}${chipLetra(s.letra, 'sm')}` : '—', vs ? `Nota media<small>${vs}</small>` : 'Nota media', true)}
+        ${cifra(t.total ? `${miles(t.total)}<small> h</small>` : (datos.cuentasDe(u.id).length ? '0' : '—'), t.estimadas ? `Jugadas<small>≈${miles(t.estimadas)} estimadas</small>` : 'Jugadas', true)}
       </div>
       <p class="resumen-estados">${estados.map(([n, e]) => `<span><b>${n}</b> ${e}</span>`).join('')}</p>
       ${totalTier ? `
@@ -725,6 +725,10 @@ function plataformasYHoras(u, s, bib, t) {
               </div>`).join('')}</div>
           </div>` : ''}
       </div>
+      ${t.sinIdentificar > 0 ? `<a class="horas-sin-id" href="#perfil/${esc(u.id)}/biblioteca" data-abrir-sinid="${esc(u.id)}">
+        <span>Sin identificar: <b>${miles(t.sinIdentificar)} h</b> en ${t.nSinIdentificar} ${t.nSinIdentificar === 1 ? 'título' : 'títulos'}</span>
+        <small>${u.id === usuarioActual()?.id ? 'Cuentan en el total. Identifícalos en tu biblioteca' : 'Cuentan en el total, pero aún no se sabe qué juegos son'}</small>
+      </a>` : ''}
       ${bib.plataformas.length > 1 ? `<p class="resumen-estados">${bib.plataformas.map((x) => `<span><b>${x.juegos}</b> en ${esc(x.nombre)}${x.horas ? ` · ${x.horas} h` : ''}</span>`).join('')}</p>` : ''}
     </section>`;
 }
@@ -738,6 +742,9 @@ function plataformasYHoras(u, s, bib, t) {
 export function clicEstadisticas(e) {
   const caja = e.target.closest('.stats');
   if (!caja) return false;
+  // "Sin identificar: N h": la biblioteca se abre con esa sección desplegada (el enlace sigue).
+  const sinId = e.target.closest('[data-abrir-sinid]');
+  if (sinId) { try { sessionStorage.setItem('cvj.abrir.sinid', sinId.dataset.abrirSinid); } catch { /* nada */ } return false; }
   const chip = e.target.closest('[data-radar]');
   if (chip) {
     superpuesta = chip.dataset.radar;

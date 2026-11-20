@@ -507,7 +507,13 @@ export function biblioteca(uid) {
 export function tiempo(uid) {
   return memoizar(`tiempo:${uid}`, () => {
     const bib = biblioteca(uid);
-    const lista = bib.juegos.map((x) => ({ nombre: x.nombre, horas: x.horas, igdbId: x.igdbId, estimadas: x.horasEstimadas ?? 0 }));
+    // Un pack de IGDB ("Naruto … Trilogy", "Uncharted: Legacy of Thieves"): sus horas son del pack
+    // entero, así que cuentan como el pack (su ficha de IGDB), no como ninguno de sus juegos.
+    const packDe = (x) => x.coleccion?.id ?? (x.emp?.tipo === 'coleccion' ? x.emp.igdb_id ?? null : null);
+    const lista = bib.juegos.map((x) => ({
+      nombre: (packDe(x) != null && datos.juegoConocido(packDe(x))?.nombre) || x.nombre, horas: x.horas,
+      igdbId: x.igdbId ?? packDe(x), estimadas: x.horasEstimadas ?? 0,
+    }));
     const enBib = new Set(bib.juegos.filter((x) => x.igdbId != null).map((x) => x.igdbId));
     // Lo que no está en la biblioteca: horas extra y estimaciones.
     for (const h of [...(datos.estado.horasExtra ?? []), ...datos.estimacionesDe(uid)]) {
@@ -524,6 +530,9 @@ export function tiempo(uid) {
       estimadas: Math.round(lista.reduce((t, x) => t + (x.estimadas ?? 0), 0)),
       top: lista.filter((x) => x.horas > 0).slice(0, 5),
       juegos: new Map(lista.filter((x) => x.igdbId != null).map((x) => [x.igdbId, x.horas])),
+      // Lo que suma en el total pero no es de ningún juego conocido (títulos sin identificar).
+      sinIdentificar: Math.round(lista.filter((x) => x.horas > 0 && (x.igdbId == null || !datos.juegoConocido(x.igdbId))).reduce((t, x) => t + x.horas, 0)),
+      nSinIdentificar: lista.filter((x) => x.horas > 0 && (x.igdbId == null || !datos.juegoConocido(x.igdbId))).length,
     };
   });
 }

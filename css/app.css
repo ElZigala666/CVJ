@@ -3633,6 +3633,9 @@ body.reordenando { user-select: none; -webkit-user-select: none; cursor: grabbin
 .resumen-num small { font-size: 14px; color: var(--texto-2); }
 .resumen-num.apagado { color: var(--texto-2); }
 .resumen-etq { font-size: 11.5px; line-height: 1.25; color: var(--texto-2); }
+/* El matiz ("+0.2 vs grupo", "≈265 estimadas"): segunda línea pequeña, sin partirse: las cuatro tarjetas igual de altas. */
+.resumen-cifra .resumen-etq { display: block; min-width: 0; }
+.resumen-etq small { display: block; font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .85; }
 .resumen-estados { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 12px 0 0; font-size: 13px; color: var(--texto-2); }
 .resumen-estados b { color: var(--texto); font-weight: 700; }
 .stats-seccion .resumen-estados { margin: -2px 0 0; }
@@ -4251,3 +4254,11 @@ button.tier-letra { border: 0; padding: 0; font: inherit; cursor: pointer; }
 .exp-seg button { flex: 1 1 0; }
 .exp-interruptores { display: grid; gap: 6px; margin-top: 4px; }
 .exp-botones { margin-top: 6px; }
+
+/* "Sin identificar: 74 h" (Estadísticas → Plataformas y horas): lleva a la biblioteca. */
+.horas-sin-id {
+  display: grid; gap: 2px; margin-top: var(--esp-3); padding: var(--esp-2) var(--esp-3);
+  border-radius: 12px; background: var(--superficie-2); color: var(--texto); text-decoration: none; font-size: 13px;
+}
+.horas-sin-id small { font-size: 12px; color: var(--texto-2); }
+.horas-sin-id:active { opacity: .8; }

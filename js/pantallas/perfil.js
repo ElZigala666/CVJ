@@ -154,7 +154,7 @@ function renderPerfil(el, id, alSalir, pedida = null) {
     const plat = mia.plataforma || p.plataformaPrincipal || '';
     const top = mia.vitrina.map((x) => datos.juegoConocido(x)).filter(Boolean);
     const unido = u.creado_en ? tiempoRelativo(u.creado_en).toLowerCase() : '';
-    const meta = p.jugados ? `${p.jugados} ${p.jugados === 1 ? 'juego valorado' : 'juegos valorados'}` : (unido ? `Se unió ${unido.startsWith('hace') ? unido : `el ${unido}`}` : '');
+    const meta = p.jugados ? `${p.jugados} ${p.jugados === 1 ? 'juego jugado' : 'juegos jugados'}` : (unido ? `Se unió ${unido.startsWith('hace') ? unido : `el ${unido}`}` : '');
     const falta = (texto, foco) => `<button type="button" class="perfil-falta" data-accion="editar-perfil" data-foco="${foco}">${icono('mas', { tam: 16, color: 'currentColor' })}<span>${texto}</span></button>`;
     const conPerfil = 'perfil_datos' in u;
     const col = datos.columnaDe(id) ?? null;
@@ -414,11 +414,17 @@ function renderPerfil(el, id, alSalir, pedida = null) {
     const sinId = filtrar(bib.sinIdentificar.filter((x) => !x.probado), fBib, datosBiblioteca);
     const nSinId = bib.sinIdentificar.filter((x) => !x.probado).length;
     const nDup = esMio ? metricas.posiblesDuplicados(id).length : 0;
+    let abrirSinId = false;
+    try { abrirSinId = sessionStorage.getItem('cvj.abrir.sinid') === id; if (abrirSinId) sessionStorage.removeItem('cvj.abrir.sinid'); } catch { /* nada */ }
+    if (abrirSinId) vista.sinIdentificar = true;
+    if (abrirSinId) setTimeout(() => el.querySelector('#bib-sin-identificar')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 150);
+    const tSinId = metricas.tiempo(id).sinIdentificar;
     pintarHtml(cont, `
       <p class="bib-recuento">
         <span><strong>${sinValorar(bib.misJuegos).length}</strong> sin valorar · ${bib.misJuegos.length} en total</span>
         <span><strong>${bib.probados.length}</strong> probados</span>
         ${esMio ? `<span><strong>${bib.ocultos.length}</strong> ocultos</span>` : ''}
+        ${tSinId > 0 && nSinId ? `<span>Sin identificar: <strong>${miles(tSinId)} h</strong></span>` : ''}
       </p>
       ${progresoHorasXbox()}
       ${esMio && nDup ? `
@@ -440,7 +446,7 @@ function renderPerfil(el, id, alSalir, pedida = null) {
           ${bib.probados.some((x) => !x.coleccion && !(x.igdbId != null && x.juego)) ? `<div class="rejilla">${filtrar(bib.probados.filter((x) => !x.coleccion && !(x.igdbId != null && x.juego)), fBib, datosBiblioteca).map((x) => itemSinIdentificar(x, esMio)).join('')}</div>` : ''}
         </details>` : ''}
       ${nSinId ? `
-        <details class="bib-plegable"${vista.sinIdentificar ? ' open' : ''} data-plegable="sinIdentificar">
+        <details class="bib-plegable"${vista.sinIdentificar ? ' open' : ''} data-plegable="sinIdentificar" id="bib-sin-identificar">
           <summary>Sin identificar (${nSinId})</summary>
           <p class="ajustes-nota">${esMio ? 'No hemos sabido qué juego es. Tócalo para elegirlo; vale para todo el grupo.' : 'Juegos de PlayStation que aún no se han identificado.'}</p>
           <div class="rejilla">${sinId.map((x) => itemSinIdentificar(x, esMio)).join('')}</div>

@@ -175,7 +175,7 @@ export function describir(n) {
     case 'respuesta': titulo = `${b(quienes(A))} ${ha(A)} respondido a ${cosa(d)}`; extra = d.texto ? `«${esc(d.texto)}»` : ''; break;
     case 'lectura': titulo = `${b(quienes(A))} ${ha(A)} leído ${cosa({ entrada_id: d.entrada_id })}`; break;
     case 'insignia':
-      titulo = d.grupo ? `Ahora es tuya: ${b(ins?.nombre ?? 'una insignia')}` : d.sube ? `${b(ins?.nombre ?? 'Tu insignia')} sube a ${NOMBRE_NIVEL[d.nivel] ?? 'otro nivel'}` : `Nueva insignia: ${b(ins?.nombre ?? '')}`;
+      titulo = d.grupo ? `Ahora es tuya: ${b(ins?.nombre ?? 'una insignia')}` : d.sube && ins?.umbrales ? `${b(ins?.nombre ?? 'Tu insignia')} sube a ${NOMBRE_NIVEL[d.nivel] ?? 'otro nivel'}` : `Nueva insignia: ${b(ins?.nombre ?? '')}`;
       extra = d.grupo && d.quitada && datos.usuario(d.quitada) ? `Se la has quitado a ${esc(nombre(d.quitada))}` : esc(ins?.desc ?? '');
       break;
     case 'insignia_perdida': titulo = `${b(nombre(d.quien))} te ha quitado ${b(ins?.nombre ?? 'una insignia')}`; break;

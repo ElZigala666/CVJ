@@ -11,7 +11,11 @@ español (código, comentarios, commits, interfaz).
   código personal (se guarda su SHA-256 en `usuarios.codigo_hash`) y la sesión vive en
   localStorage. RLS abierto a `anon` en casi todo (es un grupo de confianza).
 - **Edge Functions** (Deno, `supabase/functions/*`, siempre `verify_jwt = false`):
-  - `igdb`: proxy de IGDB (buscar, fichas, sagas, tiempo para terminar, emparejar PSN) y
+  - `igdb`: proxy de IGDB (buscar, fichas, sagas, tiempo para terminar, emparejar PSN; para
+    BUSCAR en IGDB el título recupera sus apóstrofos (`conApostrofos`: "thats you" no lo encuentra);
+    para COMPARAR se usa el nombre limpio y nunca nombres alternativos en otro alfabeto;
+    `{accion:"emparejar", depurar:true}` devuelve los candidatos con su puntuación;
+    `herramientas/probar-emparejar.sh` prueba los títulos difíciles) y
     clasificación (acción `clasificar`, cron `cvj-clasificar` cada hora: los de `temas` null).
   - `psn`: PlayStation no oficial (cada uno pega su NPSSO); trofeos y horas.
   - `xbox`: OpenXBL por gamertag con la clave del grupo (cupo en `openxbl_uso`).
@@ -226,7 +230,7 @@ español (código, comentarios, commits, interfaz).
   consola, peticiones fallidas, desbordes, textos raros): `herramientas/barrido.js` (también
   excluido; en la consola: `await (await import('/herramientas/barrido.js')).barrer()`). El
   simulado no tiene `estado_servicios` ni `celebraciones_vistas` (sus 404 no son fallos).
-- `herramientas/`: restaurar copia (`RESTAURAR.md`, `restaurar-copia.sh`), pruebas de
+- `herramientas/`: restaurar copia (`RESTAURAR.md`, `restaurar-copia.sh`), `probar-emparejar.sh`, pruebas de
   PSN/Xbox/buscador, generar iconos y hash de código.
 - `cvj-diseno/`: diseño original de referencia (no se publica).
 - `supabase/migrations/`: esquema numerado `2026110700NNNN_nombre.sql`; la siguiente

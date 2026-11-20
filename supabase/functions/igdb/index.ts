@@ -572,12 +572,18 @@ export function anioDelNombre(limpio: string): number | null {
  * otro orden de palabras, o un nombre alternativo de IGDB). Que coincidan algunas
  * palabras da 30 como mucho: nunca basta para aceptar.
  */
+/** Alguna letra que no es del alfabeto latino (cirílico, coreano, japonés...). */
+const OTRO_ALFABETO = /(?!\p{Script=Latin})\p{L}/u;
+
 export function puntuarNombre(limpio: string, c: { name: string; alternative_names?: { name?: string }[]; game_localizations?: { name?: string }[] }): number {
   const nc = limpiarNombrePsn(c.name);
   if (nc === limpio) return 60;
   if (sinArt(nc) === sinArt(limpio)) return 58;
+  // Nombres alternativos solo en alfabeto latino: al limpiar "Assassin's Creed: Единство" se
+  // quedaba en "assassins creed" y Unity pasaba por el primer Assassin's Creed.
   const alts = [...(c.alternative_names ?? []), ...((c as { game_localizations?: { name?: string }[] }).game_localizations ?? [])]
-    .map((x) => limpiarNombrePsn(x.name ?? "")).filter(Boolean);
+    .map((x) => x.name ?? "").filter((x) => !OTRO_ALFABETO.test(x))
+    .map((x) => limpiarNombrePsn(x)).filter(Boolean);
   if (alts.some((x) => x === limpio || sinArt(x) === sinArt(limpio))) return 55;
   const bl = bolsa(limpio);
   if (bl.includes(" ") && bolsa(nc) === bl) return 50;

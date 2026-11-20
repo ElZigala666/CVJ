@@ -155,7 +155,7 @@ export function montarGrupo(cont) {
   const yo = usuarioActual();
   const vista = { abierto: null, confirmar: null, whatsapp: null };
   // El WhatsApp del Dictador (privado: solo sale en las páginas de enlace de reanimar y proponer).
-  if (datos.usuario(yo?.id)?.es_admin) llamarAdmin('whatsapp', {}).then((r) => { if (r.ok) { vista.whatsapp = r.numero ?? ''; pintar(); } });
+  if (datos.usuario(yo?.id)?.es_admin) llamarAdmin('whatsapp', {}).then((r) => { if (r.ok) vista.whatsapp = r.numero ?? ''; else vista.waFallo = true; pintar(); }).catch(() => { vista.waFallo = true; pintar(); });
 
   const pintar = () => {
     const soy = datos.usuario(yo?.id);
@@ -207,7 +207,7 @@ export function montarGrupo(cont) {
         <button type="button" class="boton-secundario con-icono" data-anadir>${icono('mas', { tam: 18, color: 'currentColor' })}<span>Añadir persona</span></button>
         <label class="campo-titulo" for="grupo-whatsapp">Tu WhatsApp</label>
         <div class="grupo-whatsapp">
-          <input id="grupo-whatsapp" class="psn-input" inputmode="tel" autocomplete="off" maxlength="20" placeholder="${vista.whatsapp === null ? 'Cargando…' : '34 600 000 000'}" value="${esc(vista.whatsapp ?? '')}" ${vista.whatsapp === null ? 'disabled' : ''}>
+          <input id="grupo-whatsapp" class="psn-input" inputmode="tel" autocomplete="off" maxlength="20" placeholder="${vista.whatsapp === null ? (vista.waFallo ? 'No se ha podido cargar: vuelve a abrir Ajustes' : 'Cargando…') : '34 600 000 000'}" value="${esc(vista.whatsapp ?? '')}" ${vista.whatsapp === null ? 'disabled' : ''}>
           <button type="button" class="boton-secundario boton-pequeno" data-whatsapp>Guardar</button>
         </div>
         <p class="ajustes-nota">Con el prefijo del país. Solo se ve en las páginas de los enlaces de reanimar y proponer, para que te pidan su código.</p>

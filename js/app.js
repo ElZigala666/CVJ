@@ -529,6 +529,13 @@ document.addEventListener('click', (e) => {
 });
 window.addEventListener('hashchange', cerrarMenuYo);
 window.addEventListener('scroll', cerrarMenuYo, { passive: true });
+// "Reintentar" de lo que esperaba a los datos y no han llegado (ui.esperaDatos), en toda la app.
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-reintentar-datos]');
+  if (!b) return;
+  b.disabled = true;
+  datos.reintentarCarga();
+});
 // "Poner / cambiar foto" (Ajustes, o el perfil de otro si soy admin).
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-foto]');

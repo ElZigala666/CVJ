@@ -15,7 +15,7 @@
 import { icono } from '../icons.js';
 import * as datos from '../datos.js';
 import { usuarioActual } from '../sesion.js';
-import { esc, portada, aviso, avatar } from '../ui.js';
+import { esc, portada, aviso, avatar, esperaDatos, pintarHtml } from '../ui.js';
 import { volver, corregirRuta, reemplazarRuta } from '../navegacion.js';
 import { markdown, palabras, textoLectura, imagenRedimensionada, logoColumna, limpiarTexto, MAX_LINEAS_EN_BLANCO, nombreColumna } from '../columnas-ui.js';
 import * as ins from '../columnas-insertar.js';
@@ -48,10 +48,12 @@ export function render(el, ctx) {
     return p !== 'nueva' && !datos.entrada(p) && !leerLocal(p);
   };
   if (!falta() || datos.datosFrescos()) return editor(el, ctx);
-  el.innerHTML = '<div class="vacio"><p class="vacio-texto">Cargando…</p></div>';
+  const espera = () => pintarHtml(el, `<div class="vacio">${esperaDatos(datos.estadoCarga(), '', 'vacio-texto')}</div>`);
+  espera();
   let hecho = false;
   let limpiar = null;
   const probar = () => {
+    if (!hecho && falta() && !datos.datosFrescos()) espera();
     if (hecho || (falta() && !datos.datosFrescos())) return;
     hecho = true;
     quitar();

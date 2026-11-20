@@ -102,7 +102,7 @@ export function render(el, { params }) {
   function pintarInfo(j) {
     if (!j) {
       $('info').innerHTML = fallo
-        ? `<h1 class="ficha-titulo">Juego no disponible</h1><p class="ficha-meta">No se ha podido cargar. Revisa la conexión.</p>`
+        ? `<h1 class="ficha-titulo">Juego no disponible</h1><p class="ficha-meta">No se ha podido cargar. Revisa la conexión. <button type="button" class="enlace-discreto" data-accion="reintentar-ficha">Reintentar</button></p>`
         : `<div class="sk sk-linea" style="width:75%;height:26px;border-radius:8px"></div>
            <div class="sk sk-linea" style="width:55%;height:14px"></div>
            <div class="ficha-chips"><span class="sk" style="width:44px;height:26px;border-radius:8px"></span><span class="sk" style="width:36px;height:26px;border-radius:8px"></span></div>`;
@@ -540,7 +540,9 @@ export function render(el, { params }) {
     }
     const b = e.target.closest('[data-accion]');
     if (!b) return;
-    if (b.dataset.accion === 'atras') {
+    if (b.dataset.accion === 'reintentar-ficha') {
+      pedirFicha();
+    } else if (b.dataset.accion === 'atras') {
       volver('#inicio');
     } else if (b.dataset.accion === 'valorar') {
       abrirValorar(id);
@@ -556,22 +558,26 @@ export function render(el, { params }) {
   // ni relaciones), pedir la ficha completa (la función también la guarda).
   const enTabla = datos.juego(id);
   const ligero = enTabla && !enTabla.resumen && !enTabla.desarrolladora && !Object.keys(enTabla.relaciones ?? {}).length;
-  if (!enTabla || ligero) {
+  // Con su límite de tiempo (js/igdb.js): si no llega, "No se ha podido cargar" con Reintentar.
+  function pedirFicha() {
     pidiendo = true;
+    fallo = false;
     pintarInfo(datos.juegoConocido(id));
     fichaJuego(id, controlador.signal)
       .then((j) => {
         pidiendo = false;
         if (j && !controlador.signal.aborted) datos.recordarJuego(j);
+        else if (!controlador.signal.aborted) { fallo = !datos.juegoConocido(id); pintarTodo(); }
       })
       .catch((e) => {
         pidiendo = false;
-        if (controlador.signal.aborted || e.name === 'AbortError') return;
+        if (controlador.signal.aborted) return; // se ha salido de la ficha
         console.warn('[ficha]', e.message);
         fallo = true;
         pintarTodo();
       });
   }
+  if (!enTabla || ligero) pedirFicha();
 
   // Abierta desde una lista: deslizar al anterior / siguiente de esa lista.
   const quitarGaleria = datos.canonico(id) === id ? activarDeslizar(el, id, el.querySelector('.ficha')) : () => {};

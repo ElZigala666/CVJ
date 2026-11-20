@@ -12,6 +12,7 @@ export async function llamarAdmin(accion, extra = {}) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY },
       body: JSON.stringify({ accion, admin_id: usuarioActual()?.id, ...extra }),
+      signal: AbortSignal.timeout?.(25000),
     });
     const d = await r.json().catch(() => null);
     if (!d) return { ok: false, error: r.status === 404 ? 'La gestión del grupo aún no está activada.' : `Respuesta ${r.status}` };

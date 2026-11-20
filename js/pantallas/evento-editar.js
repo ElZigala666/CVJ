@@ -7,7 +7,7 @@ import { icono } from '../icons.js';
 import * as datos from '../datos.js';
 import * as ev from '../eventos.js';
 import { usuarioActual } from '../sesion.js';
-import { esc, conservarScroll, aviso } from '../ui.js';
+import { esc, conservarScroll, aviso, esperaDatos } from '../ui.js';
 import { volver } from '../navegacion.js';
 import { abrirHoja } from '../hoja.js';
 import { buscarJuegos, fichaJuego } from '../igdb.js';
@@ -249,7 +249,7 @@ function html(e, abiertas) {
       <div class="cementerio-cab-texto"><h1 class="cementerio-titulo evento-editar-titulo">${esc(titulo)}</h1></div>
     </header>`;
   if (!admin) return `<section class="evento-editar">${cab('Eventos')}<p class="evento-nota">Solo el admin puede editar eventos.</p></section>`;
-  if (e === null && !location.hash.includes('nuevo')) return `<section class="evento-editar">${cab('Evento')}<p class="evento-nota">${datos.datosFrescos() ? 'Este evento ya no existe.' : 'Cargando…'}</p></section>`;
+  if (e === null && !location.hash.includes('nuevo')) return `<section class="evento-editar">${cab('Evento')}${esperaDatos(datos.estadoCarga(), 'Este evento ya no existe.')}</section>`;
   document.title = 'CVJ · Editar evento';
   const img = e ? ev.imagenDe(e) : null;
   const cats = e ? datos.categoriasDe(e.id) : [];

@@ -10,7 +10,7 @@ import { icono } from '../icons.js';
 import * as datos from '../datos.js';
 import * as ev from '../eventos.js';
 import { usuarioActual } from '../sesion.js';
-import { esc, avatar, portada, conservarScroll, aviso, notaConLetra } from '../ui.js';
+import { esc, avatar, portada, conservarScroll, aviso, notaConLetra, esperaDatos } from '../ui.js';
 import { volver } from '../navegacion.js';
 import { abrirHoja } from '../hoja.js';
 import { rutaDe } from '../metricas.js';
@@ -70,7 +70,7 @@ function html(e, yo, abiertas) {
       <section class="evento">
         <header class="cementerio-cab">
           <button type="button" class="boton-cuadrado" data-accion="atras" aria-label="Volver">${icono('atras', { tam: 20, color: 'var(--texto)' })}</button>
-          <div class="cementerio-cab-texto"><p class="cementerio-sub">${datos.datosFrescos() ? 'Este evento ya no existe.' : 'Cargando…'}</p></div>
+          <div class="cementerio-cab-texto">${esperaDatos(datos.estadoCarga(), 'Este evento ya no existe.', 'cementerio-sub')}</div>
         </header>
       </section>`;
   }

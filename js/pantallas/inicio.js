@@ -20,7 +20,7 @@ import { abrirHoja } from '../hoja.js';
 import { imagenPlataforma } from '../portadas.js';
 import {
   esc, cabecera, portada, notaConLetra, avatar, iconoRecomendacion, avatarPerfil, nombrePerfil, avatarInsignia,
-  tiempoRelativo, conservarScroll, aviso, estaRejugando, pintarHtml,
+  tiempoRelativo, conservarScroll, aviso, estaRejugando, pintarHtml, esperaDatos,
 } from '../ui.js';
 
 const PESTANAS = [
@@ -124,13 +124,14 @@ function html() {
       ${eventos.bannerInicio()}
       ${cementerio.avisosInicio()}
       ${avisoPsn()}
+      ${datos.estadoCarga() !== 'frescos' && !datos.estado.usuarios.length ? `<div class="vacio">${esperaDatos(datos.estadoCarga(), '', 'vacio-texto')}</div>` : `
       <div class="inicio-vacio">
         <span class="vacio-icono grande">${icono('valorar', { tam: 36, color: 'var(--acento)', trazo: 'var(--acento-suave)' })}</span>
         <h1 class="inicio-vacio-titulo">Aún no hay nada por aquí</h1>
         <p class="vacio-texto">Cuando el grupo empiece a valorar, aquí verás qué está jugando cada uno, los juegos mejor valorados y lo último que ha pasado.</p>
         <a class="boton-principal enlace" href="#valorar">${icono('mas', { tam: 20, color: 'currentColor' })}<span>Valorar mi primer juego</span></a>
         ${datos.cuentasDe(yo?.id).length ? '' : '<button type="button" class="boton-secundario" data-accion="conectar-plataformas">Conectar PlayStation, Xbox o Steam</button>'}
-      </div>`;
+      </div>`}`;
   }
   return `
     ${cabecera(yo, avisos.botonCabecera())}

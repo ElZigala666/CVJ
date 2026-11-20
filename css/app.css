@@ -907,6 +907,10 @@ button.boton-mas { border: 0; padding: 0; }
 .barras-plataforma { display: flex; flex-direction: column; gap: 10px; }
 .barra-plataforma { display: flex; align-items: center; gap: 10px; }
 .barra-plataforma-nombre { width: 60px; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Las plataformas: la columna de nombres mide lo que el más largo (hasta 120 px), sin cortar. */
+.barras-plataforma:not(.barras-horas) { display: grid; grid-template-columns: minmax(44px, max-content) 1fr auto; column-gap: 10px; }
+.barras-plataforma:not(.barras-horas) .barra-plataforma { display: contents; }
+.barras-plataforma:not(.barras-horas) .barra-plataforma-nombre { width: auto; max-width: 120px; }
 .barra-plataforma-pista { flex: 1; height: 10px; border-radius: 5px; background: var(--superficie-2); overflow: hidden; }
 .barra-plataforma-pista > div { height: 100%; border-radius: 5px; background: var(--acento); }
 .barra-plataforma-n { width: 24px; text-align: right; font-size: 13px; font-weight: 600; }
@@ -3732,7 +3736,20 @@ button.anillo-item { cursor: pointer; }
 .calor-leyenda { display: flex; align-items: center; justify-content: flex-end; gap: 4px; font-size: 12px; color: var(--texto-2); }
 .calor-leyenda span { margin: 0 4px; }
 .calor-leyenda i { width: 11px; height: 11px; border-radius: 3px; }
-.calor-cargando { height: 118px; border-radius: 12px; }
+.calor-celda.carga { stroke: var(--acento); stroke-width: 1.5; stroke-dasharray: 2 1.5; }
+.calor-celda.carga.nv0 { fill: color-mix(in srgb, var(--acento) 12%, transparent); }
+.calor-leyenda .carga { background: transparent; border: 1.5px dashed var(--acento); }
+.calor-leyenda-carga { display: inline-flex; align-items: center; gap: 4px; margin-right: auto !important; }
+.calor-estado { margin: var(--esp-2) 0 0; font-size: 13px; color: var(--texto-2); }
+.calor-estado .enlace-discreto { font-size: inherit; }
+.calor-hoja-carga { margin: var(--esp-4) 0 var(--esp-2); font-size: 13px; color: var(--texto-2); }
+.calor-hoja-carga strong { display: block; color: var(--texto); font-size: 15px; margin-bottom: 2px; }
+.calor-tip { position: fixed; left: 0; top: 0; z-index: 90; max-width: 260px; padding: 8px 10px; border-radius: 10px; background: var(--flotante); color: var(--texto); box-shadow: var(--sombra-flotante); font-size: 12px; pointer-events: none; }
+.calor-tip[hidden] { display: none; }
+.calor-tip strong { display: block; font-size: 12px; text-transform: capitalize; margin-bottom: 2px; }
+.calor-tip ul { margin: 0; padding: 0; list-style: none; }
+.calor-tip li { margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calor-tip span, .calor-tip-mas { color: var(--texto-2); }
 
 /* Grupo */
 .juego-une {

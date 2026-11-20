@@ -1,12 +1,13 @@
 // Llamadas a la Edge Function "igdb" (proxy de IGDB en Supabase).
 import { URL_FUNCION_IGDB, SUPABASE_KEY } from './config.js';
+import { senalConLimite } from './datos.js';
 
 async function llamar(cuerpo, signal) {
   const r = await fetch(URL_FUNCION_IGDB, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY },
     body: JSON.stringify(cuerpo),
-    signal,
+    signal: senalConLimite(25000, signal),
   });
   let datos = null;
   try { datos = await r.json(); } catch { /* respuesta sin JSON */ }

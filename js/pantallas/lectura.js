@@ -9,7 +9,7 @@
 import { icono } from '../icons.js';
 import * as datos from '../datos.js';
 import { usuarioActual } from '../sesion.js';
-import { esc, portada, avatar, avatarPerfil, nombrePerfil } from '../ui.js';
+import { esc, portada, avatar, avatarPerfil, nombrePerfil, esperaDatos } from '../ui.js';
 import { abrirHoja } from '../hoja.js';
 import * as social from '../social.js';
 import { volver } from '../navegacion.js';
@@ -144,7 +144,9 @@ export function render(el, { params }) {
       el.innerHTML = `
         <section class="lectura">
           <header class="lectura-barra"><button type="button" class="boton-cuadrado" data-accion="atras" aria-label="Volver">${icono('atras', { tam: 20, color: 'var(--texto)' })}</button></header>
-          <div class="vacio"><h2 class="vacio-titulo">Esta entrada ya no está</h2><p class="vacio-texto">Puede que la hayan despublicado.</p></div>
+          ${datos.estadoCarga() === 'frescos' || e
+            ? '<div class="vacio"><h2 class="vacio-titulo">Esta entrada ya no está</h2><p class="vacio-texto">Puede que la hayan despublicado.</p></div>'
+            : `<div class="vacio">${esperaDatos(datos.estadoCarga(), '', 'vacio-texto')}</div>`}
         </section>`;
       return;
     }
@@ -169,7 +171,7 @@ export function render(el, { params }) {
           ${e.estado !== 'publicada' ? '<p class="lectura-borrador">Borrador: solo lo ves tú</p>' : ''}
           ${cabeceraEntrada(e)}
           <div class="lectura-cuerpo" data-ref="cuerpo">${cuerpo != null ? markdown(cuerpo, { autorId: e.usuario_id, entradaId: e.id, yoId: yo?.id, spoilers, cambiarVoto }) : fallo
-            ? '<p class="vacio-texto">No se ha podido cargar el texto. Revisa la conexión.</p>'
+            ? '<p class="vacio-texto">No se ha podido cargar el texto. Revisa la conexión. <button type="button" class="enlace-discreto" data-accion="reintentar-cuerpo">Reintentar</button></p>'
             : '<div class="sk sk-linea" style="width:92%;height:16px"></div><div class="sk sk-linea" style="width:86%;height:16px"></div><div class="sk sk-linea" style="width:90%;height:16px"></div>'}</div>
           ${cuerpo != null && e.estado === 'publicada' ? `
             ${!mia && yo && datos.leida(yo.id, e.id) ? `<p class="lectura-leida">${icono('hecho', { tam: 16, color: 'currentColor' })}Leída</p>` : ''}
@@ -302,16 +304,24 @@ export function render(el, { params }) {
       if (en) abrirLeidos(en, en.usuario_id === yo?.id);
       return;
     }
+    if (e.target.closest('[data-accion="reintentar-cuerpo"]')) {
+      fallo = false;
+      pintar();
+      pedirCuerpo();
+      return;
+    }
     if (e.target.closest('[data-accion="atras"]')) {
       const en = datos.entrada(id);
       volver(en ? `#columna/${en.columna_id}` : '#inicio');
     }
   });
 
-  datos.cuerpoDe(id).then((t) => {
+  const pedirCuerpo = () => datos.cuerpoDe(id).then((t) => {
     cuerpo = t;
+    fallo = false;
     pintar();
   }).catch(() => { fallo = true; pintar(); });
+  pedirCuerpo();
   // "Leído por" se pone al día solo (al contar la mía o al llegar las de los demás).
   const quitarSocial = datos.suscribirSocial(() => {
     const e = datos.entrada(id);
@@ -319,7 +329,7 @@ export function render(el, { params }) {
     if (e && x) x.outerHTML = leidoPor(e);
   });
 
-  const desuscribir = datos.suscribir(() => { if (cuerpo != null || fallo) pintar(); });
+  const desuscribir = datos.suscribir(() => { if (cuerpo != null || fallo || !datos.entrada(id)) pintar(); });
   pintar();
   return () => {
     desuscribir(); quitarSocial(); clearInterval(relojLectura); window.removeEventListener('scroll', progreso);

@@ -11,7 +11,7 @@
 import { icono } from '../icons.js';
 import * as datos from '../datos.js';
 import { usuarioActual } from '../sesion.js';
-import { esc, portada, aviso, avisoDeshacer, pintarHtml } from '../ui.js';
+import { esc, portada, aviso, avisoDeshacer, pintarHtml, esperaDatos } from '../ui.js';
 import { volver } from '../navegacion.js';
 import { abrirHoja } from '../hoja.js';
 import { buscarJuegos } from '../igdb.js';
@@ -160,7 +160,7 @@ export function render(el, { params = [] } = {}, tipo = 'coleccion') {
   function pintar() {
     const g = T.obtener(id);
     if (!g || !admin()) {
-      pintarHtml($('datos'), `<p class="evento-nota edg-vacia">${!g ? (datos.datosFrescos() ? `Esta ${T.uno} ya no existe.` : 'Cargando…') : `Solo el admin puede editar la ${T.uno}.`}</p>`);
+      pintarHtml($('datos'), !g ? esperaDatos(datos.estadoCarga(), `Esta ${T.uno} ya no existe.`, 'evento-nota edg-vacia') : `<p class="evento-nota edg-vacia">Solo el admin puede editar la ${T.uno}.</p>`);
       for (const r of ['juegos', 'final', 'resultados']) pintarHtml($(r), '');
       return;
     }

@@ -139,7 +139,10 @@ español (código, comentarios, commits, interfaz).
   ADN de jugador (radar de los 8 géneros más jugados del grupo, raíz del reparto, "Comparar con"),
   géneros favoritos (por juegos / horas / nota, con portadas), anillos de temas, modos y
   perspectiva, "Tu año en juegos" (mapa de calor; la actividad del año se pide aparte:
-  `datos.actividadAnual(uid)`) y plataformas y horas. Grupo: juego que más une, ADN, géneros,
+  `datos.actividadAnual(uid)` → `{estado: cargando|listo|error, filas}`, filas siempre las que haya
+  para pintar ya; las "puestas al día" = ráfagas de 6+ en 10 min, no cuentan para el color y el día
+  sale marcado aparte; tocar un día abre lo de ese día y, con ratón, al pasar sale un globo) y
+  plataformas y horas (nombres cortos: "Quest 2"). Grupo: juego que más une, ADN, géneros,
   especialistas (el que más parte de lo suyo dedica a ese género), curiosidades, anillos. Con
   pocos datos (menos de 5 juegos con ese dato) la sección no sale. Tocar un trozo abre sus juegos
   (`clicEstadisticas`, que llaman perfil y Rankings; `observarGraficos` anima al entrar en
@@ -403,6 +406,11 @@ español (código, comentarios, commits, interfaz).
   token de `.env.local` (no mostrarlo nunca).
 
 ## Cómo trabajar aquí
+- **Nada se queda cargando para siempre**: las peticiones llevan límite (`datos.conLimite`,
+  `senalConLimite`; `api()` y la función de IGDB, 25 s). Lo que espera a los datos del grupo usa
+  `datos.estadoCarga()` (frescos / cargando / fallo a los 15 s o si falla) y `esperaDatos()` de
+  `js/ui.js` ("Cargando…", "no existe" o el error con Reintentar: `data-reintentar-datos`, lo
+  atiende `js/app.js`). Cada pantalla con algo que pide aparte tiene su error y su Reintentar.
 - Despliegas y migras tú (commit + push a main). En "LO QUE TIENES QUE HACER TÚ" solo lo
   imprescindible que no se pueda hacer desde aquí.
 - Sin emojis en la interfaz; iconos propios rellenos (`js/icons.js`).

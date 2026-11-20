@@ -9,7 +9,7 @@ import * as datos from '../datos.js';
 import * as metricas from '../metricas.js';
 import { usuarioActual } from '../sesion.js';
 import { formatearNota, notaALetra as notaLetra } from '../notas.js';
-import { esc, avatar, portada, chipLetra, cabeceraAtras, estadoVacio, tiempoRelativo, aviso, estaRejugando, marcaRejugado, notaConLetra, pintarHtml } from '../ui.js';
+import { esc, avatar, portada, chipLetra, cabeceraAtras, estadoVacio, tiempoRelativo, aviso, estaRejugando, marcaRejugado, notaConLetra, pintarHtml, esperaDatos } from '../ui.js';
 import * as social from '../social.js';
 import * as insignias from '../insignias.js';
 import { abrirHoja } from '../hoja.js';
@@ -125,7 +125,7 @@ function renderPerfil(el, id, alSalir, pedida = null) {
     if (!u) {
       el.innerHTML = `
         ${cabeceraAtras('Perfil')}
-        ${estadoVacio({ icono: 'perfil', titulo: 'Este perfil no existe', texto: 'Puede que esa persona ya no esté en el grupo.' })}`;
+        ${datos.estadoCarga() === 'frescos' ? estadoVacio({ icono: 'perfil', titulo: 'Este perfil no existe', texto: 'Puede que esa persona ya no esté en el grupo.' }) : `<div class="vacio">${esperaDatos(datos.estadoCarga(), '', 'vacio-texto')}</div>`}`;
       if (!el.hidden) document.title = 'CVJ · Perfil';
       return;
     }

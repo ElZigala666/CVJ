@@ -51,6 +51,19 @@ export function radar({ ejes, base, otras = [], activa = null, max = 1, dim = 'g
 // ---------------------------------------------------------------------------
 // Anillo
 // ---------------------------------------------------------------------------
+/** La etiqueta del centro del anillo, entera: en dos líneas por palabras si no cabe en una (12 letras). */
+function lineasCentro(t) {
+  if (t.length <= 12) return [t];
+  const palabras = t.split(' ');
+  const lineas = [''];
+  for (const w of palabras) {
+    const l = lineas.length - 1;
+    if (!lineas[l] || (lineas[l] + ' ' + w).length <= 12 || l === 1) lineas[l] = lineas[l] ? `${lineas[l]} ${w}` : w;
+    else lineas.push(w);
+  }
+  return lineas.map((l) => (l.length > 13 ? `${l.slice(0, 12)}…` : l));
+}
+
 /**
  * partes: [{ tag, peso, n }] (ordenadas); se enseñan las 5 primeras y el resto junto en
  * "Otros". centro: { valor, texto }.
@@ -79,13 +92,14 @@ export function anillo({ partes, dim, uid = '', titulo, maxPartes = 5 }) {
     return s;
   }).join('');
   const prin = lista[0];
+  const sub = lineasCentro(prin.tag);
   return `
     <div class="anillo">
       <svg class="anillo-svg" viewBox="0 0 120 120" role="img" aria-label="${esc(titulo)}">
         <circle class="anillo-pista" cx="60" cy="60" r="${r}"/>
         <g transform="rotate(-90 60 60)">${arcos}</g>
-        <text class="anillo-centro" x="60" y="62">${pct(prin.peso / total)}</text>
-        <text class="anillo-centro-sub" x="60" y="76">${esc(prin.tag.length > 12 ? `${prin.tag.slice(0, 11)}…` : prin.tag)}</text>
+        <text class="anillo-centro" x="60" y="${sub.length > 1 ? 57 : 62}">${pct(prin.peso / total)}</text>
+        <text class="anillo-centro-sub" x="60" y="${sub.length > 1 ? 70 : 76}">${sub.map((l, i) => `<tspan x="60" dy="${i ? 11 : 0}">${esc(l)}</tspan>`).join('')}</text>
       </svg>
       <ul class="anillo-leyenda">
         ${lista.map((p, i) => `
@@ -123,7 +137,7 @@ const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'o
 export const claveDia = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 /** porDia: Map('aaaa-mm-dd' → n). Niveles 1-4 en escala logarítmica (un día enorme no apaga los demás). */
-export function mapaCalor(porDia, { semanas = 53 } = {}) {
+export function mapaCalor(porDia, { semanas = 53, cargas = new Set() } = {}) {
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
   const diaSemana = (hoy.getDay() + 6) % 7; // lunes = 0
@@ -145,7 +159,9 @@ export function mapaCalor(porDia, { semanas = 53 } = {}) {
       }
       const k = claveDia(f);
       const n = porDia.get(k) ?? 0;
-      celdas += `<rect class="calor-celda nv${nivel(n)} graf-anim" x="${izq + s * (T + G)}" y="${arriba + d * (T + G)}" width="${T}" height="${T}" rx="2.5" style="--i:${s}"${n ? ` data-dia="${k}" role="button" aria-label="${k}: ${n}"` : ''}><title>${f.getDate()} ${MESES[f.getMonth()]}: ${n}</title></rect>`;
+      const carga = cargas.has(k);
+      const o = carga ? 0.75 : 0;
+      celdas += `<rect class="calor-celda nv${nivel(n)}${carga ? ' carga' : ''} graf-anim" x="${izq + s * (T + G) + o}" y="${arriba + d * (T + G) + o}" width="${T - 2 * o}" height="${T - 2 * o}" rx="2.5" style="--i:${s}" data-dia="${k}"${n || carga ? ' role="button"' : ''} aria-label="${f.getDate()} ${MESES[f.getMonth()]}: ${n || 'nada'}${carga ? ', puesta al día' : ''}"></rect>`;
     }
   }
   const dias = ['L', '', 'X', '', 'V', '', ''].map((t, d) => (t ? `<text class="calor-dia" x="0" y="${arriba + d * (T + G) + 9}">${t}</text>` : '')).join('');

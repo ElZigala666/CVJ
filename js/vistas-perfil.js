@@ -49,7 +49,7 @@ const desplegados = new Set(); // `${lista}:${letra}`, mientras la app está abi
 const CLAVE_SOLOS = 'cvj.tiers.solos';
 const conSolos = () => { try { return localStorage.getItem(CLAVE_SOLOS) === '1'; } catch { return false; } };
 let ordenando = false; // modo Ordenar de mi tier list
-window.addEventListener('hashchange', () => { ordenando = false; }); // salir de la pantalla lo cierra
+window.addEventListener('hashchange', () => { ordenando = false; quitarTip(); }); // salir de la pantalla lo cierra
 
 /**
  * Los datos de una tier list, rango a rango y ya en su orden (el manual de su dueño, si lo
@@ -284,7 +284,7 @@ const CRITERIOS = [
 /** Cuándo jugué algo: completado (actividad), si no mi valoración, si no mi última partida. */
 function cuandoJugado(x, uid) {
   const ids = x.esColeccion ? datos.juegosDeColeccion(x.clave.slice(2)).map((g) => datos.canonico(g)) : [datos.canonico(x.v?.juego_id)];
-  const acts = datos.actividadAnual(uid) ?? datos.estado.actividad ?? [];
+  const acts = datos.actividadAnual(uid).filas;
   const completado = acts.filter((a) => a.usuario_id === uid || !a.usuario_id).filter((a) => a.tipo === 'completo'
     && (x.esColeccion ? a.coleccion_id === x.clave.slice(2) || ids.includes(datos.canonico(a.juego_id)) : ids.includes(datos.canonico(a.juego_id))))
     .map((a) => new Date(a.creado_en).getTime());
@@ -622,46 +622,76 @@ function listaGeneros(uid, modo) {
   return `<span class="stats-nota">${nota}</span>${grafico.barras({ filas, dim: 'generos', uid, escala: modo === 'nota' ? 10 : null })}`;
 }
 
-/** Mapa de calor de la actividad del último año (se pide al verla). */
-function miAnio(id, tu) {
-  const filas = datos.actividadAnual(id);
-  if (!filas) {
-    return `
-      <section class="stats-seccion">
-        <h2 class="stats-titulo">${tu ? 'Tu año en juegos' : 'Su año en juegos'}</h2>
-        <div class="calor-cargando sk"></div>
-      </section>`;
+/**
+ * La actividad del año de alguien, separada en lo de cada día y las "puestas al día": ráfagas en
+ * las que se apuntan muchos juegos de golpe (al estrenar la cuenta, al pasar el historial): 6 o
+ * más en 10 minutos. Esas no cuentan para el color ni para el resumen; el día sale marcado aparte.
+ */
+const RAFAGA_N = 6, RAFAGA_MS = 10 * 60000;
+function actividadPorDia(uid) {
+  const { estado, filas } = datos.actividadAnual(uid);
+  const t = filas.map((a) => ({ a, ms: new Date(a.creado_en).getTime() })).sort((x, y) => x.ms - y.ms);
+  const golpe = new Set();
+  for (let i = 0, j = 0; i < t.length; i++) {
+    while (t[i].ms - t[j].ms > RAFAGA_MS) j++;
+    if (i - j + 1 >= RAFAGA_N) for (let k = j; k <= i; k++) golpe.add(t[k].a);
   }
-  const porDia = new Map();
-  let valorados = 0, completados = 0;
-  for (const a of filas) {
+  const dias = new Map(); // clave → { normal: [], golpe: [] }
+  for (const { a } of t) {
     const k = grafico.claveDia(new Date(a.creado_en));
-    porDia.set(k, (porDia.get(k) ?? 0) + 1);
-    if (a.tipo === 'valoro') valorados++;
-    if (a.tipo === 'completo') completados++;
+    if (!dias.has(k)) dias.set(k, { normal: [], golpe: [] });
+    dias.get(k)[golpe.has(a) ? 'golpe' : 'normal'].push(a);
   }
-  if (porDia.size < 2) return '';
+  return { estado, dias, nGolpe: golpe.size };
+}
+
+/** Mapa de calor de la actividad del último año: se pinta ya con lo que haya (se pide al verla). */
+function miAnio(id, tu) {
+  const { estado, dias, nGolpe } = actividadPorDia(id);
+  const porDia = new Map();
+  const cargas = new Set();
+  let valorados = 0, completados = 0;
+  for (const [k, d] of dias) {
+    if (d.normal.length) porDia.set(k, d.normal.length);
+    if (d.golpe.length) cargas.add(k);
+    valorados += d.normal.filter((a) => a.tipo === 'valoro').length;
+    completados += d.normal.filter((a) => a.tipo === 'completo').length;
+  }
   // Racha más larga de días seguidos con algo.
-  const dias = [...porDia.keys()].sort();
-  let racha = 1, mejor = 1;
-  for (let i = 1; i < dias.length; i++) {
-    const seguido = (new Date(dias[i]) - new Date(dias[i - 1])) / 86400000 === 1;
+  const claves = [...dias.keys()].sort();
+  let racha = 1, mejor = claves.length ? 1 : 0;
+  for (let i = 1; i < claves.length; i++) {
+    const seguido = Math.round((new Date(claves[i]) - new Date(claves[i - 1])) / 86400000) === 1;
     racha = seguido ? racha + 1 : 1;
     mejor = Math.max(mejor, racha);
   }
+  const aviso = estado === 'cargando'
+    ? `<p class="calor-estado">Cargando el año entero…</p>`
+    : estado === 'error'
+      ? `<p class="calor-estado">No se ha podido cargar todo el año${dias.size ? '; esto es lo más reciente' : ''}. <button type="button" class="enlace-discreto" data-calor-reintentar="${esc(id)}">Reintentar</button></p>`
+      : !dias.size ? `<p class="calor-estado">Aún no hay actividad este año: cada juego que ${tu ? 'valores, empieces o completes' : 'valore, empiece o complete'} aparecerá aquí.</p>` : '';
   return `
     <section class="stats-seccion">
       <h2 class="stats-titulo">${tu ? 'Tu año en juegos' : 'Su año en juegos'}</h2>
-      <p class="resumen-estados">
-        <span><b>${porDia.size}</b> días con actividad</span>
-        <span><b>${completados}</b> completados</span>
-        <span><b>${valorados}</b> valorados</span>
-        ${mejor > 1 ? `<span>racha de <b>${mejor}</b> días</span>` : ''}
-      </p>
-      <div class="calor-scroll" data-calor-uid="${esc(id)}">${grafico.mapaCalor(porDia)}</div>
-      <div class="calor-leyenda"><span>Menos</span>${[0, 1, 2, 3, 4].map((n) => `<i class="nv${n}"></i>`).join('')}<span>Más</span></div>
+      ${dias.size ? `
+        <p class="resumen-estados">
+          <span><b>${dias.size}</b> ${dias.size === 1 ? 'día' : 'días'} con actividad</span>
+          <span><b>${completados}</b> completados</span>
+          <span><b>${valorados}</b> valorados</span>
+          ${mejor > 1 ? `<span>racha de <b>${mejor}</b> días</span>` : ''}
+          ${nGolpe ? `<span><b>${nGolpe}</b> de golpe (puesta al día)</span>` : ''}
+        </p>` : ''}
+      <div class="calor-scroll" data-calor-uid="${esc(id)}">${grafico.mapaCalor(porDia, { cargas })}</div>
+      <div class="calor-leyenda">
+        ${cargas.size ? '<span class="calor-leyenda-carga"><i class="carga"></i>Puesta al día</span>' : ''}
+        <span>Menos</span>${[0, 1, 2, 3, 4].map((n) => `<i class="nv${n}"></i>`).join('')}<span>Más</span>
+      </div>
+      ${aviso}
     </section>`;
 }
+
+/** Nombre corto y claro de una plataforma para las etiquetas de las barras ("Meta Quest 2" → "Quest 2"). */
+const platCorta = (n) => String(n ?? '').replace(/^Meta\s+/i, '').replace(/^PlayStation\s*/i, 'PS').replace(/^Nintendo\s+/i, '');
 
 /** Plataformas (según lo valorado) y horas (las totales, los más jugados): compacto. */
 function plataformasYHoras(u, s, bib, t) {
@@ -680,7 +710,7 @@ function plataformasYHoras(u, s, bib, t) {
             <span class="stats-nota">Plataformas de lo valorado</span>
             <div class="barras-plataforma">${s.plataformas.slice(0, 6).map((x) => `
               <div class="barra-plataforma">
-                <span class="barra-plataforma-nombre">${esc(x.nombre)}</span>
+                <span class="barra-plataforma-nombre" title="${esc(x.nombre)}">${esc(platCorta(x.nombre))}</span>
                 <div class="barra-plataforma-pista"><div class="graf-anim" style="width:${Math.max(4, Math.round((x.n / maxPlat) * 100))}%"></div></div>
                 <span class="barra-plataforma-n">${x.n}</span>
               </div>`).join('')}</div>
@@ -725,8 +755,10 @@ export function clicEstadisticas(e) {
     if (lista) lista.innerHTML = listaGeneros(caja.dataset.uid, modoGeneros);
     return true;
   }
+  const re = e.target.closest('[data-calor-reintentar]');
+  if (re) { datos.reintentarActividadAnual(re.dataset.calorReintentar); return true; }
   const dia = e.target.closest('[data-dia]');
-  if (dia) { abrirDia(caja.dataset.uid, dia.dataset.dia); return true; }
+  if (dia) { abrirDia(dia.closest('[data-calor-uid]')?.dataset.calorUid ?? caja.dataset.uid, dia.dataset.dia); return true; }
   const trozo = e.target.closest('[data-graf]');
   if (trozo) { abrirJuegos(trozo.dataset.uid || caja.dataset.uid, trozo.dataset.graf, trozo.dataset.tag); return true; }
   return false;
@@ -764,26 +796,69 @@ function abrirJuegos(uid, dim, tag) {
 const TEXTO_TIPO = { valoro: 'Valoró', completo: 'Completó', empezo: 'Empezó', abandono: 'Abandonó', pendiente: 'Apuntó como pendiente', rejuega: 'Volvió a jugar' };
 const FECHA_DIA = new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
+/** Lo de un día: cada juego una vez (con todo lo que pasó) y la puesta al día aparte. */
+function resumenDia(uid, dia) {
+  const d = actividadPorDia(uid).dias.get(dia) ?? { normal: [], golpe: [] };
+  const juntar = (filas) => {
+    const m = new Map();
+    for (const f of filas) {
+      const j = f.coleccion_id ? datos.comoJuego(datos.coleccion(f.coleccion_id)) : datos.juegoConocido(f.juego_id);
+      if (!j) continue;
+      const k = f.coleccion_id ? `c:${f.coleccion_id}` : `j:${datos.canonico(f.juego_id)}`;
+      if (!m.has(k)) m.set(k, { juego: j, tipos: [] });
+      const tipo = TEXTO_TIPO[f.tipo] ?? f.tipo;
+      if (!m.get(k).tipos.includes(tipo)) m.get(k).tipos.push(tipo);
+    }
+    return [...m.values()];
+  };
+  return { normal: juntar(d.normal), golpe: juntar(d.golpe) };
+}
+const fechaDia = (dia) => { const [a, m, d] = dia.split('-').map(Number); return new Date(a, m - 1, d); };
+
 function abrirDia(uid, dia) {
-  const filas = (datos.actividadAnual(uid) ?? []).filter((a) => grafico.claveDia(new Date(a.creado_en)) === dia);
-  const [a, m, d] = dia.split('-').map(Number);
+  const { normal, golpe } = resumenDia(uid, dia);
+  if (!normal.length && !golpe.length) return;
+  quitarTip();
+  const lista = (xs) => `
+    <div class="graf-juegos">
+      ${xs.map((x) => `
+        <a class="graf-juego" href="${metricas.rutaDe(x.juego)}">
+          ${portada(x.juego, { clase: 'portada-hoja' })}
+          <span class="graf-juego-texto"><strong>${esc(x.juego.nombre)}</strong><small>${esc(x.tipos.join(' · '))}</small></span>
+        </a>`).join('')}
+    </div>`;
   abrirHoja({
     antetitulo: datos.usuario(uid)?.nombre ?? '',
-    titulo: FECHA_DIA.format(new Date(a, m - 1, d)),
+    titulo: FECHA_DIA.format(fechaDia(dia)),
     html: `
-      <div class="graf-juegos">
-        ${filas.map((f) => {
-          const j = f.coleccion_id ? datos.comoJuego(datos.coleccion(f.coleccion_id)) : datos.juegoConocido(f.juego_id);
-          if (!j) return '';
-          return `
-            <a class="graf-juego" href="${metricas.rutaDe(j)}">
-              ${portada(j, { clase: 'portada-hoja' })}
-              <span class="graf-juego-texto"><strong>${esc(j.nombre)}</strong><small>${esc(TEXTO_TIPO[f.tipo] ?? f.tipo)}</small></span>
-            </a>`;
-        }).join('')}
-      </div>`,
+      ${normal.length ? lista(normal) : ''}
+      ${golpe.length ? `
+        <p class="calor-hoja-carga"><strong>Puesta al día · ${golpe.length} ${golpe.length === 1 ? 'juego' : 'juegos'} de golpe</strong>
+        Apuntados en una ráfaga (el historial de antes): no cuentan para el color del mapa.</p>
+        ${lista(golpe)}` : ''}`,
   });
 }
+
+/** Con ratón: al pasar por un día, qué se hizo (sin abrir nada). */
+const FECHA_TIP = new Intl.DateTimeFormat("es-ES", { weekday: "short", day: "numeric", month: "short" });
+let tipCalor = null;
+function tipDia(celda, uid) {
+  const dia = celda.dataset.dia;
+  const { normal, golpe } = resumenDia(uid, dia);
+  tipCalor ??= Object.assign(document.createElement('div'), { className: 'calor-tip' });
+  if (!tipCalor.isConnected) document.body.append(tipCalor);
+  const lineas = normal.slice(0, 4).map((x) => `<li><b>${esc(x.juego.nombre)}</b> · ${esc(x.tipos.join(', ').toLowerCase())}</li>`);
+  if (normal.length > 4) lineas.push(`<li class="calor-tip-mas">y ${normal.length - 4} más</li>`);
+  if (golpe.length) lineas.push(`<li class="calor-tip-mas">Puesta al día: ${golpe.length} ${golpe.length === 1 ? 'juego' : 'juegos'} de golpe</li>`);
+  tipCalor.innerHTML = `<strong>${esc(FECHA_TIP.format(fechaDia(dia)))}</strong>${lineas.length ? `<ul>${lineas.join('')}</ul>` : '<span>Sin actividad</span>'}`;
+  tipCalor.hidden = false;
+  const r = celda.getBoundingClientRect();
+  const w = tipCalor.offsetWidth, h = tipCalor.offsetHeight;
+  const x = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), innerWidth - w - 8);
+  const y = r.top - h - 8 < 8 ? r.bottom + 8 : r.top - h - 8;
+  tipCalor.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+}
+function quitarTip() { if (tipCalor) tipCalor.hidden = true; }
 
 /**
  * Animar los gráficos cuando entran en pantalla (y no antes) y llevar el mapa de calor a
@@ -793,6 +868,16 @@ let observador = null;
 export function observarGraficos(raiz) {
   for (const c of raiz.querySelectorAll('.calor-scroll')) {
     if (!c.__alFinal) { c.scrollLeft = c.scrollWidth; c.__alFinal = true; }
+    if (!c.__tip) {
+      c.__tip = true;
+      c.addEventListener('pointerover', (e) => {
+        if (e.pointerType !== 'mouse') return;
+        const celda = e.target.closest?.('[data-dia]');
+        if (celda) tipDia(celda, c.dataset.calorUid); else quitarTip();
+      });
+      c.addEventListener('pointerleave', quitarTip);
+      c.addEventListener('scroll', quitarTip, { passive: true });
+    }
   }
   if (!('IntersectionObserver' in window)) return;
   observador ??= new IntersectionObserver((entradas) => {

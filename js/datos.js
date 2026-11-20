@@ -112,11 +112,33 @@ const TABLAS = [
 ];
 
 /** Petición de lectura a la API de Supabase (PostgREST). Lanza si no va bien. */
+/**
+ * Nada se queda esperando para siempre: una promesa que no llega en `ms` falla con
+ * name 'Tiempo' (y quien la pinta enseña su error con "Reintentar").
+ */
+export const ESPERA_MAX = 15000;
+export function conLimite(promesa, ms = ESPERA_MAX) {
+  let reloj;
+  return Promise.race([
+    promesa,
+    new Promise((_, no) => { reloj = setTimeout(() => no(Object.assign(new Error('Tarda demasiado'), { name: 'Tiempo' })), ms); }),
+  ]).finally(() => clearTimeout(reloj));
+}
+/** Una señal que se corta sola a los `ms` (y, si se da, también con la de fuera). */
+export function senalConLimite(ms = ESPERA_MAX, fuera) {
+  const c = new AbortController();
+  const reloj = setTimeout(() => c.abort(), ms);
+  fuera?.addEventListener('abort', () => c.abort(), { once: true });
+  c.signal.addEventListener('abort', () => clearTimeout(reloj), { once: true });
+  return c.signal;
+}
+
 async function api(ruta, cuerpo) {
   const r = await fetch(SUPABASE_URL + ruta, {
     method: cuerpo ? 'POST' : 'GET',
     headers: { apikey: SUPABASE_KEY, ...(cuerpo ? { 'Content-Type': 'application/json' } : {}) },
     body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+    signal: senalConLimite(25000),
   });
   if (!r.ok) throw Object.assign(new Error(`${ruta.split('?')[0]}: ${r.status}`), { estado: r.status });
   if (r.status === 204) return null; // funciones que no devuelven nada
@@ -202,6 +224,7 @@ export const alArrancar = () => cacheLeida;
 
 /** Pinta desde la caché y lanza el refresco en segundo plano. */
 export function iniciar() {
+  vigilarCarga();
   cacheLeida.then(() => { avisar(); refrescar(); });
 }
 
@@ -209,6 +232,23 @@ export function iniciar() {
 let frescos = false;
 const alEstarFrescos = new Set();
 export const datosFrescos = () => frescos;
+/**
+ * La primera carga de esta sesión: 'frescos' | 'cargando' | 'fallo' (falló o tarda más de 15 s
+ * sin nada del servidor). Lo que espera a los datos (un evento, una colección que aún no está)
+ * enseña con 'fallo' su error y "Reintentar" (ui.esperaDatos), nunca "Cargando…" para siempre.
+ */
+let falloCarga = false;
+export const estadoCarga = () => (frescos ? 'frescos' : falloCarga ? 'fallo' : 'cargando');
+/** Reintentar la carga (el botón de los errores): vuelve a "cargando" y pide otra vez. */
+export function reintentarCarga() {
+  falloCarga = false;
+  avisar();
+  vigilarCarga();
+  return refrescar();
+}
+function vigilarCarga() {
+  setTimeout(() => { if (!frescos && !falloCarga) { falloCarga = true; avisar(); } }, ESPERA_MAX);
+}
 /** fn se llama cada vez que termina un refresco con el servidor (haya cambios o no). */
 export function cuandoFrescos(fn) { alEstarFrescos.add(fn); }
 
@@ -253,13 +293,17 @@ export function refrescar() {
       indices = construirIndices(estado);
       avisar();
     }
+    const eraFallo = falloCarga;
     frescos = true;
+    falloCarga = false;
+    if (eraFallo && !cambia) avisar();
     for (const fn of alEstarFrescos) { try { fn(); } catch (e) { console.error(e); } }
     // Decisiones que no se pudieron guardar antes: ahora que hay conexión.
     if (leerPendientes().length) reintentarPendientes();
   })()
     .catch((e) => {
       console.warn('[datos] No se ha podido refrescar:', e.message || e);
+      if (!frescos && !falloCarga) { falloCarga = true; avisar(); }
     })
     .finally(() => {
       refrescando = null;
@@ -307,27 +351,57 @@ function avisar() {
 // ---------------------------------------------------------------------------
 // Actividad de un año de alguien (el mapa de calor de sus estadísticas): se pide al verla
 // (la actividad que se carga al arrancar son solo las últimas filas del grupo) y se guarda
-// mientras la app está abierta. → null mientras llega.
+// mientras la app está abierta. → { estado: 'cargando' | 'listo' | 'error', filas }: las filas
+// son SIEMPRE las que haya (mientras llega o si falla, las de la actividad ya cargada), juntas
+// con lo que se haya escrito después, para pintar ya. Nunca se queda cargando: a los 12 s, error.
 // ---------------------------------------------------------------------------
 const actividadesAnuales = new Map();
+const ESPERA_ANUAL = 12000;
 export function actividadAnual(uid) {
-  const x = actividadesAnuales.get(uid);
-  if (x && (x.filas || Date.now() - x.pedido < 60000)) return x.filas ?? null;
+  let x = actividadesAnuales.get(uid);
+  if (!x) x = pedirActividadAnual(uid);
+  const vistas = new Set();
+  const filas = [];
+  for (const a of [...(x.filas ?? []), ...estado.actividad.filter((a) => a.usuario_id === uid)]) {
+    if (vistas.has(a.id)) continue;
+    vistas.add(a.id);
+    filas.push(a);
+  }
+  return { estado: x.estado, filas };
+}
+/** Volver a pedirla (el botón Reintentar). */
+export function reintentarActividadAnual(uid) {
+  pedirActividadAnual(uid);
+  avisar();
+}
+function pedirActividadAnual(uid) {
   const desde = new Date(Date.now() - 371 * 86400000).toISOString();
-  const pedido = { filas: null, pedido: Date.now() };
+  const pedido = { estado: 'cargando', filas: null };
   actividadesAnuales.set(uid, pedido);
+  const corte = new AbortController();
+  const reloj = setTimeout(() => corte.abort(), ESPERA_ANUAL);
   (async () => {
     const filas = [];
     for (let desdeFila = 0; desdeFila < 20000; desdeFila += PAGINA) {
-      const trozo = await api(`/rest/v1/actividad?select=id,tipo,juego_id,coleccion_id,creado_en&usuario_id=eq.${encodeURIComponent(uid)}&creado_en=gte.${encodeURIComponent(desde)}&order=creado_en.asc,id.asc&offset=${desdeFila}&limit=${PAGINA}`);
-      filas.push(...(trozo ?? []));
-      if (!trozo || trozo.length < PAGINA) break;
+      const r = await fetch(`${SUPABASE_URL}actividad?select=id,usuario_id,tipo,juego_id,coleccion_id,creado_en&usuario_id=eq.${encodeURIComponent(uid)}&creado_en=gte.${encodeURIComponent(desde)}&order=creado_en.asc,id.asc&offset=${desdeFila}&limit=${PAGINA}`,
+        { headers: { apikey: SUPABASE_KEY }, signal: corte.signal });
+      if (!r.ok) throw new Error(`actividad: ${r.status}`);
+      const trozo = await r.json();
+      filas.push(...trozo);
+      if (trozo.length < PAGINA) break;
     }
     pedido.filas = filas;
+    pedido.estado = 'listo';
+  })().catch((e) => {
+    console.warn('[actividad anual]', e.name === 'AbortError' ? 'tarda demasiado' : e.message);
+    pedido.estado = 'error';
+  }).finally(() => {
+    clearTimeout(reloj);
+    if (actividadesAnuales.get(uid) !== pedido) return;
     version++;
     avisar();
-  })().catch((e) => console.warn('[actividad anual]', e.message));
-  return null;
+  });
+  return pedido;
 }
 
 // Reacciones, respuestas y lecturas: lo que se escribe desde aquí solo avisa a quien lo
@@ -792,8 +866,8 @@ export const leida = (usuarioId, entradaId) => (estado.lecturas ?? []).some((l) 
 
 /** El texto de una entrada (no se carga con lo demás). */
 export async function cuerpoDe(entradaId) {
-  const sb = await cliente();
-  const r = await sb.from('entradas').select('cuerpo').eq('id', entradaId).maybeSingle();
+  const sb = await conLimite(cliente());
+  const r = await conLimite(sb.from('entradas').select('cuerpo').eq('id', entradaId).maybeSingle());
   if (r.error) throw r.error;
   return r.data?.cuerpo ?? '';
 }

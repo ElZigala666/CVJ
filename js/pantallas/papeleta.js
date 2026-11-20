@@ -8,7 +8,7 @@ import { icono } from '../icons.js';
 import * as datos from '../datos.js';
 import * as ev from '../eventos.js';
 import { usuarioActual } from '../sesion.js';
-import { esc, avatar, portada, aviso } from '../ui.js';
+import { esc, avatar, portada, aviso, esperaDatos } from '../ui.js';
 import { volver } from '../navegacion.js';
 import { hojaChuleta } from './evento.js';
 
@@ -42,7 +42,7 @@ export function render(el, { params = [] } = {}) {
 
   const pintar = () => {
     const e = datos.evento(id);
-    if (!e) { el.innerHTML = `<section class="papeleta"><p class="evento-nota">${datos.datosFrescos() ? 'Este evento ya no existe.' : 'Cargando…'}</p></section>`; return; }
+    if (!e) { el.innerHTML = `<section class="papeleta">${esperaDatos(datos.estadoCarga(), 'Este evento ya no existe.')}</section>`; return; }
     colocar();
     document.title = `CVJ · Mi porra · ${e.titulo}`;
     el.innerHTML = fin ? resumen(e, yo) : pantalla(e, cats(), i, paso, yo, direccion);

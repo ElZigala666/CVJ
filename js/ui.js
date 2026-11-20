@@ -170,6 +170,17 @@ export function estadoVacio({ icono: nombreIcono, titulo, texto, extra = '', cla
     </div>`;
 }
 
+/**
+ * Lo que sale mientras falta algo que llega con los datos del grupo: "Cargando…"; si ya han
+ * llegado y no está, `noExiste`; si la carga ha fallado o tarda demasiado, el error con
+ * "Reintentar" (data-reintentar-datos: lo atiende js/app.js para toda la app).
+ */
+export function esperaDatos(estado, noExiste, clase = 'evento-nota') {
+  if (estado === 'frescos') return `<p class="${clase}">${esc(noExiste)}</p>`;
+  if (estado === 'fallo') return `<p class="${clase}">No se ha podido cargar. Revisa la conexión. <button type="button" class="enlace-discreto" data-reintentar-datos>Reintentar</button></p>`;
+  return `<p class="${clase}">Cargando…</p>`;
+}
+
 /** Skeleton de una fila de juego (misma forma que la fila real). */
 export function skeletonFila(anchoTitulo = 65, anchoMeta = 40) {
   return `

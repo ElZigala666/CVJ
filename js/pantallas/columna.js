@@ -7,6 +7,7 @@ import { usuarioActual } from '../sesion.js';
 import { volver } from '../navegacion.js';
 import { nombreColumna } from '../columnas-ui.js';
 import { htmlColumna } from '../vistas-perfil.js';
+import { esperaDatos } from '../ui.js';
 
 export function render(el, { params }) {
   const id = params[0];
@@ -15,7 +16,9 @@ export function render(el, { params }) {
   const pintar = () => {
     const col = datos.columna(id);
     if (!col) {
-      el.innerHTML = `<div class="vacio"><h2 class="vacio-titulo">Esta columna no existe</h2><a class="boton-secundario" href="#inicio">Volver</a></div>`;
+      el.innerHTML = datos.estadoCarga() === 'frescos'
+        ? `<div class="vacio"><h2 class="vacio-titulo">Esta columna no existe</h2><a class="boton-secundario" href="#inicio">Volver</a></div>`
+        : `<div class="vacio">${esperaDatos(datos.estadoCarga(), '', 'vacio-texto')}</div>`;
       return;
     }
     document.title = `CVJ · ${nombreColumna(col)}`;

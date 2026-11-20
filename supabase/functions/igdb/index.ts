@@ -1283,7 +1283,7 @@ async function revisarJuegos() {
  * el original si es el que ese usuario ya tiene valorado. Bundle → sus juegos.
  * Devuelve { igdb_id (si confianza ≥ 75), propuesta_id, confianza, tipo, juegos }.
  */
-async function emparejarPsn(e: EntradaPsn & { titleId?: string }) {
+async function emparejarPsn(e: EntradaPsn & { titleId?: string; depurar?: boolean }) {
   const limpio = limpiarNombrePsn(e.nombre);
   if (limpio.length < 2) return { igdb_id: null, propuesta_id: null, confianza: 0, tipo: "juego", motivo: "sin_nombre" };
   const { ids } = await tiposValidos();
@@ -1333,6 +1333,19 @@ async function emparejarPsn(e: EntradaPsn & { titleId?: string }) {
       if (vistos.size >= 40 && r.confianza >= 65) break; // ya hay uno sólido y muchos vistos
     }
     elegido = mejor;
+    // Depuración ({ depurar: true }): los mejores candidatos con su confianza y su parecido de nombre.
+    if (e.depurar) {
+      return {
+        elegido: mejor ? { id: mejor.id, propuesta: mejor.propuesta, confianza: mejor.confianza } : null,
+        variantes: variantesBusqueda(e.nombre).map((v) => conApostrofos(e.nombre, v)),
+        candidatos: [...vistos.values()].map((c) => ({
+          id: c.id, nombre: c.name, tipo: tipoDe(c), version_parent: c.version_parent ?? null,
+          plats: (c.platforms ?? []).map((x) => x.abbreviation ?? x.name).join(","),
+          alts: [...(c.alternative_names ?? []), ...(c.game_localizations ?? [])].map((x) => x.name).slice(0, 6),
+          p: confianza(e, c, bundle), n: mejorNombre(e.nombre, c),
+        })).sort((a, b) => b.p - a.p).slice(0, 8),
+      };
+    }
   }
   if (!elegido?.candidato) return { igdb_id: null, propuesta_id: null, confianza: 0, tipo: "juego", motivo: "sin_resultados" };
 
@@ -1390,6 +1403,7 @@ Deno.serve(async (req) => {
           plataforma: String(cuerpo.plataforma ?? ""),
           primeraVez: cuerpo.primera_vez ? String(cuerpo.primera_vez) : null,
           valorados: Array.isArray(cuerpo.valorados) ? cuerpo.valorados.map(Number) : [],
+          depurar: cuerpo.depurar === true,
         }));
       case "revisar_juegos":
       case "revisar_online":

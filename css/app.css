@@ -4196,3 +4196,36 @@ button.tier-letra { border: 0; padding: 0; font: inherit; cursor: pointer; }
   background: var(--superficie-2); color: var(--texto); font: 700 16px var(--fuente-titulos); cursor: pointer;
 }
 .tier-fila.compacta.abierta .tier-letra { box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .12); }
+
+/* Tier list: modo Ordenar (arrastrar dentro de cada rango) y "Compartir como imagen" */
+.tiers-ordenar { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; font-size: 14px; }
+.tiers-opciones.ordenando { padding: 10px 12px; border-radius: 14px; background: var(--acento-suave); }
+.tiers-ordenando-texto { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--texto); }
+.tiers-ordenar-botones { display: flex; gap: 8px; }
+.tiers.ordenando .tier-item { touch-action: none; cursor: grab; animation: ordenar-tiembla .5s ease-in-out infinite alternate; }
+.tiers.ordenando .tier-item:nth-child(2n) { animation-delay: -.25s; }
+.tiers.ordenando .tier-item.arrastrando { z-index: 10; cursor: grabbing; animation: none; box-shadow: var(--sombra-flotante); transition: none; }
+@keyframes ordenar-tiembla { from { rotate: -1.2deg; } to { rotate: 1.2deg; } }
+@media (prefers-reduced-motion: reduce) { .tiers.ordenando .tier-item { animation: none; } }
+.tiers-compartir { display: flex; justify-content: center; padding: 18px 12px 6px; }
+.ordenar-por { display: grid; gap: 10px; }
+.ordenar-criterios { display: grid; gap: 4px; }
+.ordenar-opcion { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 10px; border-radius: 12px; background: var(--superficie); cursor: pointer; }
+.ordenar-opcion input { accent-color: var(--acento); width: 18px; height: 18px; }
+.ordenar-opcion span { display: grid; gap: 1px; }
+.ordenar-opcion small { font-size: 12px; color: var(--texto-2); }
+
+/* Exportar como imagen */
+.exp { display: grid; gap: 10px; }
+.exp-previa {
+  position: relative; display: flex; justify-content: center; align-items: flex-start; max-height: 46vh; overflow: auto;
+  padding: 10px; border-radius: 16px; background: var(--superficie-2);
+}
+.exp-previa canvas { display: block; width: auto; max-width: 100%; max-height: calc(46vh - 20px); border-radius: 8px; box-shadow: 0 6px 22px rgba(0, 0, 0, .25); cursor: pointer; }
+.exp-previa canvas.alto { max-height: none; width: 100%; }
+.exp-cargando { position: absolute; top: 14px; right: 16px; padding: 3px 10px; border-radius: var(--r-pill); background: var(--flotante); font-size: 12px; font-weight: 600; color: var(--texto-2); }
+.exp-cargando[hidden] { display: none; }
+.exp-seg { width: 100%; }
+.exp-seg button { flex: 1 1 0; }
+.exp-interruptores { display: grid; gap: 6px; margin-top: 4px; }
+.exp-botones { margin-top: 6px; }

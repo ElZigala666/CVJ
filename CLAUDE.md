@@ -125,6 +125,15 @@ español (código, comentarios, commits, interfaz).
   despliega el rango) y completa; por defecto compacta en móvil y completa en escritorio, y la
   elección va en la cuenta (`usuarios.preferencias.tiers`, migración 049; `js/preferencias.js`),
   también en Ajustes.
+  El contenido de cualquier tier list sale de `datosTiers(lista)` (`'u:{id}'` o `'grupo'`) de
+  `js/vistas-perfil.js`, ya en su orden. En MI tier list, modo "Ordenar": arrastrar dentro de cada
+  rango (el rango lo sigue decidiendo la nota) y "Ordenar por…" (nota, nombre, salida, cuándo lo
+  jugué, horas; todos los rangos o uno, con confirmación); se guarda en `usuarios.tiers_orden`
+  (`{"j:ID"|"c:UUID": posición}`, migración 050) y lo ven así también los demás. "Compartir
+  como imagen" al final de todas: `js/tier-imagen.js` (canvas a 2x = 1080 px de ancho, 9:16,
+  1:1 o completo; máximo por rango con "+N" que ocupa un hueco; quitar juegos tocándolos en la
+  vista previa; nota y horas; título; fondo del tema o del acento; Compartir con Web Share y el
+  archivo si `navigator.canShare({files})`, si no o en escritorio, Descargar).
 - Estadísticas (`htmlEstadisticas` / `htmlEstadisticasGrupo` de `js/vistas-perfil.js`): resumen
   compacto, revelaciones (placer culpable, más duro/blando, década, estudio, saga, especialidad),
   ADN de jugador (radar de los 8 géneros más jugados del grupo, raíz del reparto, "Comparar con"),
@@ -225,7 +234,7 @@ español (código, comentarios, commits, interfaz).
   funde por los lados). Si cambia una, cambian las dos (CSS y `ASPECTO_CAB`)),
   `umbral_probados`, `estimar_horas`, `plataformas_ocultas`, `barra` (`{pestanas, inicio}`,
   migración 048; copia local "cvj.barra"), `preferencias` (jsonb de interfaz: `tiers`; migración
-  049).
+  049), `tiers_orden` (orden manual de su tier list; migración 050).
 - `juegos` (PK `igdb_id`): caché de IGDB + `es_online`(_manual) = sin final,
   `relaciones` (jsonb de IGDB), `ttb_*` tiempo para terminar (sin imposibles: > 300 h historia,
   600 extras, 1500 completo; migración 046), `generos`, `temas`, `modos`, `perspectivas`,

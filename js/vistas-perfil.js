@@ -5,7 +5,7 @@ import { icono } from './icons.js';
 import * as datos from './datos.js';
 import * as metricas from './metricas.js';
 import { LETRAS, rangoTier, formatearNota, notaALetra } from './notas.js';
-import { esc, avatar, portada, chipLetra } from './ui.js';
+import { esc, avatar, portada, chipLetra, aviso } from './ui.js';
 import { usuarioActual } from './sesion.js';
 import { modoTiers, guardarPreferencia } from './preferencias.js';
 import { abrirHoja } from './hoja.js';
@@ -40,21 +40,73 @@ export function chipsUsuarios(activo, { grupo = false } = {}) {
 // js/preferencias.js): "completa" (filas que crecen hacia abajo) y "compacta" (cada rango en una
 // fila con scroll horizontal, portadas más grandes y "+N"; tocar la letra o el "+N" lo
 // despliega entero). En la del grupo, por defecto solo juegos con 2 notas o más.
+// En MI tier list, el modo "Ordenar": arrastrar dentro de cada rango (usuarios.tiers_orden,
+// migración 050) y "Ordenar por…" (nota, nombre, salida, cuándo lo jugué, horas). Al final de
+// cualquiera, "Compartir como imagen" (js/tier-imagen.js).
 // ---------------------------------------------------------------------------
 const EN_FILA = 12; // compacta: portadas en la fila antes del "+N"
 const desplegados = new Set(); // `${lista}:${letra}`, mientras la app está abierta
 const CLAVE_SOLOS = 'cvj.tiers.solos';
 const conSolos = () => { try { return localStorage.getItem(CLAVE_SOLOS) === '1'; } catch { return false; } };
+let ordenando = false; // modo Ordenar de mi tier list
+window.addEventListener('hashchange', () => { ordenando = false; }); // salir de la pantalla lo cierra
 
-/** Compacta / Completa (y, en la del grupo, el interruptor de los juegos de una persona). */
-function barraTiers(grupo, t) {
+/**
+ * Los datos de una tier list, rango a rango y ya en su orden (el manual de su dueño, si lo
+ * tiene; detrás, por nota). lista = 'u:{id}' o 'grupo'.
+ * → { total, solos, filas: { S: [{ clave, juego, esColeccion, nota, horas, estimadas, votos, v }] } }
+ */
+export function datosTiers(lista) {
+  if (lista === 'grupo') {
+    const t = metricas.tierListGrupo(conSolos() ? 1 : 2);
+    const filas = Object.fromEntries(LETRAS.map((l) => [l, t.filas[l].map((x) => ({
+      clave: x.coleccion ? `c:${x.coleccion.id}` : `j:${x.juego.igdb_id}`, juego: x.juego, esColeccion: !!x.coleccion,
+      nota: x.media, horas: x.horas, estimadas: x.horasEstimadas, votos: x.votos,
+    }))]));
+    return { total: t.total, solos: t.solos, filas };
+  }
+  const id = lista.slice(2);
+  const t = metricas.tierList(id);
+  const orden = datos.usuario(id)?.tiers_orden ?? {};
+  const filas = {};
+  for (const l of LETRAS) {
+    const items = t.filas[l].map((v, i) => {
+      const j = v.esColeccion ? datos.comoJuego(datos.coleccion(v.coleccion_id)) : datos.juegoConocido(v.juego_id);
+      if (!j) return null;
+      const hc = v.esColeccion ? metricas.horasColeccion(id, v.coleccion_id) : null;
+      return {
+        clave: v.esColeccion ? `c:${v.coleccion_id}` : `j:${v.juego_id}`, juego: j, esColeccion: !!v.esColeccion, v, i,
+        nota: v.nota, horas: hc ? hc.total : metricas.horasDe(id, v.juego_id), estimadas: hc ? hc.estimadas : metricas.estimadasDe(id, v.juego_id),
+      };
+    }).filter(Boolean);
+    // Orden manual: los que tienen posición, por ella; los demás detrás, por nota.
+    const pos = (x) => (Number.isFinite(orden[x.clave]) ? orden[x.clave] : Infinity);
+    filas[l] = items.sort((a, b) => pos(a) - pos(b) || a.i - b.i);
+  }
+  return { total: t.total, solos: 0, filas };
+}
+
+/** Compacta / Completa, Ordenar (la mía) y, en la del grupo, el interruptor de los juegos de una persona. */
+function barraTiers(lista, t) {
   const modo = modoTiers();
+  const mia = lista === `u:${usuarioActual()?.id}`;
+  if (mia && ordenando) {
+    return `
+      <div class="tiers-opciones ordenando">
+        <span class="tiers-ordenando-texto">${icono('arrastrar', { tam: 18, color: 'currentColor' })}Arrastra para ordenar cada rango</span>
+        <div class="tiers-ordenar-botones">
+          <button type="button" class="boton-secundario boton-pequeno" data-tiers-ordenar-por>Ordenar por…</button>
+          <button type="button" class="boton-principal boton-pequeno" data-tiers-ordenar="no">Listo</button>
+        </div>
+      </div>`;
+  }
   return `
     <div class="tiers-opciones">
       <div class="segmentado segmentado-peq" role="tablist" aria-label="Vista de la tier list">
         ${[['compacta', 'Compacta'], ['completa', 'Completa']].map(([m, n]) => `<button type="button" role="tab" data-tiers-modo="${m}" class="${modo === m ? 'activo' : ''}" aria-selected="${modo === m}">${n}</button>`).join('')}
       </div>
-      ${grupo ? `
+      ${mia ? `<button type="button" class="enlace-discreto tiers-ordenar" data-tiers-ordenar="si">${icono('arrastrar', { tam: 16, color: 'currentColor' })}Ordenar</button>` : ''}
+      ${lista === 'grupo' ? `
         <label class="interruptor mini tiers-solos">
           <input type="checkbox" data-tiers-solos${conSolos() ? ' checked' : ''}>
           <span>Incluir juegos de una sola persona${!conSolos() && t.solos ? ` (${t.solos})` : ''}</span>
@@ -62,37 +114,41 @@ function barraTiers(grupo, t) {
     </div>`;
 }
 
+const botonImagen = (lista) => `
+  <div class="tiers-compartir">
+    <button type="button" class="boton-secundario neutro con-icono" data-tiers-imagen="${esc(lista)}">${icono('compartir', { tam: 18, color: 'currentColor' })}<span>Compartir como imagen</span></button>
+  </div>`;
+
 export function htmlTiers(id) {
-  const t = metricas.tierList(id);
+  const lista = `u:${id}`;
+  const t = datosTiers(lista);
   let n = 0;
   if (!t.total) return `<p class="historial-tab-vacia">Todavía no hay notas que cuenten en la tier list.</p>`;
-  const modo = modoTiers();
+  const orden = ordenando && id === usuarioActual()?.id;
+  const modo = orden ? 'completa' : modoTiers();
   return `
-    <p class="tiers-sub">${t.total} ${t.total === 1 ? 'juego' : 'juegos'}, según sus notas</p>
-    ${barraTiers(false, t)}
-    <div class="tiers ${modo}" data-lista>
-      ${LETRAS.map((l) => fila(l, `u:${id}`, modo, t.filas[l].map((v) => {
-        const j = v.esColeccion ? datos.comoJuego(datos.coleccion(v.coleccion_id)) : datos.juegoConocido(v.juego_id);
-        if (!j) return '';
-        const h = v.esColeccion ? metricas.horasColeccion(id, v.coleccion_id).total : metricas.horasDe(id, v.juego_id);
-        const est = v.esColeccion ? metricas.horasColeccion(id, v.coleccion_id).estimadas : metricas.estimadasDe(id, v.juego_id);
-        return item(j, v.esColeccion, formatearNota(v.nota), h ? metricas.textoAprox(h, est) : '', n++ < 12);
-      }))).join('')}
-    </div>`;
+    <p class="tiers-sub">${t.total} ${t.total === 1 ? 'juego' : 'juegos'}, según sus notas${datos.usuario(id)?.tiers_orden ? ' y su orden' : ''}</p>
+    ${barraTiers(lista, t)}
+    <div class="tiers ${modo}${orden ? ' ordenando' : ''}"${orden ? '' : ' data-lista'}>
+      ${LETRAS.map((l) => fila(l, lista, modo, t.filas[l].map((x) => item(x.juego, x.esColeccion, formatearNota(x.nota),
+        x.horas ? metricas.textoAprox(x.horas, x.estimadas) : '', n++ < 12, !orden, orden ? x.clave : null)))).join('')}
+    </div>
+    ${orden ? '' : botonImagen(lista)}`;
 }
 
 /** La del grupo: cada juego con la nota media de todos los que lo han valorado (2 notas o más, salvo que se pida). */
 export function htmlTiersGrupo() {
-  const t = metricas.tierListGrupo(conSolos() ? 1 : 2);
+  const t = datosTiers('grupo');
   let n = 0;
   const modo = modoTiers();
-  if (!t.total) return `${barraTiers(true, t)}<p class="historial-tab-vacia">Todavía no hay juegos con notas de ${conSolos() ? 'nadie' : 'dos personas'}.</p>`;
+  if (!t.total) return `${barraTiers('grupo', t)}<p class="historial-tab-vacia">Todavía no hay juegos con notas de ${conSolos() ? 'nadie' : 'dos personas'}.</p>`;
   return `
     <p class="tiers-sub">${t.total} ${t.total === 1 ? 'juego' : 'juegos'}, con la nota media de todos${conSolos() ? '' : ' (con 2 notas o más)'}</p>
-    ${barraTiers(true, t)}
+    ${barraTiers('grupo', t)}
     <div class="tiers ${modo}">
-      ${LETRAS.map((l) => fila(l, 'grupo', modo, t.filas[l].map((x) => item(x.juego, !!x.coleccion, formatearNota(x.media), `${x.votos} ${x.votos === 1 ? 'nota' : 'notas'}`, n++ < 12, false)))).join('')}
-    </div>`;
+      ${LETRAS.map((l) => fila(l, 'grupo', modo, t.filas[l].map((x) => item(x.juego, x.esColeccion, formatearNota(x.nota), `${x.votos} ${x.votos === 1 ? 'nota' : 'notas'}`, n++ < 12, false)))).join('')}
+    </div>
+    ${botonImagen('grupo')}`;
 }
 
 function fila(l, lista, modo, items) {
@@ -108,18 +164,29 @@ function fila(l, lista, modo, items) {
     ${modo === 'compacta' && llenos.length
       ? `<button type="button" class="tier-letra" data-tier="${l}" data-tier-abrir="${esc(lista)}:${l}" aria-expanded="${abierto}" aria-label="${l}: ${abierto ? 'plegar' : 'ver entero'}">${letra}</button>`
       : `<div class="tier-letra" data-tier="${l}">${letra}</div>`}
-    <div class="tier-juegos">
+    <div class="tier-juegos" data-rango="${l}">
       ${llenos.length ? visibles.join('') : '<span class="tier-vacio">Ningún juego en este tier</span>'}
       ${resto > 0 ? `<button type="button" class="tier-mas" data-tier-abrir="${esc(lista)}:${l}">+${resto}</button>` : ''}
     </div>
   </div>`;
 }
 
-/** Clics de la tier list (vista, juegos de una persona, desplegar un rango). true si era suyo. */
+/** Clics de la tier list (vista, ordenar, imagen, desplegar un rango). true si era suyo. */
 export function clicTiers(e) {
+  // En el modo Ordenar las portadas no abren la ficha (se arrastran).
+  if (ordenando && e.target.closest('.tiers.ordenando .tier-item')) { e.preventDefault(); return true; }
   const m = e.target.closest('[data-tiers-modo]');
   if (m) {
     if (m.dataset.tiersModo !== modoTiers()) { guardarPreferencia('tiers', m.dataset.tiersModo); datos.repintar(); }
+    return true;
+  }
+  const o = e.target.closest('[data-tiers-ordenar]');
+  if (o) { ordenando = o.dataset.tiersOrdenar === 'si'; datos.repintar(); return true; }
+  if (e.target.closest('[data-tiers-ordenar-por]')) { abrirOrdenarPor(); return true; }
+  const img = e.target.closest('[data-tiers-imagen]');
+  if (img) {
+    const lista = img.dataset.tiersImagen;
+    import('./tier-imagen.js').then((mod) => mod.abrirExportar(lista));
     return true;
   }
   const a = e.target.closest('[data-tier-abrir]');
@@ -140,13 +207,166 @@ export function cambioTiers(e) {
   return true;
 }
 
-function item(j, esColeccion, nota, pie, prioridad, seleccionable = true) {
+function item(j, esColeccion, nota, pie, prioridad, seleccionable = true, clave = null) {
   return `
-    <a class="tier-item${esColeccion ? ' es-coleccion' : ''}"${esColeccion || !seleccionable ? '' : ` data-sel="${j.igdb_id}"`} href="${metricas.rutaDe(j)}" data-precarga="${esc(j.cover_id ?? '')}" aria-label="${esc(j.nombre)}${esColeccion ? ' (colección)' : ''}, ${nota}">
-      ${portada(j, { clase: 'portada-tier', titulo: 'arriba', prioridad, ancho: modoTiers() === 'compacta' ? 72 : undefined })}
+    <a class="tier-item${esColeccion ? ' es-coleccion' : ''}"${esColeccion || !seleccionable ? '' : ` data-sel="${j.igdb_id}"`}${clave ? ` data-orden="${esc(clave)}"` : ''} href="${metricas.rutaDe(j)}" data-precarga="${esc(j.cover_id ?? '')}" aria-label="${esc(j.nombre)}${esColeccion ? ' (colección)' : ''}, ${nota}" draggable="false">
+      ${portada(j, { clase: 'portada-tier', titulo: 'arriba', prioridad, ancho: modoTiers() === 'compacta' && !clave ? 72 : undefined })}
       ${esColeccion ? '<span class="sello-coleccion mini">Colección</span>' : ''}
       <span class="tier-nota">${nota}${pie ? `<small class="tier-horas">${esc(pie)}</small>` : ''}</span>
     </a>`;
+}
+
+// ---- Modo Ordenar: arrastrar dentro de un rango ------------------------------------
+/** Guarda el orden de unos rangos de MI tier list: claves en orden, por rango. */
+function guardarOrden(porRango) {
+  const yo = usuarioActual();
+  if (!yo) return;
+  const orden = { ...(datos.usuario(yo.id)?.tiers_orden ?? {}) };
+  for (const claves of Object.values(porRango)) claves.forEach((k, i) => { orden[k] = i; });
+  datos.actualizarUsuario(yo.id, { tiers_orden: orden }, aviso, 'No se ha podido guardar el orden. Se ha deshecho el cambio.');
+}
+
+let arrastre = null;
+document.addEventListener('pointerdown', (e) => {
+  const it = ordenando && e.target.closest?.('.tiers.ordenando .tier-item[data-orden]');
+  if (!it || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  e.preventDefault();
+  const r = it.getBoundingClientRect();
+  arrastre = { it, caja: it.parentElement, dx: e.clientX - r.left, dy: e.clientY - r.top, id: e.pointerId, movido: false };
+  it.classList.add('arrastrando');
+  try { it.setPointerCapture(e.pointerId); } catch { /* nada */ }
+  try { navigator.vibrate?.(10); } catch { /* nada */ }
+});
+document.addEventListener('pointermove', (e) => {
+  if (!arrastre || e.pointerId !== arrastre.id) return;
+  const { it, caja } = arrastre;
+  // ¿Sobre qué hermano está el dedo? (solo dentro de su rango)
+  const hermanos = [...caja.querySelectorAll(':scope > .tier-item')].filter((x) => x !== it);
+  let destino = null;
+  let antes = true;
+  for (const h of hermanos) {
+    const r = h.getBoundingClientRect();
+    if (e.clientY >= r.top - 6 && e.clientY <= r.bottom + 6 && e.clientX >= r.left - 6 && e.clientX <= r.right + 6) {
+      destino = h;
+      antes = e.clientX < r.left + r.width / 2;
+      break;
+    }
+  }
+  if (destino) {
+    const ya = antes ? destino.previousElementSibling === it : destino.nextElementSibling === it;
+    if (!ya) { if (antes) destino.before(it); else destino.after(it); arrastre.movido = true; }
+  }
+  // La portada sigue al dedo (desde donde está ahora en la fila).
+  it.style.transform = '';
+  const r = it.getBoundingClientRect();
+  it.style.transform = `translate(${e.clientX - r.left - arrastre.dx}px, ${e.clientY - r.top - arrastre.dy}px)`;
+});
+const soltarArrastre = (e) => {
+  if (!arrastre || (e && e.pointerId !== arrastre.id)) return;
+  const { it, caja, movido } = arrastre;
+  arrastre = null;
+  it.classList.remove('arrastrando');
+  it.style.transform = '';
+  if (movido) guardarOrden({ [caja.dataset.rango]: [...caja.querySelectorAll(':scope > .tier-item[data-orden]')].map((x) => x.dataset.orden) });
+};
+document.addEventListener('pointerup', soltarArrastre);
+document.addEventListener('pointercancel', soltarArrastre);
+
+// ---- Ordenar por… (con confirmación) ------------------------------------------------
+const CRITERIOS = [
+  ['nota', 'Nota', 'De más a menos'],
+  ['nombre', 'Nombre', 'De la A a la Z'],
+  ['salida', 'Fecha de salida', 'Del más antiguo al más nuevo'],
+  ['jugado', 'Cuándo lo jugué', 'Lo más reciente primero'],
+  ['horas', 'Horas jugadas', 'De más a menos'],
+];
+
+/** Cuándo jugué algo: completado (actividad), si no mi valoración, si no mi última partida. */
+function cuandoJugado(x, uid) {
+  const ids = x.esColeccion ? datos.juegosDeColeccion(x.clave.slice(2)).map((g) => datos.canonico(g)) : [datos.canonico(x.v?.juego_id)];
+  const acts = datos.actividadAnual(uid) ?? datos.estado.actividad ?? [];
+  const completado = acts.filter((a) => a.usuario_id === uid || !a.usuario_id).filter((a) => a.tipo === 'completo'
+    && (x.esColeccion ? a.coleccion_id === x.clave.slice(2) || ids.includes(datos.canonico(a.juego_id)) : ids.includes(datos.canonico(a.juego_id))))
+    .map((a) => new Date(a.creado_en).getTime());
+  if (completado.length) return Math.max(...completado);
+  const val = x.v ? new Date(x.v.creado_en || x.v.actualizado_en || 0).getTime() : 0;
+  if (val) return val;
+  const partidas = datos.bibliotecaDe(uid).filter((f) => ids.includes(datos.canonico(datos.igdbDeBiblioteca(f)))).map((f) => new Date(f.ultima_vez || 0).getTime());
+  return partidas.length ? Math.max(...partidas) : 0;
+}
+function anioDe(x) {
+  if (!x.esColeccion) return x.juego.anio ?? 9999;
+  const anios = datos.juegosDeColeccion(x.clave.slice(2)).map((g) => datos.juegoConocido(g)?.anio).filter(Boolean);
+  return anios.length ? Math.min(...anios) : 9999;
+}
+function ordenarItems(items, criterio, uid) {
+  const nombre = (a, b) => a.juego.nombre.localeCompare(b.juego.nombre, 'es');
+  const f = {
+    nota: (a, b) => (b.nota ?? -1) - (a.nota ?? -1) || nombre(a, b),
+    nombre,
+    salida: (a, b) => anioDe(a) - anioDe(b) || nombre(a, b),
+    jugado: (a, b) => cuandoJugado(b, uid) - cuandoJugado(a, uid) || nombre(a, b),
+    horas: (a, b) => (b.horas ?? 0) - (a.horas ?? 0) || nombre(a, b),
+  }[criterio];
+  return [...items].sort(f);
+}
+
+function abrirOrdenarPor() {
+  const yo = usuarioActual();
+  if (!yo) return;
+  datos.actividadAnual(yo.id); // para "Cuándo lo jugué" (se pide si aún no está)
+  const t = datosTiers(`u:${yo.id}`);
+  const conJuegos = LETRAS.filter((l) => t.filas[l].length);
+  let criterio = 'nota';
+  let alcance = 'todos';
+  abrirHoja({
+    titulo: 'Ordenar por…',
+    html: `
+      <div class="ordenar-por" data-ref="caja">
+        <div class="ordenar-criterios" role="radiogroup" aria-label="Criterio">
+          ${CRITERIOS.map(([id, n, d]) => `
+            <label class="ordenar-opcion"><input type="radio" name="ord-criterio" value="${id}"${id === criterio ? ' checked' : ''}><span><strong>${n}</strong><small>${d}</small></span></label>`).join('')}
+        </div>
+        <label class="campo-titulo" for="ord-alcance">Dónde</label>
+        <select id="ord-alcance" class="psn-input" data-ref="alcance">
+          <option value="todos">Todos los rangos</option>
+          ${conJuegos.map((l) => `<option value="${l}">Solo el rango ${l}</option>`).join('')}
+        </select>
+        <div data-ref="paso">
+          <button type="button" class="boton-principal" data-ref="ordenar">Ordenar</button>
+        </div>
+      </div>`,
+    alMontar(cuerpo, cerrar) {
+      const $ = (r) => cuerpo.querySelector(`[data-ref="${r}"]`);
+      cuerpo.addEventListener('change', (e) => {
+        if (e.target.name === 'ord-criterio') criterio = e.target.value;
+        if (e.target === $('alcance')) alcance = e.target.value;
+        $('paso').innerHTML = '<button type="button" class="boton-principal" data-ref="ordenar">Ordenar</button>';
+      });
+      cuerpo.addEventListener('click', (e) => {
+        if (e.target.closest('[data-ref="ordenar"]')) {
+          $('paso').innerHTML = `
+            <div class="psn-confirmar" role="group" aria-label="Confirmar">
+              <p>Esto sustituye tu orden manual en ${alcance === 'todos' ? 'todos los rangos' : `el rango ${alcance}`}. Después puedes seguir retocándolo a mano.</p>
+              <div class="psn-confirmar-botones">
+                <button type="button" class="boton-secundario neutro" data-ref="cancelar">Cancelar</button>
+                <button type="button" class="boton-principal" data-ref="confirmar">Sí, ordenar</button>
+              </div>
+            </div>`;
+          return;
+        }
+        if (e.target.closest('[data-ref="cancelar"]')) { $('paso').innerHTML = '<button type="button" class="boton-principal" data-ref="ordenar">Ordenar</button>'; return; }
+        if (e.target.closest('[data-ref="confirmar"]')) {
+          const fresco = datosTiers(`u:${yo.id}`);
+          const rangos = alcance === 'todos' ? conJuegos : [alcance];
+          const porRango = Object.fromEntries(rangos.map((l) => [l, ordenarItems(fresco.filas[l], criterio, yo.id).map((x) => x.clave)]));
+          guardarOrden(porRango);
+          cerrar();
+          aviso(`Ordenado por ${CRITERIOS.find((c) => c[0] === criterio)[1].toLowerCase()}`);
+        }
+      });
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------

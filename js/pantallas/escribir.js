@@ -90,11 +90,14 @@ function editor(el, { params }) {
   }
   // Réplica: a la entrada de otro columnista (mismo tema que la original).
   const original = nueva && params[1] === 'replica' ? datos.entrada(params[2]) : null;
+  // Cita: #escribir/nueva/cita[/juego/{id}] (desde "Citar en mi columna" de la selección de texto).
+  const cita = nueva && params[1] === 'cita' ? (() => { try { return JSON.parse(sessionStorage.getItem('cvj.cita') || 'null'); } catch { return null; } })() : null;
+  const iT = params[1] === 'cita' ? 2 : 1;
   const tema = previa
     ? { juego_id: previa.juego_id, coleccion_id: previa.coleccion_id, saga_id: previa.saga_id }
     : soloLocal ? { juego_id: null, coleccion_id: null, saga_id: null, ...loc.tema }
       : original ? { juego_id: original.juego_id, coleccion_id: original.coleccion_id, saga_id: original.saga_id }
-        : { juego_id: params[1] === 'juego' ? Number(params[2]) : null, coleccion_id: params[1] === 'coleccion' ? params[2] : null, saga_id: params[1] === 'saga' ? params[2] : null };
+        : { juego_id: params[iT] === 'juego' ? Number(params[iT + 1]) : null, coleccion_id: params[iT] === 'coleccion' ? params[iT + 1] : null, saga_id: params[iT] === 'saga' ? params[iT + 1] : null };
   const replicaDe = previa?.replica_de ?? (soloLocal ? loc.replica_de : null) ?? original?.id ?? null;
   const s = {
     titulo: previa?.titulo ?? '', subtitulo: previa?.subtitulo ?? '', cuerpo: '',
@@ -431,8 +434,7 @@ function editor(el, { params }) {
     let v = cuerpo.value;
     // Los bloques ::: no se anidan: si el cursor está dentro de uno, va justo después.
     if (texto.startsWith(':::')) {
-      const lineas = v.slice(0, a).split('
-');
+      const lineas = v.slice(0, a).split('\n');
       let abierto = false;
       for (const l of lineas) { if (/^:::\S/.test(l.trim())) abierto = true; else if (/^:::\s*$/.test(l)) abierto = false; }
       if (abierto) {
@@ -722,7 +724,12 @@ function editor(el, { params }) {
     });
   };
   if (nueva) {
+    if (cita?.texto) {
+      s.cuerpo = `> ${cita.texto}\n\n— ${cita.url ? `[${cita.atrib}](${cita.url})` : cita.atrib}\n\n`;
+      try { sessionStorage.removeItem('cvj.cita'); } catch { /* nada */ }
+    }
     poner();
+    if (s.cuerpo) alEscribir();
     setTimeout(() => titulo.focus(), 50);
   } else if (soloLocal) {
     usarLocal(loc);
